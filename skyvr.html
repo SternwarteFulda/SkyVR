@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+  <script src="js/astronomy.browser.min.js"></script>
+  <script src="js/luxon.min.js"></script>
+</head>
+
+<body>
+  <a-scene loading-screen="
+      dotsColor: white;
+      backgroundColor: black
+    " high-res renderer="
+      antialias: true;
+      highRefreshRate: true;
+      foveationLevel: 0.3;
+    " environment="
+      active: true;
+      preset: none;
+      seed: 0;
+      skyType: atmosphere;
+      skyColor: #88c;
+      horizonColor: #ddd;
+      lighting: none;
+      lightPosition: 300 0 300;
+      fog: 0.75;
+      flatShading: false;
+      playArea: 1;
+      ground: hills;
+      groundYScale: 8;
+      groundTexture: none;
+      groundColor: #553e35;
+      groundColor2: #694439;
+      dressing: none;
+      dressingAmount: 100;
+      dressingColor: #795449;
+      dressingScale: 5;
+      dressingVariance: 1 1 1;
+      dressingUniformScale: true;
+      grid: crosses;
+      dressingOnPlayArea: 0;
+      gridColor: #39d2f2;
+      shadow: false
+    "
+
+    <a-assets>
+      <img id="starTexture" src="assets/star.png">
+      <img id="gaia" src="assets/gaia.png">
+
+      <script src="components/aframe-environment-component.js"></script>
+      <script src="components/aframe-extras.primitives.min.js"></script>
+      <script src="components/skyvr-high-res-component.js"></script>
+      <script src="components/skyvr-starfield-component.js"></script>
+      <script src="components/skyvr-cylinder-component.js"></script>
+      <script src="components/skyvr-rounded-component.js"></script>
+      <script src="components/skyvr-glow-effect-component.js"></script>
+      <script src="components/skyvr-drawing-component.js"></script>
+      <script src="components/skyvr-control-panel-component.js"></script>
+      <script src="components/skyvr-switch-component.js"></script>
+    </a-assets>
+
+
+    <!-- <a-entity light="type: ambient; color: #aaa"></a-entity> -->
+    <!-- <a-entity light="type: hemisphere; color: #000; groundcolor: #aaa" position="0 0.01 0"></a-entity> -->
+
+    <!-- <a-ocean width="800" depth="800" density="400" opacity="1" position="0 0 0"></a-ocean> -->
+
+    <!-- Camera with Oculus Quest-Controller components and laser-controls -->
+    <a-entity id="camera-rig" position="0 1.6 0" rotation="0 0 0">
+      <a-entity id="camera" camera="near: 0.1; far: 3600" look-controls position="0 0 0"></a-entity>
+      <a-entity id="right-controller" material="shader: flat" oculus-touch-controls="hand: right" laser-controls
+        raycaster="objects: [data-raycastable]; far: 5; lineOpacity: 0.5;" drawing>
+        <!-- Coordinate system for the right controller -->
+        <a-entity>
+          <!-- X-Axis (Red) -->
+          <a-entity line="start: 0 0 0; end: 0.1 0 0; color: red;"></a-entity>
+          <!-- Y-Axis (Green) -->
+          <a-entity line="start: 0 0 0; end: 0 0.1 0; color: green;"></a-entity>
+          <!-- Z-Axis (Blue) -->
+          <a-entity line="start: 0 0 0; end: 0 0 0.1; color: blue;"></a-entity>
+        </a-entity>
+        <!-- Pointer -->
+        <a-entity id="pointer" position="0 0.005 0"
+          bottom-origin-cylinder="height: 394; radius: 0.009; color: red; rotation: 54 9 0; opacity: 0.6;"
+          visible="false">
+        </a-entity>
+      </a-entity>
+      <a-entity id="left-controller" oculus-touch-controls="hand: left" position="0 0 0">
+        <a-control-panel id="control-panel-1" enabled="true">
+          <a-entity id="latitude-display" position="0 0.1 0"></a-entity>
+          <a-entity id="date-time-display" position="0 -0.05 0"></a-entity>
+          <a-entity id="sun-elevation-display" position="0 -0.1 0"></a-entity>
+
+          <!-- buttons on the control panel -->
+          <a-cylinder position="0.05 0.05 0" rotation="-90 0 0" radius="0.02" height="0.002" color="red"
+            data-raycastable onclick="onTogglerClick('red')">
+          </a-cylinder>
+          <a-entity id="switch-1" switch="position: -0.05 0.05 0; clickActionParam: green"></a-entity>
+        </a-control-panel>
+      </a-entity>
+    </a-entity>
+
+    <!-- Azimuth Container with initial orientation to the south -->
+    <a-entity id="az-container" rotation="0 180 0" position="0 0 0">
+      <!-- Floor -->
+      <!-- <a-circle id="floor" radius="400" color="#111" position="0 0 0" rotation="-90 0 0" opacity="0.90"></a-circle> -->
+
+      <a-cylinder id="meridian" material="shader: flat; fog: false" radius="390" height="0.8" open-ended="true"
+        color="#228B22" side="back" opacity="0.8" position="0 0 0" rotation="90 90 0"></a-cylinder>
+
+      <!-- Cardinal points on the horizon -->
+      <a-entity id="cardinal-points">
+        <a-entity id="N" text="value: N; align: center; anchor: center; baseline: center; width: 150; color: #FFBB00"
+          position="-0.3 3 -380"></a-entity>
+        <a-entity id="O" text="value: O; align: center; anchor: center; baseline: center; width: 150; color: #FFBB00"
+          position="380 3 -0.2" rotation="0 -90 0"></a-entity>
+        <a-entity id="S" text="value: S; align: center; anchor: center; baseline: center; width: 150; color: #FFBB00"
+          position="0.2 3 380" rotation="0 180 0"></a-entity>
+        <a-entity id="W" text="value: W; align: center; anchor: center; baseline: center; width: 150; color: #FFBB00"
+          position="-380 3 0.2" rotation="0 90 0"></a-entity>
+      </a-entity>
+
+      <!-- Equatorial Container with initial geographic latitude of 90 degrees (North Pole) -->
+      <a-entity id="eq-container" position="0 0 0" rotation="-90 0 0">
+        <a-cylinder id="equator" material="shader: flat; fog: false" radius="392" height="0.8" open-ended="true"
+          color="#0096FF" side="back" opacity="0.8" position="0 0 0" rotation="90 0 0"></a-cylinder>
+
+
+        <!-- North Celestial Pole (NCP) with Glow Effect -->
+        <a-sphere id="ncp" material="shader: flat; fog: false" blending="normal" position="0 0 387" radius="2.0"
+          color="#FF0000" transparent="true" opacity="1.0"></a-sphere>
+        <a-sphere id="ncp_glow" material="shader: flat; fog: false" blending="normal" position="0 0 387" radius="4.0"
+          color="#FF0000" transparent="true" opacity="0.2"></a-sphere>
+
+
+        <!-- Koordinatensystem für den Eq-Container -->
+        <a-entity>
+          <!-- X-Achse (Rot) -->
+          <a-entity line="start: 0 0 0; end: 1 0 0; color: red;"></a-entity>
+          <!-- Y-Achse (Grün) -->
+          <a-entity line="start: 0 0 0; end: 0 1 0; color: green;"></a-entity>
+          <!-- Z-Achse (Blau) -->
+          <a-entity line="start: 0 0 0; end: 0 0 1; color: blue;"></a-entity>
+        </a-entity>
+
+        <a-entity id="precession-container" rotation="23.43619 0 0">
+          <a-cylinder id="ecliptic" material="shader: flat; fog: false" radius="394" height="0.8" open-ended="true"
+            color="#FFBF00" side="back" opacity="0.8" position="0 0 0" rotation="90 0 0"></a-cylinder>
+
+          <!-- Custom Shader for Stars -->
+          <a-entity id="stars-point-cloud" position="0 0 0" rotation="-23.43619 0 0" starfield></a-entity>
+
+          <a-sphere id="milkyway" radius="397" rotation="6.45 29.85 90.06" scale="-1.0 1.0 1.0"
+            material="shader: flat; src: url(assets/gaia.png); side: back; fog: false; transparent: true; opacity: 0.0; blending: additive;"></a-sphere>
+        </a-entity>
+      </a-entity>
+    </a-entity>
+
+
+    <a-rounded id="reset-button" width="2" height="0.5" radius="0.1" material="shader: flat; color: blue"
+      position="0 1 -5" text="value: Reset; align: center; width: 4" data-raycastable
+      onclick="resetScene()"></a-rounded>
+
+
+    <script type="text/javascript">
+      const latitudeDisplay = document.getElementById("latitude-display");
+      const dateTimeDisplay = document.getElementById("date-time-display");
+      const sunElevationDisplay = document.getElementById("sun-elevation-display");
+      const initialLatitude = 50.5;
+      const initialLongitude = 9.7;
+      let latitude = initialLatitude;
+      let longitude = initialLongitude;
+      let elevation = 300;
+      latitudeDisplay.setAttribute("text", `value: Latitude: ${latitude.toFixed(1)}; color: white; width: 1; align: center`);
+      //sunElevationDisplay.setAttribute("text", `value: sun elev.: ${sunAltAz.altitude.toFixed(1)}; color: white; width: 1; align: center`);
+
+      // Initialize a base date/time for the simulation.
+      let simulationTime = luxon.DateTime.now(); // Current local date and time
+      console.log(simulationTime.zoneName);
+
+      let observer = new Astronomy.Observer(latitude, longitude, elevation);
+
+      let isRightControllerGripDown = false;
+
+      // Function to update the scene
+      function updateScene() {
+        let lst = calculateLocalSiderealTime(simulationTime.toUTC().toJSDate(), longitude);
+        let lstDegrees = lst * 15; // Convert LST from hours to degrees
+
+        // Update scene elements based on the new simulation time or latitude
+        eqContainer.setAttribute('rotation', { x: latitude - 180, y: 0, z: lstDegrees - 90 });
+
+        let currentYear = simulationTime.year;
+        let precessionDegrees = (currentYear - 2000) * 360 / 25750; // Simplified precession effect
+        precessionContainer.setAttribute('rotation', { x: 23.43619, y: 0, z: precessionDegrees });
+
+        observer = new Astronomy.Observer(latitude, longitude, elevation);
+        let sunRaDec = Astronomy.Equator('Sun', simulationTime.toJSDate(), observer, false, false);
+        let sunAltAz = Astronomy.Horizon(simulationTime.toJSDate(), observer, sunRaDec.ra, sunRaDec.dec, false);
+        console.log(sunAltAz);
+
+        dateTimeDisplay.setAttribute("text", `value: ${simulationTime.toLocaleString(luxon.DateTime.DATETIME_FULL_WITH_SECONDS)}; color: white; width: 0.5; align: center`);
+        sunElevationDisplay.setAttribute("text", `value: sun elev.: ${sunAltAz.altitude.toFixed(1)}; color: white; width: 1; align: center`);
+
+        // Update latitude display on the control panel
+        // latitude = (eqContainer.object3D.rotation.x * 180 / Math.PI) + 180;
+        const latLabel = latitude >= 0 ? "N" : "S";
+        latitudeDisplay.setAttribute("text", `value: Latitude: ${Math.abs(latitude).toFixed(1)}° ${latLabel}; color: white; width: 1; align: center`);
+
+        const distance = 394;
+
+        const x = -distance * Math.cos((sunAltAz.altitude * Math.PI) / 180) * Math.sin((sunAltAz.azimuth * Math.PI) / 180);
+        const y = distance * Math.sin((sunAltAz.altitude * Math.PI) / 180);
+        const z = distance * Math.cos((sunAltAz.altitude * Math.PI) / 180) * Math.cos((sunAltAz.azimuth * Math.PI) / 180);
+
+        sceneEl.setAttribute('environment', 'lightPosition', `${x} ${y} ${z}`);
+
+        starsPointCloud.components.starfield.update();
+
+        let skyBrightness = mapSunAltitudeToSkyBrightness(sunAltAz.altitude, 0.0);
+        starShaderMaterial.uniforms.skyBrightness.value = skyBrightness;
+        haloShaderMaterial.uniforms.skyBrightness.value = skyBrightness;
+        milkyway.setAttribute('opacity', mapRange(skyBrightness, 0.0, 0.2, 0.25, 0.0)); //milky way max. brightness 25%, fading 5x faster than the stars
+      }
+
+
+// Debounce function to limit the frequency of updates
+function debounce(func, delay) {
+  let timeout;
+  return function(...args) {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), delay);
+  };
+}
+
+// Wrap updateScene with debounce (adjust delay as necessary)
+const debouncedUpdateScene = debounce(updateScene, 100);  // 100ms delay
+
+
+function throttle(func, limit) {
+  let inThrottle;
+  return function (...args) {
+    if (!inThrottle) {
+      func(...args);
+      inThrottle = true;
+      setTimeout(() => (inThrottle = false), limit);
+    }
+  };
+}
+
+// Throttle updateScene to run every 30ms
+const throttledUpdateScene = throttle(updateScene, 30);
+
+
+
+      // Utility function to map the Sun's altitude to a sky brightness value
+      function mapSunAltitudeToSkyBrightness(altitude, lightPollution) {
+        // Example mapping, adjust thresholds and brightness levels as needed
+        if (altitude > -4.0) {
+          // Daytime
+          return 1.0; // Maximum brightness
+        } else if (altitude > -16.5 && altitude <= -4.0) {
+          // Twilight
+          return Math.max(lightPollution, 1.3 * (altitude + 16.5) / 16.5); // Gradual decrease
+        } else {
+          // Nighttime
+          return 0.0 + lightPollution; // Minimum brightness for stars visibility
+        }
+      }
+
+
+      function mapRange(value, inMin, inMax, outMin, outMax) {
+        return ((value - inMin) * (outMax - outMin)) / (inMax - inMin) + outMin;
+      }
+
+      const sceneEl = document.querySelector('a-scene');
+      const cameraRig = document.getElementById("camera-rig");
+      const azContainer = document.getElementById("az-container");
+      const eqContainer = document.getElementById("eq-container");
+      const precessionContainer = document.getElementById("precession-container");
+      const starsPointCloud = document.getElementById("stars-point-cloud");
+      const milkyway = document.getElementById("milkyway");
+
+      //eqContainer.setAttribute('rotation', `${latitude - 180} 0 180`);
+
+
+      // document.addEventListener('DOMContentLoaded', (event) => {
+      //   starsPointCloud.addEventListener('loaded', function() {
+      //     updateScene();
+      //   });
+      // });
+
+      document.addEventListener('DOMContentLoaded', function () {
+        const scene = document.querySelector('a-scene');
+        if (scene) {
+          scene.addEventListener('loaded', function () {
+            updateScene();
+          });
+        }
+      });
+
+
+
+      // Event listeners for the reset button
+      const resetButton = document.getElementById("reset-button");
+      resetButton.addEventListener("mouseenter", function () {
+        resetButton.setAttribute("scale", "1.2 1.2 1");
+      });
+      resetButton.addEventListener("mouseleave", function () {
+        resetButton.setAttribute("scale", "1 1 1");
+      });
+
+      // Function to reload the page
+      function resetScene() {
+        location.reload();
+      }
+
+
+
+      // Eq-Container rotation based on the left joystick
+      const leftController = document.getElementById("left-controller");
+      const timeAdjustmentSpeed = 60; // seconds
+      const latitudeAdjustmentSpeed = 0.05; // degrees
+      const starRotationSpeed = 0.001;
+      const joystickThreshold = 0.95;
+
+      leftController.addEventListener("thumbstickmoved", function (event) {
+        if (event.detail.x !== 0) {
+          // Adjust simulation time by the thumbstick's X axis movement.
+          let timeAdjustment = Math.pow(event.detail.x, 3.0) * timeAdjustmentSpeed;
+          //simulationTime = new DateTime(simulationTime.getTime() + timeAdjustment);
+          simulationTime = simulationTime.plus({ seconds: timeAdjustment });
+          // Update the scene based on the new simulation time.
+          //debouncedUpdateScene();
+          //throttledUpdateScene()
+          updateScene();
+        }
+        if (Math.abs(event.detail.y) >= joystickThreshold) {
+          //eqContainer.object3D.rotation.x -= event.detail.y * starRotationSpeed;
+          let latitudeAdjustment = -event.detail.y * latitudeAdjustmentSpeed;
+          updateLatitude(latitude + latitudeAdjustment);
+
+          updateScene();
+        }
+      });
+
+
+
+      function updateLatitude(newLatitude) {
+        // Ensure newLatitude is within -90 and 90 degrees
+        if (newLatitude > 90) {
+          latitude = 90;
+        } else if (newLatitude < -90) {
+          latitude = -90;
+        } else {
+          latitude = newLatitude;
+        }
+      }
+
+
+      // function toggleControlPanel(panelId) {
+      //   const controlPanels = document.querySelectorAll('[control-panel]');
+      //   controlPanels.forEach(panel => {
+      //     const isEnabled = panel.getAttribute('control-panel').id === panelId;
+      //     panel.setAttribute('control-panel', 'visible', isEnabled);
+      //   });
+      // }
+
+      // Toggle visibility of control panel with X button
+      const controlPanels = document.querySelectorAll('a-control-panel');
+      let lastEnabledControlPanel = null;
+      console.log("Control Panels:", controlPanels);
+
+      leftController.addEventListener("xbuttonup", function (event) {
+        if (lastEnabledControlPanel) {
+          const isEnabled = lastEnabledControlPanel.getAttribute("enabled") === "true";
+          lastEnabledControlPanel.setAttribute("enabled", !isEnabled);
+        } else {
+          // If no control panel is currently enabled, find the first control panel and enable it
+          const firstControlPanel = controlPanels[0];
+          firstControlPanel.setAttribute("enabled", "true");
+          lastEnabledControlPanel = firstControlPanel;
+        }
+      });
+
+      function onTogglerClick(toggler) {
+        if (toggler === 'green') {
+          // Toggle visibility of the meridian, equator and ecliptic
+          const meridian = document.getElementById('meridian');
+          const equator = document.getElementById('equator');
+          const ecliptic = document.getElementById('ecliptic');
+          meridian.setAttribute('visible', !meridian.getAttribute('visible'));
+          equator.setAttribute('visible', !equator.getAttribute('visible'));
+          ecliptic.setAttribute('visible', !ecliptic.getAttribute('visible'));
+        } else if (toggler === 'red') {
+          // Handle the logic for the red button if needed
+        }
+        // Add more conditions for other buttons if necessary
+      }
+
+      // Rotation of the Az-Container around the y-Axis
+      const azimuthRotationStep = 30;
+      let isJoystickReleased = true;
+
+      const rightController = document.getElementById("right-controller");
+      rightController.addEventListener("thumbstickmoved", function (event) {
+        if (!isRightControllerGripDown) {
+          if (event.detail.x > 0.8 && isJoystickReleased) {
+            rotateCameraRig(-azimuthRotationStep);
+            isJoystickReleased = false;
+          } else if (event.detail.x < -0.8 && isJoystickReleased) {
+            rotateCameraRig(azimuthRotationStep);
+            isJoystickReleased = false;
+          } else if (event.detail.x >= -0.8 && event.detail.x <= 0.8) {
+            isJoystickReleased = true;
+          }
+        }
+
+        if (Math.abs(event.detail.y) >= joystickThreshold) {
+          precessionContainer.object3D.rotation.z -= event.detail.y * starRotationSpeed;
+        }
+      });
+
+      function rotateCameraRig(rotationStep) {
+        let currentRotation = cameraRig.getAttribute("rotation").y;
+        currentRotation += rotationStep;
+        cameraRig.setAttribute("rotation", { x: 0, y: Math.round(currentRotation / azimuthRotationStep) * azimuthRotationStep, z: 0 });
+      }
+
+
+      // Toggle pointer visibility
+      rightController.addEventListener("gripdown", function (event) {
+        const pointer = document.getElementById("pointer");
+        pointer.setAttribute('visible', true);
+        isRightControllerGripDown = true;
+      });
+      rightController.addEventListener("gripup", function (event) {
+        const pointer = document.getElementById("pointer");
+        pointer.setAttribute('visible', false);
+        isRightControllerGripDown = false;
+      });
+
+
+      rightController.addEventListener('bbuttondown', () => {
+        rightController.components.drawing.startDrawing();
+      });
+      rightController.addEventListener('bbuttonup', () => {
+        rightController.components.drawing.stopDrawing();
+      });
+      rightController.addEventListener('abuttondown', () => {
+        rightController.components.drawing.clearDrawing();
+      });
+
+    </script>
+
+    <script>
+      // Function to calculate Local Sidereal Time (LST)
+      function calculateLocalSiderealTime(utc, longitude) {
+        //let observer = new Astronomy.Observer(latitude, longitude, elevation);
+        console.log(utc);
+        // Calculate Greenwich Apparent Sidereal Time (GMST) in hours
+        let GAST = Astronomy.SiderealTime(utc);
+        console.log("GAST:", GAST);
+
+        // Local Apparent Sidereal Time (LAST) in hours
+        let LAST = GAST + (longitude / 15);
+        LAST = LAST % 24;
+        console.log("LAST:", LAST);
+        return -LAST;
+      }
+
+    </script>
+
+  </a-scene>
+</body>
+
+</html>
