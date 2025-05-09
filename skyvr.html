@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+  <script src="https://aframe.io/releases/1.7.1/aframe.min.js"></script>
   <script src="js/astronomy.browser.min.js"></script>
   <script src="js/luxon.min.js"></script>
 </head>
@@ -68,10 +68,10 @@
 
     <!-- <a-ocean width="800" depth="800" density="400" opacity="1" position="0 0 0"></a-ocean> -->
 
-    <!-- Camera with Oculus Quest-Controller components and laser-controls -->
+    <!-- Camera with Meta Quest-Controller components and laser-controls -->
     <a-entity id="camera-rig" position="0 1.6 0" rotation="0 0 0">
       <a-entity id="camera" camera="near: 0.1; far: 3600" look-controls position="0 0 0"></a-entity>
-      <a-entity id="right-controller" material="shader: flat" oculus-touch-controls="hand: right" laser-controls
+      <a-entity id="right-controller" material="shader: flat" meta-touch-controls="hand: right" laser-controls
         raycaster="objects: [data-raycastable]; far: 5; lineOpacity: 0.5;" drawing>
         <!-- Coordinate system for the right controller -->
         <a-entity>
@@ -88,7 +88,7 @@
           visible="false">
         </a-entity>
       </a-entity>
-      <a-entity id="left-controller" oculus-touch-controls="hand: left" position="0 0 0">
+      <a-entity id="left-controller" meta-touch-controls="hand: left" position="0 0 0">
         <a-control-panel id="control-panel-1" enabled="true">
           <a-entity id="latitude-display" position="0 0.1 0"></a-entity>
           <a-entity id="date-time-display" position="0 -0.05 0"></a-entity>
