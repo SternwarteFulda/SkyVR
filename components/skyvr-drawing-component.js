@@ -14,27 +14,44 @@ AFRAME.registerComponent('drawing', {
         this.tempVector = new THREE.Vector3();
         this.tempQuaternion = new THREE.Quaternion();
         this.offsetVector = new THREE.Vector3();
-        this.points = [];
-        this.lineMesh = null;
+        this.currentSegmentPoints = []; 
+        this.currentSegmentMesh = null;   
+        this.completedSegmentMeshes = []; 
+        this.isDrawing = false;           
+        this.precessionContainerEl = document.getElementById("precession-container");
+        if (!this.precessionContainerEl) {
+            console.error('Drawing component: precession-container not found!');
+        }
     },
     startDrawing: function () {
-        this.drawing = true;
+        this.isDrawing = true;
+        this.currentSegmentPoints = []; 
     },
     stopDrawing: function () {
-        this.drawing = false;
+        this.isDrawing = false;
+        if (this.currentSegmentMesh && this.currentSegmentPoints.length > 1) {
+            this.completedSegmentMeshes.push(this.currentSegmentMesh);
+        }
+        this.currentSegmentMesh = null; 
     },
     clearDrawing: function () {
-        if (this.lineMesh) {
-            const precessionContainer = document.getElementById("precession-container");
-            precessionContainer.object3D.remove(this.lineMesh);
-            this.lineMesh.geometry.dispose();
-            this.lineMesh = null;
+        this.completedSegmentMeshes.forEach(mesh => {
+            if (mesh && this.precessionContainerEl) {
+                this.precessionContainerEl.object3D.remove(mesh);
+                mesh.geometry.dispose();
+            }
+        });
+        this.completedSegmentMeshes = [];
+
+        if (this.currentSegmentMesh && this.precessionContainerEl) {
+            this.precessionContainerEl.object3D.remove(this.currentSegmentMesh);
+            this.currentSegmentMesh.geometry.dispose();
+            this.currentSegmentMesh = null;
         }
-        this.points = [];
+        this.currentSegmentPoints = [];
     },
     tick: function () {
-        if (this.drawing) {
-            const precessionContainer = document.getElementById("precession-container");
+        if (this.isDrawing && this.precessionContainerEl) { 
             const controllerPosition = new THREE.Vector3();
             this.el.object3D.getWorldPosition(controllerPosition);
 
@@ -45,36 +62,31 @@ AFRAME.registerComponent('drawing', {
             offset.applyQuaternion(controllerQuaternion);
 
             const offsetWorldPosition = controllerPosition.add(offset);
-            const localPosition = precessionContainer.object3D.worldToLocal(offsetWorldPosition.clone());
+            const localPosition = this.precessionContainerEl.object3D.worldToLocal(offsetWorldPosition.clone());
 
-            // Add smoothing logic here
-            if (this.points.length > 0) {
-                // Get the last point in the array
-                const lastPoint = this.points[this.points.length - 1];
-                // Interpolate between the last point and the current point
-                const interpolatedPoints = this.interpolatePoints(lastPoint, localPosition, 5); // Increase to add more intermediate points for smoother lines
-                // Add each interpolated point to the points array
+            if (this.currentSegmentPoints.length > 0) {
+                const lastPoint = this.currentSegmentPoints[this.currentSegmentPoints.length - 1];
+                const interpolatedPoints = this.interpolatePoints(lastPoint, localPosition, 5);
                 interpolatedPoints.forEach(point => {
-                    this.points.push(point);
+                    this.currentSegmentPoints.push(point);
                 });
             } else {
-                // If there are no points, just add the current point
-                this.points.push(localPosition);
+                this.currentSegmentPoints.push(localPosition);
             }
 
-            // Redraw logic remains unchanged
-            if (this.lineMesh) {
-                precessionContainer.object3D.remove(this.lineMesh);
-                this.lineMesh.geometry.dispose();
+            if (this.currentSegmentMesh) {
+                this.precessionContainerEl.object3D.remove(this.currentSegmentMesh);
+                this.currentSegmentMesh.geometry.dispose();
             }
 
-            const geometry = new THREE.BufferGeometry().setFromPoints(this.points);
-            this.lineMesh = new THREE.Line(geometry, this.lineMaterial);
-            precessionContainer.object3D.add(this.lineMesh);
+            if (this.currentSegmentPoints.length > 1) { 
+                const geometry = new THREE.BufferGeometry().setFromPoints(this.currentSegmentPoints);
+                this.currentSegmentMesh = new THREE.Line(geometry, this.lineMaterial);
+                this.precessionContainerEl.object3D.add(this.currentSegmentMesh);
+            }
         }
     },
 
-    // Utility function for interpolation
     interpolatePoints: function (startPoint, endPoint, numberOfPoints) {
         let points = [];
         for (let i = 1; i <= numberOfPoints; i++) {
@@ -86,12 +98,19 @@ AFRAME.registerComponent('drawing', {
 
 
     remove: function () {
-        if (this.lineMesh) {
-            const precessionContainer = document.getElementById("precession-container");
-            precessionContainer.object3D.remove(this.lineMesh);
-            this.lineMesh.geometry.dispose();
-            this.lineMesh = null;
+        this.completedSegmentMeshes.forEach(mesh => {
+            if (mesh && this.precessionContainerEl) {
+                this.precessionContainerEl.object3D.remove(mesh);
+                mesh.geometry.dispose();
+            }
+        });
+        this.completedSegmentMeshes = [];
+
+        if (this.currentSegmentMesh && this.precessionContainerEl) {
+            this.precessionContainerEl.object3D.remove(this.currentSegmentMesh);
+            this.currentSegmentMesh.geometry.dispose();
+            this.currentSegmentMesh = null;
         }
-        this.points = [];
+        this.currentSegmentPoints = [];
     }
 });
