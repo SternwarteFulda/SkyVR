@@ -96,7 +96,14 @@
           <a-entity id="sun-elevation-display" position="0 -0.1 0"></a-entity>
 
           <!-- buttons on the control panel -->
-          <a-entity id="switch-1" switch="position: -0.05 0.05 0; clickActionParam: green"></a-entity>
+          <a-entity id="switch-meridian" switch="position: -0.05 0.05 0; clickActionParam: toggleMeridian"></a-entity>
+          <a-text value="Meridian" position="-0.03 0.05 0" width="0.2" color="white" align="left"></a-text>
+
+          <a-entity id="switch-equator" switch="position: -0.05 0.03 0; clickActionParam: toggleEquator"></a-entity>
+          <a-text value="Equator" position="-0.03 0.03 0" width="0.2" color="white" align="left"></a-text>
+
+          <a-entity id="switch-ecliptic" switch="position: -0.05 0.01 0; clickActionParam: toggleEcliptic"></a-entity>
+          <a-text value="Ecliptic" position="-0.03 0.01 0" width="0.2" color="white" align="left"></a-text>
         </a-control-panel>
       </a-entity>
     </a-entity>
@@ -407,19 +414,53 @@ const throttledUpdateScene = throttle(updateScene, 30);
         }
       });
 
-      function onTogglerClick(toggler) {
-        if (toggler === 'green') {
-          // Toggle visibility of the meridian, equator and ecliptic
-          const meridian = document.getElementById('meridian');
-          const equator = document.getElementById('equator');
-          const ecliptic = document.getElementById('ecliptic');
-          meridian.setAttribute('visible', !meridian.getAttribute('visible'));
-          equator.setAttribute('visible', !equator.getAttribute('visible'));
-          ecliptic.setAttribute('visible', !ecliptic.getAttribute('visible'));
-        } else if (toggler === 'red') {
-          // Handle the logic for the red button if needed
+      function onTogglerClick(action) { // 'action' is the clickActionParam
+        const meridianEl = document.getElementById('meridian');
+        const equatorEl = document.getElementById('equator');
+        const eclipticEl = document.getElementById('ecliptic');
+
+        if (!meridianEl) {
+          console.error("Meridian element ('meridian') not found.");
         }
-        // Add more conditions for other buttons if necessary
+        if (!equatorEl) {
+          console.error("Equator element ('equator') not found.");
+        }
+        if (!eclipticEl) {
+          console.error("Ecliptic element ('ecliptic') not found.");
+        }
+
+        let newVisibility;
+
+        switch (action) {
+          case 'toggleMeridian':
+            if (meridianEl) {
+              newVisibility = !meridianEl.getAttribute('visible');
+              meridianEl.setAttribute('visible', newVisibility);
+              console.log('Meridian visibility toggled to:', newVisibility);
+            }
+            break;
+          case 'toggleEquator':
+            if (equatorEl) {
+              newVisibility = !equatorEl.getAttribute('visible');
+              equatorEl.setAttribute('visible', newVisibility);
+              console.log('Equator visibility toggled to:', newVisibility);
+            }
+            break;
+          case 'toggleEcliptic':
+            if (eclipticEl) {
+              newVisibility = !eclipticEl.getAttribute('visible');
+              eclipticEl.setAttribute('visible', newVisibility);
+              console.log('Ecliptic visibility toggled to:', newVisibility);
+            }
+            break;
+          // Example for other existing actions, like 'red', if needed.
+          // case 'red':
+          //   console.log('Red button action triggered');
+          //   // Handle the logic for the red button if needed
+          //   break;
+          default:
+            console.warn('Unknown or unhandled toggle action:', action);
+        }
       }
 
       // Rotation of the Az-Container around the y-Axis
