@@ -378,8 +378,10 @@ const throttledUpdateScene = throttle(updateScene, 30);
         } else {
           // If no control panel is currently enabled, find the first control panel and enable it
           const firstControlPanel = controlPanels[0];
-          firstControlPanel.setAttribute("enabled", "true");
-          lastEnabledControlPanel = firstControlPanel;
+          if (firstControlPanel) {
+            firstControlPanel.setAttribute("enabled", "false");
+            lastEnabledControlPanel = firstControlPanel;
+          }
         }
       });
 
