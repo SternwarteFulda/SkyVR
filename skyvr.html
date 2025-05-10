@@ -104,6 +104,12 @@
 
           <a-entity id="switch-ecliptic" switch="position: -0.05 0.01 0; clickActionParam: toggleEcliptic"></a-entity>
           <a-text value="Ecliptic" position="-0.03 0.01 0" width="0.2" color="white" align="left"></a-text>
+
+          <a-entity id="switch-cardinal-points" switch="position: -0.05 -0.01 0; clickActionParam: toggleCardinalPoints"></a-entity>
+          <a-text value="Cardinal Pts" position="-0.03 -0.01 0" width="0.2" color="white" align="left"></a-text>
+
+          <a-entity id="switch-ncp" switch="position: -0.05 -0.03 0; clickActionParam: toggleNCP"></a-entity>
+          <a-text value="Poles" position="-0.03 -0.03 0" width="0.2" color="white" align="left"></a-text>
         </a-control-panel>
       </a-entity>
     </a-entity>
@@ -161,6 +167,11 @@
         <a-sphere id="ncp_glow" material="shader: flat; fog: false" blending="normal" position="0 0 387" radius="4.0"
           color="#FF0000" transparent="true" opacity="0.2"></a-sphere>
 
+        <!-- South Celestial Pole (SCP) with Glow Effect -->
+        <a-sphere id="scp" material="shader: flat; fog: false" blending="normal" position="0 0 -387" radius="2.0"
+          color="#0000FF" transparent="true" opacity="1.0"></a-sphere>
+        <a-sphere id="scp_glow" material="shader: flat; fog: false" blending="normal" position="0 0 -387" radius="4.0"
+          color="#0000FF" transparent="true" opacity="0.2"></a-sphere>
 
         <!-- Koordinatensystem für den Eq-Container -->
         <a-entity>
@@ -418,6 +429,11 @@ const throttledUpdateScene = throttle(updateScene, 30);
         const meridianEl = document.getElementById('meridian');
         const equatorEl = document.getElementById('equator');
         const eclipticEl = document.getElementById('ecliptic');
+        const cardinalPointsEl = document.getElementById('cardinal-points');
+        const ncpEl = document.getElementById('ncp');
+        const ncpGlowEl = document.getElementById('ncp_glow');
+        const scpEl = document.getElementById('scp');
+        const scpGlowEl = document.getElementById('scp_glow');
 
         if (!meridianEl) {
           console.error("Meridian element ('meridian') not found.");
@@ -427,6 +443,21 @@ const throttledUpdateScene = throttle(updateScene, 30);
         }
         if (!eclipticEl) {
           console.error("Ecliptic element ('ecliptic') not found.");
+        }
+        if (!cardinalPointsEl) {
+          console.error("Cardinal points element ('cardinal-points') not found.");
+        }
+        if (!ncpEl) {
+          console.error("NCP element ('ncp') not found.");
+        }
+        if (!ncpGlowEl) {
+          console.error("NCP glow element ('ncp_glow') not found.");
+        }
+        if (!scpEl) {
+          console.error("SCP element ('scp') not found.");
+        }
+        if (!scpGlowEl) {
+          console.error("SCP glow element ('scp_glow') not found.");
         }
 
         let newVisibility;
@@ -451,6 +482,23 @@ const throttledUpdateScene = throttle(updateScene, 30);
               newVisibility = !eclipticEl.getAttribute('visible');
               eclipticEl.setAttribute('visible', newVisibility);
               console.log('Ecliptic visibility toggled to:', newVisibility);
+            }
+            break;
+          case 'toggleCardinalPoints':
+            if (cardinalPointsEl) {
+              newVisibility = !cardinalPointsEl.getAttribute('visible');
+              cardinalPointsEl.setAttribute('visible', newVisibility);
+              console.log('Cardinal points visibility toggled to:', newVisibility);
+            }
+            break;
+          case 'toggleNCP':
+            if (ncpEl && ncpGlowEl && scpEl && scpGlowEl) {
+              newVisibility = !ncpEl.getAttribute('visible'); // Assuming all poles have the same visibility state
+              ncpEl.setAttribute('visible', newVisibility);
+              ncpGlowEl.setAttribute('visible', newVisibility);
+              scpEl.setAttribute('visible', newVisibility);
+              scpGlowEl.setAttribute('visible', newVisibility);
+              console.log('Celestial Poles visibility toggled to:', newVisibility);
             }
             break;
           // Example for other existing actions, like 'red', if needed.
