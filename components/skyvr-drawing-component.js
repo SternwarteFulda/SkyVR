@@ -50,6 +50,15 @@ AFRAME.registerComponent('drawing', {
         }
         this.currentSegmentPoints = [];
     },
+    clearLastSegment: function () {
+        if (this.completedSegmentMeshes.length > 0) {
+            const lastSegment = this.completedSegmentMeshes.pop(); // Remove last segment from array
+            if (lastSegment && this.precessionContainerEl) {
+                this.precessionContainerEl.object3D.remove(lastSegment); // Remove from scene
+                lastSegment.geometry.dispose(); // Dispose geometry
+            }
+        }
+    },
     tick: function () {
         if (this.isDrawing && this.precessionContainerEl) { 
             const controllerPosition = new THREE.Vector3();

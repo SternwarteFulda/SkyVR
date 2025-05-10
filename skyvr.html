@@ -516,6 +516,99 @@ const throttledUpdateScene = throttle(updateScene, 30);
       let isJoystickReleased = true;
 
       const rightController = document.getElementById("right-controller");
+
+      // 'A' button state variables
+      let aButtonDownTimestamp = 0;
+      let aButtonIsPhysicallyDown = false;
+      const HOLD_DURATION_THRESHOLD = 1000; // 1 second for hold
+      let holdActionTriggered = false;
+      let aHoldIntervalId = null; // Changed from aHoldCheckAnimationId
+      // let frameCount = 0; // No longer using frameCount
+
+      rightController.addEventListener("gripdown", function (event) {
+        const pointer = document.getElementById("pointer");
+        pointer.setAttribute('visible', true);
+        isRightControllerGripDown = true;
+      });
+      rightController.addEventListener("gripup", function (event) {
+        const pointer = document.getElementById("pointer");
+        pointer.setAttribute('visible', false);
+        isRightControllerGripDown = false;
+      });
+
+      rightController.addEventListener('bbuttondown', () => {
+        rightController.components.drawing.startDrawing();
+      });
+      rightController.addEventListener('bbuttonup', () => {
+        rightController.components.drawing.stopDrawing();
+      });
+      rightController.addEventListener('abuttondown', (event) => {
+        aButtonIsPhysicallyDown = true;
+        aButtonDownTimestamp = performance.now(); // Use performance.now()
+        holdActionTriggered = false; // Reset for new press sequence
+        // frameCount = 0; 
+        
+        // const drawingComponent = rightController.components.drawing;
+        // if (drawingComponent && drawingComponent.lineMaterial) {
+        //   drawingComponent.lineMaterial.color.set('blue'); 
+        // }
+
+        if (aHoldIntervalId) { // Ensure any old interval is cancelled
+          clearInterval(aHoldIntervalId);
+        }
+        aHoldIntervalId = setInterval(checkAHoldWithInterval, 16); // Approx 60fps
+      });
+
+      rightController.addEventListener('abuttonup', (event) => {
+        const wasPhysicallyDown = aButtonIsPhysicallyDown; 
+        aButtonIsPhysicallyDown = false; // Update state: button is now up
+        
+        if (aHoldIntervalId) {
+          clearInterval(aHoldIntervalId);
+          aHoldIntervalId = null;
+        }
+
+        // Process tap if the button was down AND hold was not triggered during its press cycle
+        if (wasPhysicallyDown && !holdActionTriggered) {
+          const drawingComponent = rightController.components.drawing;
+          if (drawingComponent) {
+            drawingComponent.clearLastSegment();
+          }
+        }
+        // holdActionTriggered is reset in abuttondown for the next full press sequence
+      });
+
+      function checkAHoldWithInterval() {
+        if (!aButtonIsPhysicallyDown || holdActionTriggered) { 
+          if (aHoldIntervalId) { 
+            clearInterval(aHoldIntervalId);
+            aHoldIntervalId = null;
+          }
+          return;
+        }
+
+        const currentHoldDuration = performance.now() - aButtonDownTimestamp;
+        
+        if (currentHoldDuration >= HOLD_DURATION_THRESHOLD) {
+          const comp = rightController.components.drawing;
+          if (comp) {
+            // if (comp.lineMaterial) { 
+            //   comp.lineMaterial.color.set('magenta'); 
+            // }
+            comp.clearDrawing(); 
+          }
+          holdActionTriggered = true; 
+          
+          // Interval is already cleared in the first check of this function if holdActionTriggered becomes true
+          // or by aButtonIsPhysicallyDown becoming false. Explicit clear here is also fine.
+          if (aHoldIntervalId) { 
+              clearInterval(aHoldIntervalId);
+              aHoldIntervalId = null;
+          }
+        }
+        // No recursive call needed, setInterval handles the looping
+      }
+
       rightController.addEventListener("thumbstickmoved", function (event) {
         if (!isRightControllerGripDown) {
           if (event.detail.x > 0.8 && isJoystickReleased) {
@@ -539,30 +632,6 @@ const throttledUpdateScene = throttle(updateScene, 30);
         currentRotation += rotationStep;
         cameraRig.setAttribute("rotation", { x: 0, y: Math.round(currentRotation / azimuthRotationStep) * azimuthRotationStep, z: 0 });
       }
-
-
-      // Toggle pointer visibility
-      rightController.addEventListener("gripdown", function (event) {
-        const pointer = document.getElementById("pointer");
-        pointer.setAttribute('visible', true);
-        isRightControllerGripDown = true;
-      });
-      rightController.addEventListener("gripup", function (event) {
-        const pointer = document.getElementById("pointer");
-        pointer.setAttribute('visible', false);
-        isRightControllerGripDown = false;
-      });
-
-
-      rightController.addEventListener('bbuttondown', () => {
-        rightController.components.drawing.startDrawing();
-      });
-      rightController.addEventListener('bbuttonup', () => {
-        rightController.components.drawing.stopDrawing();
-      });
-      rightController.addEventListener('abuttondown', () => {
-        rightController.components.drawing.clearDrawing();
-      });
 
     </script>
 
