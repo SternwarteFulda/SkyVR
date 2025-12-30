@@ -45,22 +45,20 @@
       dressingOnPlayArea: 0;
       gridColor: #39d2f2;
       shadow: false
-    "
+    " <a-assets>
+    <img id="starTexture" src="assets/star.png">
+    <img id="gaia" src="assets/gaia.png">
 
-    <a-assets>
-      <img id="starTexture" src="assets/star.png">
-      <img id="gaia" src="assets/gaia.png">
-
-      <script src="components/aframe-environment-component.js"></script>
-      <script src="components/aframe-extras.primitives.min.js"></script>
-      <script src="components/skyvr-high-res-component.js"></script>
-      <script src="components/skyvr-starfield-component.js"></script>
-      <script src="components/skyvr-cylinder-component.js"></script>
-      <script src="components/skyvr-rounded-component.js"></script>
-      <script src="components/skyvr-glow-effect-component.js"></script>
-      <script src="components/skyvr-drawing-component.js"></script>
-      <script src="components/skyvr-control-panel-component.js"></script>
-      <script src="components/skyvr-switch-component.js"></script>
+    <script src="components/aframe-environment-component.js"></script>
+    <script src="components/aframe-extras.primitives.min.js"></script>
+    <script src="components/skyvr-high-res-component.js"></script>
+    <script src="components/skyvr-starfield-component.js"></script>
+    <script src="components/skyvr-cylinder-component.js"></script>
+    <script src="components/skyvr-rounded-component.js"></script>
+    <script src="components/skyvr-glow-effect-component.js"></script>
+    <script src="components/skyvr-drawing-component.js"></script>
+    <script src="components/skyvr-control-panel-component.js"></script>
+    <script src="components/skyvr-switch-component.js"></script>
     </a-assets>
 
 
@@ -90,26 +88,77 @@
         </a-entity>
       </a-entity>
       <a-entity id="left-controller" meta-touch-controls="hand: left" position="0 0 0">
-        <a-control-panel id="control-panel-1" enabled="true">
-          <a-entity id="latitude-display" position="0 0.1 0"></a-entity>
-          <a-entity id="date-time-display" position="0 -0.05 0"></a-entity>
-          <a-entity id="sun-elevation-display" position="0 -0.1 0"></a-entity>
+        <a-control-panel id="control-panel-1" enabled="true" height="0.5">
+          <a-entity id="latitude-display" position="0 0.22 0"></a-entity>
+          <a-entity id="longitude-display" position="0 0.14 0"></a-entity>
+          <a-entity id="date-time-display" position="0 0.02 0"></a-entity>
 
           <!-- buttons on the control panel -->
-          <a-entity id="switch-meridian" switch="position: -0.05 0.05 0; clickActionParam: toggleMeridian"></a-entity>
-          <a-text value="Meridian" position="-0.03 0.05 0" width="0.2" color="white" align="left"></a-text>
+          <a-entity id="switch-meridian" switch="position: -0.05 0.18 0; clickActionParam: toggleMeridian"></a-entity>
+          <a-text value="Meridian" position="-0.03 0.18 0" width="0.2" color="white" align="left"></a-text>
 
-          <a-entity id="switch-equator" switch="position: -0.05 0.03 0; clickActionParam: toggleEquator"></a-entity>
-          <a-text value="Equator" position="-0.03 0.03 0" width="0.2" color="white" align="left"></a-text>
+          <a-entity id="switch-equator" switch="position: -0.05 0.15 0; clickActionParam: toggleEquator"></a-entity>
+          <a-text value="Equator" position="-0.03 0.15 0" width="0.2" color="white" align="left"></a-text>
 
-          <a-entity id="switch-ecliptic" switch="position: -0.05 0.01 0; clickActionParam: toggleEcliptic"></a-entity>
-          <a-text value="Ecliptic" position="-0.03 0.01 0" width="0.2" color="white" align="left"></a-text>
+          <a-entity id="switch-ecliptic" switch="position: -0.05 0.12 0; clickActionParam: toggleEcliptic"></a-entity>
+          <a-text value="Ecliptic" position="-0.03 0.12 0" width="0.2" color="white" align="left"></a-text>
 
-          <a-entity id="switch-cardinal-points" switch="position: -0.05 -0.01 0; clickActionParam: toggleCardinalPoints"></a-entity>
-          <a-text value="Cardinal Points" position="-0.03 -0.01 0" width="0.2" color="white" align="left"></a-text>
+          <a-entity id="switch-cardinal-points"
+            switch="position: -0.05 0.09 0; clickActionParam: toggleCardinalPoints; toggled: true"></a-entity>
+          <a-text value="Cardinal Points" position="-0.03 0.09 0" width="0.2" color="white" align="left"></a-text>
 
-          <a-entity id="switch-ncp" switch="position: -0.05 -0.03 0; clickActionParam: toggleNCP"></a-entity>
-          <a-text value="Celestial Poles" position="-0.03 -0.03 0" width="0.2" color="white" align="left"></a-text>
+          <a-entity id="switch-ncp" switch="position: -0.05 0.06 0; clickActionParam: toggleNCP"></a-entity>
+          <a-text value="Celestial Poles" position="-0.03 0.06 0" width="0.2" color="white" align="left"></a-text>
+
+          <!-- Coordinates adjusters -->
+          <a-text value="Lat" position="-0.15 0.22 0" width="0.3" color="white" align="left"></a-text>
+          <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 0.22 0.001" color="#444"
+            text="value: -; align: center; width: 0.5" data-raycastable
+            onclick="adjustCoordinate('latitude', -0.1)"></a-rounded>
+          <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 0.22 0.001" color="#444"
+            text="value: +; align: center; width: 0.5" data-raycastable
+            onclick="adjustCoordinate('latitude', 0.1)"></a-rounded>
+
+          <a-text value="Lon" position="-0.15 0.14 0" width="0.3" color="white" align="left"></a-text>
+          <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 0.14 0.001" color="#444"
+            text="value: -; align: center; width: 0.5" data-raycastable
+            onclick="adjustCoordinate('longitude', -0.1)"></a-rounded>
+          <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 0.14 0.001" color="#444"
+            text="value: +; align: center; width: 0.5" data-raycastable
+            onclick="adjustCoordinate('longitude', 0.1)"></a-rounded>
+
+          <!-- Date/Time adjusters -->
+          <a-rounded id="now-button" width="0.08" height="0.03" radius="0.01" position="0.09 0.02 0.001" color="#222"
+            text="value: NOW; align: center; width: 0.5" data-raycastable onclick="setNow()"></a-rounded>
+          <a-text value="Year" position="-0.15 -0.02 0" width="0.3" color="white" align="left"></a-text>
+          <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 -0.02 0.001" color="#444"
+            text="value: -; align: center; width: 0.5" data-raycastable onclick="adjustTime('years', -1)"></a-rounded>
+          <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 -0.02 0.001" color="#444"
+            text="value: +; align: center; width: 0.5" data-raycastable onclick="adjustTime('years', 1)"></a-rounded>
+
+          <a-text value="Month" position="-0.15 -0.06 0" width="0.3" color="white" align="left"></a-text>
+          <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 -0.06 0.001" color="#444"
+            text="value: -; align: center; width: 0.5" data-raycastable onclick="adjustTime('months', -1)"></a-rounded>
+          <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 -0.06 0.001" color="#444"
+            text="value: +; align: center; width: 0.5" data-raycastable onclick="adjustTime('months', 1)"></a-rounded>
+
+          <a-text value="Day" position="-0.15 -0.1 0" width="0.3" color="white" align="left"></a-text>
+          <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 -0.1 0.001" color="#444"
+            text="value: -; align: center; width: 0.5" data-raycastable onclick="adjustTime('days', -1)"></a-rounded>
+          <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 -0.1 0.001" color="#444"
+            text="value: +; align: center; width: 0.5" data-raycastable onclick="adjustTime('days', 1)"></a-rounded>
+
+          <a-text value="Hour" position="-0.15 -0.14 0" width="0.3" color="white" align="left"></a-text>
+          <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 -0.14 0.001" color="#444"
+            text="value: -; align: center; width: 0.5" data-raycastable onclick="adjustTime('hours', -1)"></a-rounded>
+          <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 -0.14 0.001" color="#444"
+            text="value: +; align: center; width: 0.5" data-raycastable onclick="adjustTime('hours', 1)"></a-rounded>
+
+          <a-text value="Minute" position="-0.15 -0.18 0" width="0.3" color="white" align="left"></a-text>
+          <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 -0.18 0.001" color="#444"
+            text="value: -; align: center; width: 0.5" data-raycastable onclick="adjustTime('minutes', -1)"></a-rounded>
+          <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 -0.18 0.001" color="#444"
+            text="value: +; align: center; width: 0.5" data-raycastable onclick="adjustTime('minutes', 1)"></a-rounded>
         </a-control-panel>
       </a-entity>
     </a-entity>
@@ -119,59 +168,51 @@
       <!-- Floor -->
       <!-- <a-circle id="floor" radius="400" color="#111" position="0 0 0" rotation="-90 0 0" opacity="0.90"></a-circle> -->
 
-      <a-cylinder id="meridian" material="shader: flat; fog: false; depthWrite: true;" radius="390" height="0.8" open-ended="true"
-        color="#228B22" side="back" opacity="0.8" position="0 0 0" rotation="90 90 0"
-        object-render-order="1"></a-cylinder>
+      <a-cylinder id="meridian" material="shader: flat; fog: false; depthWrite: true;" radius="390" height="0.8"
+        open-ended="true" color="#228B22" side="back" opacity="0.8" position="0 0 0" rotation="90 90 0"
+        object-render-order="1" visible="false"></a-cylinder>
 
       <!-- Cardinal points on the horizon -->
-      <a-entity id="cardinal-points" object-render-order="0">
+      <a-entity id="cardinal-points" object-render-order="0" visible="true">
         <a-entity id="N" custom-fogless-text="
             value: N;
             fontSize: 90;
             textColor: #FFBB00;
-            worldScale: 0.1;"
-          position="0 3 -380"
-          object-render-order="0"></a-entity>
+            worldScale: 0.1;" position="0 3 -380" object-render-order="0"></a-entity>
         <a-entity id="O" custom-fogless-text="
             value: O;
             fontSize: 90;
             textColor: #FFBB00;
-            worldScale: 0.1;"
-          position="380 3 0" rotation="0 -90 0"
-          object-render-order="0"></a-entity>
+            worldScale: 0.1;" position="380 3 0" rotation="0 -90 0" object-render-order="0"></a-entity>
         <a-entity id="S" custom-fogless-text="
             value: S;
             fontSize: 90;
             textColor: #FFBB00;
-            worldScale: 0.1;"
-          position="0 3 380" rotation="0 180 0"
-          object-render-order="0"></a-entity>
+            worldScale: 0.1;" position="0 3 380" rotation="0 180 0" object-render-order="0"></a-entity>
         <a-entity id="W" custom-fogless-text="
             value: W;
             fontSize: 90;
             textColor: #FFBB00;
-            worldScale: 0.1;"
-          position="-380 3 0" rotation="0 90 0"
-          object-render-order="0"></a-entity>
+            worldScale: 0.1;" position="-380 3 0" rotation="0 90 0" object-render-order="0"></a-entity>
       </a-entity>
 
       <!-- Equatorial Container with initial geographic latitude of 90 degrees (North Pole) -->
       <a-entity id="eq-container" position="0 0 0" rotation="-90 0 0">
         <a-cylinder id="equator" material="shader: flat; fog: false" radius="392" height="0.8" open-ended="true"
-          color="#0096FF" side="back" opacity="0.8" position="0 0 0" rotation="90 0 0"></a-cylinder>
+          color="#0096FF" side="back" opacity="0.8" position="0 0 0" rotation="90 0 0" visible="false"></a-cylinder>
 
 
         <!-- North Celestial Pole (NCP) with Glow Effect -->
         <a-sphere id="ncp" material="shader: flat; fog: false" blending="normal" position="0 0 387" radius="2.0"
-          color="#FF0000" transparent="true" opacity="1.0"></a-sphere>
+          color="#FF0000" transparent="true" opacity="1.0" visible="false"></a-sphere>
         <a-sphere id="ncp_glow" material="shader: flat; fog: false" blending="normal" position="0 0 387" radius="4.0"
-          color="#FF0000" transparent="true" opacity="0.2"></a-sphere>
+          color="#FF0000" transparent="true" opacity="0.2" visible="false"></a-sphere>
 
         <!-- South Celestial Pole (SCP) with Glow Effect -->
         <a-sphere id="scp" material="shader: flat; fog: false" blending="normal" position="0 0 -387" radius="2.0"
-          color="#0000FF" transparent="true" opacity="1.0"></a-sphere>
+          color="#0000FF" transparent="true" opacity="1.0" visible="false"></a-sphere>
         <a-sphere id="scp_glow" material="shader: flat; fog: false" blending="normal" position="0 0 -387" radius="4.0"
-          color="#0000FF" transparent="true" opacity="0.2"></a-sphere>
+          color="#0000FF" transparent="true" opacity="0.2" visible="false"></a-sphere>
 
         <!-- Koordinatensystem für den Eq-Container -->
         <a-entity>
@@ -185,7 +226,7 @@
 
         <a-entity id="precession-container" rotation="23.43619 0 0">
           <a-cylinder id="ecliptic" material="shader: flat; fog: false" radius="394" height="0.8" open-ended="true"
-            color="#FFBF00" side="back" opacity="0.8" position="0 0 0" rotation="90 0 0"></a-cylinder>
+            color="#FFBF00" side="back" opacity="0.8" position="0 0 0" rotation="90 0 0" visible="false"></a-cylinder>
 
           <!-- Custom Shader for Stars -->
           <a-entity id="stars-point-cloud" position="0 0 0" rotation="-23.43619 0 0" starfield></a-entity>
@@ -204,8 +245,9 @@
 
     <script type="text/javascript">
       const latitudeDisplay = document.getElementById("latitude-display");
+      const longitudeDisplay = document.getElementById("longitude-display");
       const dateTimeDisplay = document.getElementById("date-time-display");
-      const sunElevationDisplay = document.getElementById("sun-elevation-display");
+      //const sunElevationDisplay = document.getElementById("sun-elevation-display");
       const initialLatitude = 50.5;
       const initialLongitude = 9.7;
       let latitude = initialLatitude;
@@ -221,6 +263,28 @@
       let observer = new Astronomy.Observer(latitude, longitude, elevation);
 
       let isRightControllerGripDown = false;
+
+      function setNow() {
+        simulationTime = luxon.DateTime.now();
+        updateScene();
+      }
+
+      function adjustTime(unit, amount) {
+        simulationTime = simulationTime.plus({ [unit]: amount });
+        updateScene();
+      }
+
+      function adjustCoordinate(type, amount) {
+        if (type === 'latitude') {
+          latitude = Math.max(-90, Math.min(90, latitude + amount));
+        } else if (type === 'longitude') {
+          longitude = longitude + amount;
+          // Wrap longitude between -180 and 180
+          if (longitude > 180) longitude -= 360;
+          if (longitude < -180) longitude += 360;
+        }
+        updateScene();
+      }
 
       // Function to update the scene
       function updateScene() {
@@ -240,12 +304,14 @@
         console.log(sunAltAz);
 
         dateTimeDisplay.setAttribute("text", `value: ${simulationTime.toLocaleString(luxon.DateTime.DATETIME_FULL_WITH_SECONDS)}; color: white; width: 0.5; align: center`);
-        sunElevationDisplay.setAttribute("text", `value: sun elev.: ${sunAltAz.altitude.toFixed(1)}; color: white; width: 1; align: center`);
+        //sunElevationDisplay.setAttribute("text", `value: sun elev.: ${sunAltAz.altitude.toFixed(1)}; color: white; width: 1; align: center`);
 
-        // Update latitude display on the control panel
-        // latitude = (eqContainer.object3D.rotation.x * 180 / Math.PI) + 180;
+        // Update latitude/longitude displays on the control panel
         const latLabel = latitude >= 0 ? "N" : "S";
         latitudeDisplay.setAttribute("text", `value: Latitude: ${Math.abs(latitude).toFixed(1)}° ${latLabel}; color: white; width: 1; align: center`);
+
+        const lonLabel = longitude >= 0 ? "O" : "W";
+        longitudeDisplay.setAttribute("text", `value: Longitude: ${Math.abs(longitude).toFixed(1)}° ${lonLabel}; color: white; width: 1; align: center`);
 
         const distance = 394;
 
@@ -264,32 +330,32 @@
       }
 
 
-// Debounce function to limit the frequency of updates
-function debounce(func, delay) {
-  let timeout;
-  return function(...args) {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), delay);
-  };
-}
+      // Debounce function to limit the frequency of updates
+      function debounce(func, delay) {
+        let timeout;
+        return function (...args) {
+          clearTimeout(timeout);
+          timeout = setTimeout(() => func(...args), delay);
+        };
+      }
 
-// Wrap updateScene with debounce (adjust delay as necessary)
-const debouncedUpdateScene = debounce(updateScene, 100);  // 100ms delay
+      // Wrap updateScene with debounce (adjust delay as necessary)
+      const debouncedUpdateScene = debounce(updateScene, 100);  // 100ms delay
 
 
-function throttle(func, limit) {
-  let inThrottle;
-  return function (...args) {
-    if (!inThrottle) {
-      func(...args);
-      inThrottle = true;
-      setTimeout(() => (inThrottle = false), limit);
-    }
-  };
-}
+      function throttle(func, limit) {
+        let inThrottle;
+        return function (...args) {
+          if (!inThrottle) {
+            func(...args);
+            inThrottle = true;
+            setTimeout(() => (inThrottle = false), limit);
+          }
+        };
+      }
 
-// Throttle updateScene to run every 30ms
-const throttledUpdateScene = throttle(updateScene, 30);
+      // Throttle updateScene to run every 30ms
+      const throttledUpdateScene = throttle(updateScene, 30);
 
 
 
@@ -547,7 +613,7 @@ const throttledUpdateScene = throttle(updateScene, 30);
         aButtonDownTimestamp = performance.now(); // Use performance.now()
         holdActionTriggered = false; // Reset for new press sequence
         // frameCount = 0; 
-        
+
         // const drawingComponent = rightController.components.drawing;
         // if (drawingComponent && drawingComponent.lineMaterial) {
         //   drawingComponent.lineMaterial.color.set('blue'); 
@@ -560,9 +626,9 @@ const throttledUpdateScene = throttle(updateScene, 30);
       });
 
       rightController.addEventListener('abuttonup', (event) => {
-        const wasPhysicallyDown = aButtonIsPhysicallyDown; 
+        const wasPhysicallyDown = aButtonIsPhysicallyDown;
         aButtonIsPhysicallyDown = false; // Update state: button is now up
-        
+
         if (aHoldIntervalId) {
           clearInterval(aHoldIntervalId);
           aHoldIntervalId = null;
@@ -579,8 +645,8 @@ const throttledUpdateScene = throttle(updateScene, 30);
       });
 
       function checkAHoldWithInterval() {
-        if (!aButtonIsPhysicallyDown || holdActionTriggered) { 
-          if (aHoldIntervalId) { 
+        if (!aButtonIsPhysicallyDown || holdActionTriggered) {
+          if (aHoldIntervalId) {
             clearInterval(aHoldIntervalId);
             aHoldIntervalId = null;
           }
@@ -588,22 +654,22 @@ const throttledUpdateScene = throttle(updateScene, 30);
         }
 
         const currentHoldDuration = performance.now() - aButtonDownTimestamp;
-        
+
         if (currentHoldDuration >= HOLD_DURATION_THRESHOLD) {
           const comp = rightController.components.drawing;
           if (comp) {
             // if (comp.lineMaterial) { 
             //   comp.lineMaterial.color.set('magenta'); 
             // }
-            comp.clearDrawing(); 
+            comp.clearDrawing();
           }
-          holdActionTriggered = true; 
-          
+          holdActionTriggered = true;
+
           // Interval is already cleared in the first check of this function if holdActionTriggered becomes true
           // or by aButtonIsPhysicallyDown becoming false. Explicit clear here is also fine.
-          if (aHoldIntervalId) { 
-              clearInterval(aHoldIntervalId);
-              aHoldIntervalId = null;
+          if (aHoldIntervalId) {
+            clearInterval(aHoldIntervalId);
+            aHoldIntervalId = null;
           }
         }
         // No recursive call needed, setInterval handles the looping
@@ -622,9 +688,9 @@ const throttledUpdateScene = throttle(updateScene, 30);
           }
         }
 
-        if (Math.abs(event.detail.y) >= joystickThreshold) {
-          precessionContainer.object3D.rotation.z -= event.detail.y * starRotationSpeed;
-        }
+        // if (Math.abs(event.detail.y) >= joystickThreshold) {
+        //   precessionContainer.object3D.rotation.z -= event.detail.y * starRotationSpeed;
+        // }
       });
 
       function rotateCameraRig(rotationStep) {

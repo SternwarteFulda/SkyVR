@@ -1,0 +1,12 @@
+{
+  "name": "skyvr",
+  "version": "0.0.1",
+  "description": "Multi-user virtual reality under the sky",
+  "scripts": {
+    "start": "node ./server/easyrtc-server.js"
+  },
+  "author": "mar_s",
+  "dependencies": {
+    "networked-aframe": "^0.14.0"
+  }
+}

@@ -11,9 +11,13 @@ AFRAME.registerComponent('switch', {
         const data = this.data;
 
         this.activeColor = '#fb6419';
+        this.inactiveColor = '#808080';
 
         // Set initial position
         el.setAttribute('position', data.position);
+
+        const initialSliderPos = data.toggled ? '0.005 0 0.00002' : '-0.005 0 0.00002';
+        const initialBaseColor = data.toggled ? this.activeColor : this.inactiveColor;
 
         // Create switch base
         const switchBase = document.createElement('a-rounded');
@@ -22,13 +26,13 @@ AFRAME.registerComponent('switch', {
         switchBase.setAttribute('width', '0.025');
         switchBase.setAttribute('height', '0.015');
         switchBase.setAttribute('radius', '0.0075');
-        switchBase.setAttribute('material', `shader: flat; color: ${this.activeColor}`);
+        switchBase.setAttribute('material', `shader: flat; color: ${initialBaseColor}`);
         el.appendChild(switchBase);
 
         // Create switch slider
         const switchSlider = document.createElement('a-circle');
         switchSlider.setAttribute('class', 'switch-slider');
-        switchSlider.setAttribute('position', '0.005 0 0.00002');
+        switchSlider.setAttribute('position', initialSliderPos);
         switchSlider.setAttribute('radius', '0.005');
         switchSlider.setAttribute('material', 'shader: flat; color: white');
         el.appendChild(switchSlider);
@@ -41,9 +45,6 @@ AFRAME.registerComponent('switch', {
         switchClickarea.setAttribute('height', '0.02');
         switchClickarea.setAttribute('material', 'shader: flat; transparent: true; opacity: 0');
         switchClickarea.setAttribute('data-raycastable', '');
-        // switchClickarea.addEventListener('click', () => {
-        //     window.onTogglerClick(data.clickActionParam);
-        // });
         el.appendChild(switchClickarea);
 
         this.onClick = this.onClick.bind(this);
@@ -71,7 +72,7 @@ AFRAME.registerComponent('switch', {
         if (event.detail.name === 'control-panel') {
             const switchClickarea = this.el.querySelector('.switch-clickarea');
             const isVisible = event.detail.newData.visible;
-        
+
             if (isVisible) {
                 switchClickarea.setAttribute('data-raycastable', '');
             } else {
@@ -84,17 +85,17 @@ AFRAME.registerComponent('switch', {
         const data = this.data;
         const switchSlider = this.el.querySelector('.switch-slider');
         const switchBase = this.el.querySelector('.switch-base');
-    
+
         data.toggled = !data.toggled;
-    
+
         if (data.toggled) {
-            switchSlider.setAttribute('position', '-0.005 0 0.00002');
-            switchBase.setAttribute('material', 'color: #808080');
-        } else {
             switchSlider.setAttribute('position', '0.005 0 0.00002');
             switchBase.setAttribute('material', `color: ${this.activeColor}`);
+        } else {
+            switchSlider.setAttribute('position', '-0.005 0 0.00002');
+            switchBase.setAttribute('material', `color: ${this.inactiveColor}`);
         }
-    
+
         window.onTogglerClick(data.clickActionParam);
-      },
+    },
 });
