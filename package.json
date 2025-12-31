@@ -7,6 +7,7 @@
   },
   "author": "mar_s",
   "dependencies": {
-    "networked-aframe": "^0.14.0"
+    "networked-aframe": "^0.14.0",
+    "dotenv": "^16.4.7"
   }
 }
