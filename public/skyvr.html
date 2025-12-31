@@ -5,9 +5,52 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="https://aframe.io/releases/1.7.1/aframe.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.8.1/socket.io.min.js"></script>
+  <script src="/easyrtc/easyrtc.js"></script>
+  <script src="https://unpkg.com/networked-aframe@^0.14.0/dist/networked-aframe.min.js"></script>
+  <script>
+    // see issue https://github.com/networked-aframe/networked-aframe/issues/267
+    NAF.schemas.getComponentsOriginal = NAF.schemas.getComponents;
+    NAF.schemas.getComponents = (template) => {
+      if (!NAF.schemas.hasTemplate('#avatar-template')) {
+        NAF.schemas.add({
+          template: '#avatar-template',
+          components: [
+            {
+              component: 'position',
+              requiresNetworkUpdate: NAF.utils.vectorRequiresUpdate(0.001)
+            },
+            {
+              component: 'rotation',
+              requiresNetworkUpdate: NAF.utils.vectorRequiresUpdate(0.5)
+            },
+            {
+              selector: '.head',
+              component: 'material',
+              property: 'color'
+            }
+          ]
+        });
+      }
+      const components = NAF.schemas.getComponentsOriginal(template);
+      return components;
+    };
+
+    window.onConnect = function () {
+      console.log('onConnect', new Date());
+      const micBtnEle = document.getElementById('mic-btn');
+      if (typeof NAF !== 'undefined' && NAF.connection && NAF.connection.adapter) {
+        NAF.connection.adapter.enableMicrophone(false);
+        window.micEnabled = false;
+        if (micBtnEle) micBtnEle.textContent = 'Unmute Mic';
+      }
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/aframe-randomizer-components@3.0.2/dist/aframe-randomizer-components.min.js"></script>
   <script src="js/astronomy.browser.min.js"></script>
   <script src="js/luxon.min.js"></script>
   <script src="js/custom-fogless-text.js"></script>
+  <link rel="stylesheet" type="text/css" href="/css/style.css" />
 </head>
 
 <body>
@@ -45,12 +88,36 @@
       dressingOnPlayArea: 0;
       gridColor: #39d2f2;
       shadow: false
-    " <a-assets>
+    " networked-scene="
+      room: basic-audio;
+      debug: true;
+      adapter: easyrtc;
+      audio: true;
+    "
+
+    <a-assets>
+    <!-- Templates -->
+    <!-- Avatar -->
+    <template id="avatar-template">
+      <a-entity class="avatar" networked-audio-source>
+        <a-sphere class="head" scale="0.45 0.5 0.4"></a-sphere>
+        <a-entity class="face" position="0 0.05 0">
+          <a-sphere class="eye" color="#efefef" position="0.16 0.1 -0.35" scale="0.12 0.12 0.12">
+            <a-sphere class="pupil" color="#000" position="0 0 -1" scale="0.2 0.2 0.2"></a-sphere>
+          </a-sphere>
+          <a-sphere class="eye" color="#efefef" position="-0.16 0.1 -0.35" scale="0.12 0.12 0.12">
+            <a-sphere class="pupil" color="#000" position="0 0 -1" scale="0.2 0.2 0.2"></a-sphere>
+          </a-sphere>
+        </a-entity>
+      </a-entity>
+    </template>
+    <!-- /Templates -->
     <img id="starTexture" src="assets/star.png">
     <img id="gaia" src="assets/gaia.png">
 
     <script src="components/aframe-environment-component.js"></script>
     <script src="components/aframe-extras.primitives.min.js"></script>
+    <script src="components/spawn-in-circle.component.js"></script>
     <script src="components/skyvr-high-res-component.js"></script>
     <script src="components/skyvr-starfield-component.js"></script>
     <script src="components/skyvr-cylinder-component.js"></script>
@@ -68,8 +135,16 @@
     <!-- <a-ocean width="800" depth="800" density="400" opacity="1" position="0 0 0"></a-ocean> -->
 
     <!-- Camera with Meta Quest-Controller components and laser-controls -->
-    <a-entity id="camera-rig" position="0 1.6 0" rotation="0 0 0">
-      <a-entity id="camera" camera="near: 0.1; far: 3600" look-controls position="0 0 0"></a-entity>
+    <a-entity id="camera-rig" position="0 0 0" rotation="0 0 0">
+      <a-entity
+        id="camera"
+        networked="template:#avatar-template;attachTemplateToLocal:false;"
+        camera="near: 0.1; far: 3600"
+        spawn-in-circle="radius:3"
+        look-controls
+        position="0 1.60 0">
+        <a-sphere class="head" visible="false" random-color></a-sphere>
+      </a-entity>
       <a-entity id="right-controller" material="shader: flat" meta-touch-controls="hand: right" laser-controls
         raycaster="objects: [data-raycastable]; far: 5; lineOpacity: 0.5;" drawing>
         <!-- Coordinate system for the right controller -->
@@ -103,8 +178,7 @@
           <a-entity id="switch-ecliptic" switch="position: -0.05 0.12 0; clickActionParam: toggleEcliptic"></a-entity>
           <a-text value="Ecliptic" position="-0.03 0.12 0" width="0.2" color="white" align="left"></a-text>
 
-          <a-entity id="switch-cardinal-points"
-            switch="position: -0.05 0.09 0; clickActionParam: toggleCardinalPoints; toggled: true"></a-entity>
+          <a-entity id="switch-cardinal-points" switch="position: -0.05 0.09 0; clickActionParam: toggleCardinalPoints; toggled: true"></a-entity>
           <a-text value="Cardinal Points" position="-0.03 0.09 0" width="0.2" color="white" align="left"></a-text>
 
           <a-entity id="switch-ncp" switch="position: -0.05 0.06 0; clickActionParam: toggleNCP"></a-entity>
@@ -114,51 +188,66 @@
           <a-text value="Lat" position="-0.15 0.22 0" width="0.3" color="white" align="left"></a-text>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 0.22 0.001" color="#444"
             text="value: -; align: center; width: 0.5" data-raycastable
-            onclick="adjustCoordinate('latitude', -0.1)"></a-rounded>
+            onclick="adjustCoordinate('latitude', -0.1)">
+          </a-rounded>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 0.22 0.001" color="#444"
             text="value: +; align: center; width: 0.5" data-raycastable
-            onclick="adjustCoordinate('latitude', 0.1)"></a-rounded>
+            onclick="adjustCoordinate('latitude', 0.1)">
+          </a-rounded>
 
           <a-text value="Lon" position="-0.15 0.14 0" width="0.3" color="white" align="left"></a-text>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 0.14 0.001" color="#444"
             text="value: -; align: center; width: 0.5" data-raycastable
-            onclick="adjustCoordinate('longitude', -0.1)"></a-rounded>
+            onclick="adjustCoordinate('longitude', -0.1)">
+          </a-rounded>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 0.14 0.001" color="#444"
             text="value: +; align: center; width: 0.5" data-raycastable
-            onclick="adjustCoordinate('longitude', 0.1)"></a-rounded>
+            onclick="adjustCoordinate('longitude', 0.1)">
+          </a-rounded>
 
           <!-- Date/Time adjusters -->
           <a-rounded id="now-button" width="0.08" height="0.03" radius="0.01" position="0.09 0.02 0.001" color="#222"
-            text="value: NOW; align: center; width: 0.5" data-raycastable onclick="setNow()"></a-rounded>
+            text="value: NOW; align: center; width: 0.5" data-raycastable onclick="setNow()">
+          </a-rounded>
           <a-text value="Year" position="-0.15 -0.02 0" width="0.3" color="white" align="left"></a-text>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 -0.02 0.001" color="#444"
-            text="value: -; align: center; width: 0.5" data-raycastable onclick="adjustTime('years', -1)"></a-rounded>
+            text="value: -; align: center; width: 0.5" data-raycastable onclick="adjustTime('years', -1)">
+          </a-rounded>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 -0.02 0.001" color="#444"
-            text="value: +; align: center; width: 0.5" data-raycastable onclick="adjustTime('years', 1)"></a-rounded>
+            text="value: +; align: center; width: 0.5" data-raycastable onclick="adjustTime('years', 1)">
+          </a-rounded>
 
           <a-text value="Month" position="-0.15 -0.06 0" width="0.3" color="white" align="left"></a-text>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 -0.06 0.001" color="#444"
-            text="value: -; align: center; width: 0.5" data-raycastable onclick="adjustTime('months', -1)"></a-rounded>
+            text="value: -; align: center; width: 0.5" data-raycastable onclick="adjustTime('months', -1)">
+          </a-rounded>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 -0.06 0.001" color="#444"
-            text="value: +; align: center; width: 0.5" data-raycastable onclick="adjustTime('months', 1)"></a-rounded>
+            text="value: +; align: center; width: 0.5" data-raycastable onclick="adjustTime('months', 1)">
+          </a-rounded>
 
           <a-text value="Day" position="-0.15 -0.1 0" width="0.3" color="white" align="left"></a-text>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 -0.1 0.001" color="#444"
-            text="value: -; align: center; width: 0.5" data-raycastable onclick="adjustTime('days', -1)"></a-rounded>
+            text="value: -; align: center; width: 0.5" data-raycastable onclick="adjustTime('days', -1)">
+          </a-rounded>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 -0.1 0.001" color="#444"
-            text="value: +; align: center; width: 0.5" data-raycastable onclick="adjustTime('days', 1)"></a-rounded>
+            text="value: +; align: center; width: 0.5" data-raycastable onclick="adjustTime('days', 1)">
+          </a-rounded>
 
           <a-text value="Hour" position="-0.15 -0.14 0" width="0.3" color="white" align="left"></a-text>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 -0.14 0.001" color="#444"
-            text="value: -; align: center; width: 0.5" data-raycastable onclick="adjustTime('hours', -1)"></a-rounded>
+            text="value: -; align: center; width: 0.5" data-raycastable onclick="adjustTime('hours', -1)">
+          </a-rounded>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 -0.14 0.001" color="#444"
-            text="value: +; align: center; width: 0.5" data-raycastable onclick="adjustTime('hours', 1)"></a-rounded>
+            text="value: +; align: center; width: 0.5" data-raycastable onclick="adjustTime('hours', 1)">
+          </a-rounded>
 
           <a-text value="Minute" position="-0.15 -0.18 0" width="0.3" color="white" align="left"></a-text>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 -0.18 0.001" color="#444"
-            text="value: -; align: center; width: 0.5" data-raycastable onclick="adjustTime('minutes', -1)"></a-rounded>
+            text="value: -; align: center; width: 0.5" data-raycastable onclick="adjustTime('minutes', -1)">
+          </a-rounded>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 -0.18 0.001" color="#444"
-            text="value: +; align: center; width: 0.5" data-raycastable onclick="adjustTime('minutes', 1)"></a-rounded>
+            text="value: +; align: center; width: 0.5" data-raycastable onclick="adjustTime('minutes', 1)">
+          </a-rounded>
         </a-control-panel>
       </a-entity>
     </a-entity>
@@ -170,7 +259,8 @@
 
       <a-cylinder id="meridian" material="shader: flat; fog: false; depthWrite: true;" radius="390" height="0.8"
         open-ended="true" color="#228B22" side="back" opacity="0.8" position="0 0 0" rotation="90 90 0"
-        object-render-order="1" visible="false"></a-cylinder>
+        object-render-order="1" visible="false">
+      </a-cylinder>
 
       <!-- Cardinal points on the horizon -->
       <a-entity id="cardinal-points" object-render-order="0" visible="true">
@@ -178,41 +268,50 @@
             value: N;
             fontSize: 90;
             textColor: #FFBB00;
-            worldScale: 0.1;" position="0 3 -380" object-render-order="0"></a-entity>
+            worldScale: 0.1;" position="0 3 -380" object-render-order="0">
+        </a-entity>
         <a-entity id="O" custom-fogless-text="
             value: O;
             fontSize: 90;
             textColor: #FFBB00;
-            worldScale: 0.1;" position="380 3 0" rotation="0 -90 0" object-render-order="0"></a-entity>
+            worldScale: 0.1;" position="380 3 0" rotation="0 -90 0" object-render-order="0">
+        </a-entity>
         <a-entity id="S" custom-fogless-text="
             value: S;
             fontSize: 90;
             textColor: #FFBB00;
-            worldScale: 0.1;" position="0 3 380" rotation="0 180 0" object-render-order="0"></a-entity>
+            worldScale: 0.1;" position="0 3 380" rotation="0 180 0" object-render-order="0">
+        </a-entity>
         <a-entity id="W" custom-fogless-text="
             value: W;
             fontSize: 90;
             textColor: #FFBB00;
-            worldScale: 0.1;" position="-380 3 0" rotation="0 90 0" object-render-order="0"></a-entity>
+            worldScale: 0.1;" position="-380 3 0" rotation="0 90 0" object-render-order="0">
+        </a-entity>
       </a-entity>
 
       <!-- Equatorial Container with initial geographic latitude of 90 degrees (North Pole) -->
       <a-entity id="eq-container" position="0 0 0" rotation="-90 0 0">
         <a-cylinder id="equator" material="shader: flat; fog: false" radius="392" height="0.8" open-ended="true"
-          color="#0096FF" side="back" opacity="0.8" position="0 0 0" rotation="90 0 0" visible="false"></a-cylinder>
+          color="#0096FF" side="back" opacity="0.8" position="0 0 0" rotation="90 0 0" visible="false">
+        </a-cylinder>
 
 
         <!-- North Celestial Pole (NCP) with Glow Effect -->
         <a-sphere id="ncp" material="shader: flat; fog: false" blending="normal" position="0 0 387" radius="2.0"
-          color="#FF0000" transparent="true" opacity="1.0" visible="false"></a-sphere>
+          color="#FF0000" transparent="true" opacity="1.0" visible="false">
+        </a-sphere>
         <a-sphere id="ncp_glow" material="shader: flat; fog: false" blending="normal" position="0 0 387" radius="4.0"
-          color="#FF0000" transparent="true" opacity="0.2" visible="false"></a-sphere>
+          color="#FF0000" transparent="true" opacity="0.2" visible="false">
+        </a-sphere>
 
         <!-- South Celestial Pole (SCP) with Glow Effect -->
         <a-sphere id="scp" material="shader: flat; fog: false" blending="normal" position="0 0 -387" radius="2.0"
-          color="#0000FF" transparent="true" opacity="1.0" visible="false"></a-sphere>
+          color="#0000FF" transparent="true" opacity="1.0" visible="false">
+        </a-sphere>
         <a-sphere id="scp_glow" material="shader: flat; fog: false" blending="normal" position="0 0 -387" radius="4.0"
-          color="#0000FF" transparent="true" opacity="0.2" visible="false"></a-sphere>
+          color="#0000FF" transparent="true" opacity="0.2" visible="false">
+        </a-sphere>
 
         <!-- Koordinatensystem für den Eq-Container -->
         <a-entity>
@@ -226,13 +325,15 @@
 
         <a-entity id="precession-container" rotation="23.43619 0 0">
           <a-cylinder id="ecliptic" material="shader: flat; fog: false" radius="394" height="0.8" open-ended="true"
-            color="#FFBF00" side="back" opacity="0.8" position="0 0 0" rotation="90 0 0" visible="false"></a-cylinder>
+            color="#FFBF00" side="back" opacity="0.8" position="0 0 0" rotation="90 0 0" visible="false">
+          </a-cylinder>
 
           <!-- Custom Shader for Stars -->
           <a-entity id="stars-point-cloud" position="0 0 0" rotation="-23.43619 0 0" starfield></a-entity>
 
           <a-sphere id="milkyway" radius="397" rotation="6.45 29.85 90.06" scale="-1.0 1.0 1.0"
-            material="shader: flat; src: url(assets/gaia.png); side: back; fog: false; transparent: true; opacity: 0.0; blending: additive;"></a-sphere>
+            material="shader: flat; src: url(assets/gaia.png); side: back; fog: false; transparent: true; opacity: 0.0; blending: additive;">
+          </a-sphere>
         </a-entity>
       </a-entity>
     </a-entity>
@@ -240,7 +341,8 @@
 
     <a-rounded id="reset-button" width="2" height="0.5" radius="0.1" material="shader: flat; color: blue"
       position="0 1 -5" text="value: Reset; align: center; width: 4" data-raycastable
-      onclick="resetScene()"></a-rounded>
+      onclick="resetScene()">
+    </a-rounded>
 
 
     <script type="text/javascript">
@@ -263,6 +365,7 @@
       let observer = new Astronomy.Observer(latitude, longitude, elevation);
 
       let isRightControllerGripDown = false;
+      window.micEnabled = false;
 
       function setNow() {
         simulationTime = luxon.DateTime.now();
@@ -491,6 +594,24 @@
         }
       });
 
+      leftController.addEventListener("gripdown", function (event) {
+        if (sceneEl.is('vr-mode') && NAF.connection && NAF.connection.adapter) {
+          NAF.connection.adapter.enableMicrophone(true);
+          window.micEnabled = true;
+          const micBtnEle = document.getElementById('mic-btn');
+          if (micBtnEle) micBtnEle.textContent = 'Mute Mic';
+        }
+      });
+
+      leftController.addEventListener("gripup", function (event) {
+        if (sceneEl.is('vr-mode') && NAF.connection && NAF.connection.adapter) {
+          NAF.connection.adapter.enableMicrophone(false);
+          window.micEnabled = false;
+          const micBtnEle = document.getElementById('mic-btn');
+          if (micBtnEle) micBtnEle.textContent = 'Unmute Mic';
+        }
+      });
+
       function onTogglerClick(action) { // 'action' is the clickActionParam
         const meridianEl = document.getElementById('meridian');
         const equatorEl = document.getElementById('equator');
@@ -696,7 +817,8 @@
       function rotateCameraRig(rotationStep) {
         let currentRotation = cameraRig.getAttribute("rotation").y;
         currentRotation += rotationStep;
-        cameraRig.setAttribute("rotation", { x: 0, y: Math.round(currentRotation / azimuthRotationStep) * azimuthRotationStep, z: 0 });
+        let rotation = { x: 0, y: Math.round(currentRotation / azimuthRotationStep) * azimuthRotationStep, z: 0 };
+        cameraRig.setAttribute("rotation", rotation);
       }
 
     </script>
@@ -720,6 +842,24 @@
     </script>
 
   </a-scene>
+
+  <div class="actions">
+    <button id="mic-btn" type="button" class="button">Unmute Mic</button>
+  </div>
+  <script>
+    // Mic button element
+    const micBtnEle = document.getElementById('mic-btn');
+
+    if (micBtnEle) {
+      micBtnEle.addEventListener('click', function () {
+        if (NAF.connection && NAF.connection.adapter) {
+          window.micEnabled = !window.micEnabled;
+          NAF.connection.adapter.enableMicrophone(window.micEnabled);
+          micBtnEle.textContent = window.micEnabled ? 'Mute Mic' : 'Unmute Mic';
+        }
+      });
+    }
+  </script>
 </body>
 
 </html>
