@@ -39,11 +39,7 @@
               component: 'rotation',
               requiresNetworkUpdate: NAF.utils.vectorRequiresUpdate(0.5)
             },
-            {
-              selector: '.head',
-              component: 'material',
-              property: 'color'
-            }
+            'player-info'
           ]
         });
       }
@@ -61,22 +57,42 @@
       }
     };
   </script>
-  <script src="https://cdn.jsdelivr.net/npm/aframe-randomizer-components@3.0.2/dist/aframe-randomizer-components.min.js"></script>
   <script src="js/astronomy.browser.min.js"></script>
   <script src="js/luxon.min.js"></script>
   <script src="js/custom-fogless-text.js"></script>
+  <script src="components/skyvr-player-info-component.js"></script>
   <link rel="stylesheet" type="text/css" href="/css/style.css" />
 </head>
 
 <body>
-  <a-scene loading-screen="
+  <!--  This <button> and <input> will overlay on top of the A-Frame canvas--this style is all you need.
+        Note the onclick and oninput attributes; on every call, they will run .setAttribute() for the player-info
+        component's data. NAF will keep that property in sync, since 'name' and 'color' are declared in the schema
+        of the 'player-info' component
+  -->
+  <button
+    id="color-changer"
+    style="z-index: 100; bottom: 64px; left: 24px; position: fixed"
+    onclick="let newColor = window.ntExample.randomColor();
+            document.getElementById('camera').setAttribute('player-info', 'color', newColor); 
+            document.querySelector('#color-changer').style.backgroundColor = newColor;
+            document.querySelector('#color-changer').style.color = newColor;">
+    ■
+  </button>
+  <input
+    id="username-overlay"
+    style="z-index: 100; bottom: 64px; left: 48px; position: fixed"
+    oninput="document.getElementById('camera').setAttribute('player-info', 'name', this.value)"
+  />
+  <a-scene
+    loading-screen="
       dotsColor: white;
-      backgroundColor: black
-    " high-res renderer="
+      backgroundColor: black"
+    high-res renderer="
       antialias: true;
       highRefreshRate: true;
-      foveationLevel: 0.3;
-    " environment="
+      foveationLevel: 0.3"
+    environment="
       active: true;
       preset: none;
       seed: 0;
@@ -102,13 +118,12 @@
       grid: crosses;
       dressingOnPlayArea: 0;
       gridColor: #39d2f2;
-      shadow: false
-    " networked-scene="
+      shadow: false"
+    networked-scene="
       room: basic-audio;
       debug: true;
       adapter: easyrtc;
-      audio: true;
-    "
+      audio: true;"
     
     <a-assets>
       <!-- Templates -->
@@ -118,15 +133,25 @@
       </template>
       <template id="camera-template">
         <a-entity class="avatar-camera" networked-audio-source>
-          <a-sphere class="head" scale="0.45 0.5 0.4"></a-sphere>
+          <a-sphere class="head" scale="0.2 0.22 0.2"></a-sphere>
           <a-entity class="face" position="0 0.05 0">
-              <a-sphere class="eye" color="#efefef" position="0.16 0.1 -0.35" scale="0.12 0.12 0.12">
-                <a-sphere class="pupil" color="#000" position="0 0 -1" scale="0.2 0.2 0.2"></a-sphere>
-              </a-sphere>
-              <a-sphere class="eye" color="#efefef" position="-0.16 0.1 -0.35" scale="0.12 0.12 0.12">
-                <a-sphere class="pupil" color="#000" position="0 0 -1" scale="0.2 0.2 0.2"></a-sphere>
-              </a-sphere>
+            <a-sphere class="eye" color="#efefef" position="0.06 0.05 -0.16" scale="0.04 0.04 0.04">
+              <a-sphere class="pupil" color="#000" position="0 0 -1" scale="0.2 0.2 0.2"></a-sphere>
+            </a-sphere>
+            <a-sphere class="eye" color="#efefef" position="-0.06 0.05 -0.16" scale="0.04 0.04 0.04">
+              <a-sphere class="pupil" color="#000" position="0 0 -1" scale="0.2 0.2 0.2"></a-sphere>
+            </a-sphere>
           </a-entity>
+
+          <!-- here we add a text component for a nametag; the value will be updated by the player-info component -->
+          <a-text
+            class="nametag"
+            value="?"
+            rotation="0 180 0"
+            position=".25 -.35 0"
+            side="double"
+            scale=".5 .5 .5"
+          ></a-text>
         </a-entity>
       </template>
       <!-- /Templates -->
@@ -157,7 +182,7 @@
     <!-- Camera with Meta Quest-Controller components and laser-controls -->
     <a-entity id="camera-rig" rig-follower networked="template:#rig-template;attachTemplateToLocal:false;"
       spawn-in-circle="radius:3" position="0 0 0" rotation="0 0 0">
-      <a-entity id="camera" networked="template:#camera-template;attachTemplateToLocal:false;"
+      <a-entity id="camera" player-info networked="template:#camera-template;attachTemplateToLocal:false;"
         camera="near: 0.1; far: 3600" look-controls position="0 1.6 0">
         <a-sphere class="head" visible="false" random-color></a-sphere>
       </a-entity>
