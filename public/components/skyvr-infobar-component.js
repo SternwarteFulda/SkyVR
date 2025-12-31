@@ -2,7 +2,7 @@ AFRAME.registerComponent('skyvr-infobar', {
     init: function () {
         // Individual icon paths
         this.ICONS = {
-            vessel: '#icon-vessel',
+            vessel: '#icon-door',
             micOn: '#icon-mic-on',
             micOff: '#icon-mic-off',
             draw: '#icon-draw',
@@ -11,14 +11,16 @@ AFRAME.registerComponent('skyvr-infobar', {
             constellation: '#icon-constellation'
         };
 
+
         // Create container
         this.container = document.createElement('a-entity');
         this.el.appendChild(this.container);
 
         // 1. Background Plane
         this.bgEl = document.createElement('a-plane');
-        this.bgEl.setAttribute('width', 0.55);
+        this.bgEl.setAttribute('width', 0.65);
         this.bgEl.setAttribute('height', 0.05);
+
         this.bgEl.setAttribute('color', '#050510');
         this.bgEl.setAttribute('opacity', 0.85);
         this.bgEl.setAttribute('position', '0 0 -0.01');
@@ -27,8 +29,9 @@ AFRAME.registerComponent('skyvr-infobar', {
 
         // 2. Glowing Border
         this.borderEl = document.createElement('a-plane');
-        this.borderEl.setAttribute('width', 0.55);
+        this.borderEl.setAttribute('width', 0.65);
         this.borderEl.setAttribute('height', 0.003);
+
         this.borderEl.setAttribute('color', '#8a2be2');
         this.borderEl.setAttribute('position', '0 0.025 0');
         this.borderEl.setAttribute('material', 'shader: flat');
@@ -36,12 +39,19 @@ AFRAME.registerComponent('skyvr-infobar', {
 
         // 3. Vessel Section (Icon + Text)
         this.vesselGroup = document.createElement('a-entity');
-        this.vesselGroup.setAttribute('position', '-0.2 0 0');
+        this.vesselGroup.setAttribute('position', '-0.25 0 0');
+
         this.container.appendChild(this.vesselGroup);
 
-        this.vesselIcon = this.createIcon(this.ICONS.vessel, 0.03);
+        this.vesselIcon = this.createIcon(this.ICONS.vessel, 0.035);
         this.vesselIcon.setAttribute('position', '-0.03 0 0');
+        this.vesselIcon.setAttribute('data-raycastable', '');
         this.vesselGroup.appendChild(this.vesselIcon);
+
+        this.vesselIcon.addEventListener('click', () => {
+            const params = typeof window.getLobbyParams === 'function' ? window.getLobbyParams() : window.location.search;
+            window.location.href = 'lobby.html' + params;
+        });
 
         this.roomText = document.createElement('a-text');
         this.roomText.setAttribute('value', '----');
@@ -59,6 +69,7 @@ AFRAME.registerComponent('skyvr-infobar', {
         this.micIcon.classList.add('clickable');
         this.container.appendChild(this.micIcon);
 
+
         this.micIcon.addEventListener('click', () => {
             window.micEnabled = !window.micEnabled;
 
@@ -75,8 +86,9 @@ AFRAME.registerComponent('skyvr-infobar', {
 
         // 5. Mode Section (Icon only)
         this.modeIcon = this.createIcon(this.ICONS.draw, 0.035);
-        this.modeIcon.setAttribute('position', '0.2 0 0');
+        this.modeIcon.setAttribute('position', '0.25 0 0');
         this.container.appendChild(this.modeIcon);
+
 
         this.lastMic = null;
         this.lastRoom = null;

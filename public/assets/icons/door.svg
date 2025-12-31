@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+    <defs>
+        <mask id="arrow-mask">
+            <rect width="24" height="24" fill="white" />
+            <!-- Masking path for arrow + buffer -->
+            <path d="M18.5,9.5h-4.5V6.5l-6,5.5l6,5.5v-3h4.5V9.5z" fill="black" stroke="black" stroke-width="1.8" stroke-linejoin="round" />
+            <!-- Elliptical hole for the door knob, shifted right towards the hinge side -->
+            <ellipse cx="4.5" cy="12" rx="0.45" ry="0.9" fill="black" />
+        </mask>
+    </defs>
+
+    <g mask="url(#arrow-mask)">
+        <!-- Swung-open door on the left (hinge at 6, opening at 1) -->
+        <path d="M6,3L1,5.5v13L6,21V3z" fill="white"/>
+        <!-- Door frame -->
+        <path d="M7,4h6v16h-6v-2h4V6h-4V4z" fill="white"/>
+    </g>
+
+    <!-- Arrow -->
+    <path d="M18,10h-4V7l-5,5l5,5v-3h4V10z" fill="white"/>
+</svg>

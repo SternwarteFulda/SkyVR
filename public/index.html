@@ -143,6 +143,21 @@
     const nameParam = urlParams.get('name');
     const colorParam = urlParams.get('color');
 
+    window.getLobbyParams = function () {
+      const camera = document.getElementById('camera');
+      const room = roomParam || '1234';
+      let name = nameParam || 'Anonymous';
+      let color = colorParam || '#ff4444';
+
+      if (camera && camera.components['player-info']) {
+        const data = camera.components['player-info'].data;
+        name = data.name || name;
+        color = data.color || color;
+      }
+
+      return `?room=${room}&name=${encodeURIComponent(name)}&color=${encodeURIComponent(color)}`;
+    };
+
     // If no room is specified, redirect to lobby
     if (!roomParam && !window.location.search.includes('no-redirect')) {
       window.location.href = 'lobby.html';
@@ -369,7 +384,7 @@
       <img id="moon-bump" src="assets/ldem_3_8bit.jpg">
 
       <!-- UI Icons -->
-      <img id="icon-vessel" src="assets/icons/vessel.svg">
+      <img id="icon-door" src="assets/icons/door.svg">
       <img id="icon-mic-on" src="assets/icons/mic-on.svg">
       <img id="icon-mic-off" src="assets/icons/mic-off.svg">
       <img id="icon-draw" src="assets/icons/draw.svg">

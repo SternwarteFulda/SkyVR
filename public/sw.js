@@ -1,4 +1,5 @@
-const CACHE_NAME = 'skyvr-cache-v2';
+const CACHE_NAME = 'skyvr-cache-v18';
+
 const ASSETS_TO_CACHE = [
     '/',
     '/index.html',
@@ -21,13 +22,14 @@ const ASSETS_TO_CACHE = [
     '/components/skyvr-switch-component.js',
     '/components/skyvr-rig-follower-component.js',
     '/components/skyvr-infobar-component.js',
-    '/assets/icons/vessel.svg',
+    '/assets/icons/door.svg',
     '/assets/icons/mic-on.svg',
     '/assets/icons/mic-off.svg',
     '/assets/icons/draw.svg',
     '/assets/icons/stamp.svg',
     '/assets/icons/sticky.svg',
     '/assets/icons/constellation.svg',
+
     '/assets/arrow.svg',
     '/assets/cosmic_background.png',
     '/assets/gaia.png',
@@ -96,7 +98,7 @@ self.addEventListener('fetch', (event) => {
                     });
                     return networkResponse;
                 })
-                .catch(() => caches.match(event.request))
+                .catch(() => caches.match(event.request, { ignoreSearch: true }))
         );
         return;
     }
