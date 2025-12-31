@@ -1,4 +1,4 @@
-const CACHE_NAME = 'skyvr-cache-v18';
+const CACHE_NAME = 'skyvr-cache-v22';
 
 const ASSETS_TO_CACHE = [
     '/',

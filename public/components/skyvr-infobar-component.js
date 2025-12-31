@@ -11,7 +11,6 @@ AFRAME.registerComponent('skyvr-infobar', {
             constellation: '#icon-constellation'
         };
 
-
         // Create container
         this.container = document.createElement('a-entity');
         this.el.appendChild(this.container);
@@ -20,7 +19,6 @@ AFRAME.registerComponent('skyvr-infobar', {
         this.bgEl = document.createElement('a-plane');
         this.bgEl.setAttribute('width', 0.65);
         this.bgEl.setAttribute('height', 0.05);
-
         this.bgEl.setAttribute('color', '#050510');
         this.bgEl.setAttribute('opacity', 0.85);
         this.bgEl.setAttribute('position', '0 0 -0.01');
@@ -31,7 +29,6 @@ AFRAME.registerComponent('skyvr-infobar', {
         this.borderEl = document.createElement('a-plane');
         this.borderEl.setAttribute('width', 0.65);
         this.borderEl.setAttribute('height', 0.003);
-
         this.borderEl.setAttribute('color', '#8a2be2');
         this.borderEl.setAttribute('position', '0 0.025 0');
         this.borderEl.setAttribute('material', 'shader: flat');
@@ -39,8 +36,7 @@ AFRAME.registerComponent('skyvr-infobar', {
 
         // 3. Vessel Section (Icon + Text)
         this.vesselGroup = document.createElement('a-entity');
-        this.vesselGroup.setAttribute('position', '-0.25 0 0');
-
+        this.vesselGroup.setAttribute('position', '-0.33 0 0');
         this.container.appendChild(this.vesselGroup);
 
         this.vesselIcon = this.createIcon(this.ICONS.vessel, 0.035);
@@ -64,31 +60,51 @@ AFRAME.registerComponent('skyvr-infobar', {
 
         // 4. Mic Section (Icon only, click to toggle)
         this.micIcon = this.createIcon(this.ICONS.micOff, 0.035);
-        this.micIcon.setAttribute('position', '0 0 0.001');
+        this.micIcon.setAttribute('position', '-0.12 0 0.001');
         this.micIcon.setAttribute('data-raycastable', '');
         this.micIcon.classList.add('clickable');
         this.container.appendChild(this.micIcon);
 
-
         this.micIcon.addEventListener('click', () => {
             window.micEnabled = !window.micEnabled;
-
             if (typeof NAF !== 'undefined' && NAF.connection && NAF.connection.adapter) {
                 NAF.connection.adapter.enableMicrophone(window.micEnabled);
             }
-
-            // Sync the manual button if it exists
             const micBtnEle = document.getElementById('mic-btn');
-            if (micBtnEle) {
-                micBtnEle.textContent = window.micEnabled ? 'Mute Mic' : 'Unmute Mic';
-            }
+            if (micBtnEle) micBtnEle.textContent = window.micEnabled ? 'Mute Mic' : 'Unmute Mic';
         });
 
-        // 5. Mode Section (Icon only)
-        this.modeIcon = this.createIcon(this.ICONS.draw, 0.035);
-        this.modeIcon.setAttribute('position', '0.25 0 0');
-        this.container.appendChild(this.modeIcon);
+        // 5. Mode Group (Interactable Buttons)
+        this.modeGroup = document.createElement('a-entity');
+        this.modeGroup.setAttribute('position', '0.08 0 0');
+        this.container.appendChild(this.modeGroup);
 
+        this.modeButtons = {};
+        this.modesList = ['draw', 'stamp', 'sticky', 'constellation'];
+        const modes = [
+            { id: 'draw', icon: this.ICONS.draw, pos: 0.05 },
+            { id: 'stamp', icon: this.ICONS.stamp, pos: 0.10 },
+            { id: 'sticky', icon: this.ICONS.sticky, pos: 0.15 },
+            { id: 'constellation', icon: this.ICONS.constellation, pos: 0.20 }
+        ];
+
+        modes.forEach(m => {
+            const btn = this.createIcon(m.icon, 0.035);
+            btn.setAttribute('position', `${m.pos} 0 0.001`);
+            btn.setAttribute('data-raycastable', '');
+            btn.addEventListener('click', () => {
+                window.currentMode = m.id;
+            });
+            this.modeGroup.appendChild(btn);
+            this.modeButtons[m.id] = btn;
+        });
+
+        // Add controller listener for Y button
+        window.addEventListener('ybuttondown', (e) => {
+            const currentIndex = this.modesList.indexOf(window.currentMode || 'draw');
+            const nextIndex = (currentIndex + 1) % this.modesList.length;
+            window.currentMode = this.modesList[nextIndex];
+        });
 
         this.lastMic = null;
         this.lastRoom = null;
@@ -96,7 +112,6 @@ AFRAME.registerComponent('skyvr-infobar', {
         this.lastConnected = false;
 
         this.roomText.setAttribute('value', 'Connecting...');
-
         window.currentMode = 'draw';
     },
 
@@ -110,6 +125,25 @@ AFRAME.registerComponent('skyvr-infobar', {
             transparent: true,
             shader: 'flat'
         });
+
+        icon.addEventListener('mouseenter', () => {
+            icon.setAttribute('animation__scale', {
+                property: 'scale',
+                to: '1.2 1.2 1.2',
+                dur: 150,
+                easing: 'easeOutQuad'
+            });
+        });
+
+        icon.addEventListener('mouseleave', () => {
+            icon.setAttribute('animation__scale', {
+                property: 'scale',
+                to: '1 1 1',
+                dur: 150,
+                easing: 'easeOutQuad'
+            });
+        });
+
         return icon;
     },
 
@@ -132,12 +166,10 @@ AFRAME.registerComponent('skyvr-infobar', {
             this.lastConnected = isConnected;
             if (isConnected) {
                 const urlParams = new URLSearchParams(window.location.search);
-                const roomName = urlParams.get('room') || '1234';
+                const roomName = urlParams.get('room') || 'n/a';
                 this.roomText.setAttribute('value', roomName);
-                this.vesselIcon.setAttribute('material', 'color', '#00ffaa'); // Green when connected
             } else {
                 this.roomText.setAttribute('value', 'Connecting...');
-                this.vesselIcon.setAttribute('material', 'color', 'white');
             }
         }
 
@@ -145,15 +177,18 @@ AFRAME.registerComponent('skyvr-infobar', {
             this.lastMic = currentMic;
             const micSrc = currentMic ? this.ICONS.micOn : this.ICONS.micOff;
             this.updateIcon(this.micIcon, micSrc, currentMic ? '#ff0000' : 'white');
-
-            // Visual feedback on border - red if mic is on
             this.borderEl.setAttribute('color', currentMic ? '#ff0000' : '#8a2be2');
         }
 
         if (currentMode !== this.lastMode) {
             this.lastMode = currentMode;
-            const modeSrc = this.ICONS[currentMode] || this.ICONS.draw;
-            this.updateIcon(this.modeIcon, modeSrc);
+            // Highlight active mode, dim others
+            Object.keys(this.modeButtons).forEach(id => {
+                const btn = this.modeButtons[id];
+                const isActive = id === currentMode;
+                btn.setAttribute('material', 'color', isActive ? '#a855f7' : '#ffffff');
+                btn.setAttribute('material', 'opacity', isActive ? 1.0 : 0.6);
+            });
         }
     }
 });
