@@ -43,6 +43,33 @@
           ]
         });
       }
+      if (!NAF.schemas.hasTemplate('#right-controller-template')) {
+        NAF.schemas.add({
+          template: '#right-controller-template',
+          components: [
+            {
+              component: 'position',
+              requiresNetworkUpdate: NAF.utils.vectorRequiresUpdate(0.001)
+            },
+            {
+              component: 'rotation',
+              requiresNetworkUpdate: NAF.utils.vectorRequiresUpdate(0.5)
+            },
+            {
+              selector: '.pointer',
+              component: 'visible'
+            },
+            {
+              selector: '.pointer',
+              component: 'position'
+            },
+            {
+              selector: '.pointer',
+              component: 'rotation'
+            }
+          ]
+        });
+      }
       const components = NAF.schemas.getComponentsOriginal(template);
       return components;
     };
@@ -126,51 +153,53 @@
       audio: true;"
     
     <a-assets>
-      <!-- Templates -->
-      <!-- Avatar -->
-      <template id="rig-template">
-        <a-entity class="avatar-rig"></a-entity>
-      </template>
-      <template id="camera-template">
-        <a-entity class="avatar-camera" networked-audio-source>
-          <a-sphere class="head" scale="0.2 0.22 0.2"></a-sphere>
-          <a-entity class="face" position="0 0.05 0">
-            <a-sphere class="eye" color="#efefef" position="0.06 0.05 -0.16" scale="0.04 0.04 0.04">
-              <a-sphere class="pupil" color="#000" position="0 0 -1" scale="0.2 0.2 0.2"></a-sphere>
-            </a-sphere>
-            <a-sphere class="eye" color="#efefef" position="-0.06 0.05 -0.16" scale="0.04 0.04 0.04">
-              <a-sphere class="pupil" color="#000" position="0 0 -1" scale="0.2 0.2 0.2"></a-sphere>
-            </a-sphere>
-          </a-entity>
-
-          <!-- here we add a text component for a nametag; the value will be updated by the player-info component -->
-          <a-text
-            class="nametag"
-            value="?"
-            rotation="0 180 0"
-            position=".25 -.35 0"
-            side="double"
-            scale=".5 .5 .5"
-          ></a-text>
+    <!-- Templates -->
+    <!-- Avatar -->
+    <template id="rig-template">
+      <a-entity class="avatar-rig"></a-entity>
+    </template>
+    <template id="camera-template">
+      <a-entity class="avatar-camera" networked-audio-source>
+        <a-sphere class="head" scale="0.2 0.22 0.2"></a-sphere>
+        <a-entity class="face" position="0 0.05 0">
+          <a-sphere class="eye" color="#efefef" position="0.06 0.05 -0.16" scale="0.04 0.04 0.04">
+            <a-sphere class="pupil" color="#000" position="0 0 -1" scale="0.2 0.2 0.2"></a-sphere>
+          </a-sphere>
+          <a-sphere class="eye" color="#efefef" position="-0.06 0.05 -0.16" scale="0.04 0.04 0.04">
+            <a-sphere class="pupil" color="#000" position="0 0 -1" scale="0.2 0.2 0.2"></a-sphere>
+          </a-sphere>
         </a-entity>
-      </template>
-      <!-- /Templates -->
-      
-      <img id="starTexture" src="assets/star.png">
-      <img id="gaia" src="assets/gaia.png">
 
-      <script src="components/aframe-environment-component.js"></script>
-      <script src="components/aframe-extras.primitives.min.js"></script>
-      <script src="components/spawn-in-circle.component.js"></script>
-      <script src="components/skyvr-high-res-component.js"></script>
-      <script src="components/skyvr-starfield-component.js"></script>
-      <script src="components/skyvr-cylinder-component.js"></script>
-      <script src="components/skyvr-rounded-component.js"></script>
-      <script src="components/skyvr-glow-effect-component.js"></script>
-      <script src="components/skyvr-drawing-component.js"></script>
-      <script src="components/skyvr-control-panel-component.js"></script>
-      <script src="components/skyvr-switch-component.js"></script>
-      <script src="components/skyvr-rig-follower-component.js"></script>
+        <!-- here we add a text component for a nametag; the value will be updated by the player-info component -->
+        <a-text class="nametag" value="?" rotation="0 180 0" position=".25 -.35 0" side="double"
+          scale=".5 .5 .5"></a-text>
+      </a-entity>
+    </template>
+    <template id="right-controller-template">
+      <a-entity>
+        <a-entity class="pointer" position="0 0.005 0"
+          bottom-origin-cylinder="height: 394; radius: 0.009; color: red; rotation: 54 9 0; opacity: 0.6;"
+          visible="false">
+        </a-entity>
+      </a-entity>
+    </template>
+    <!-- /Templates -->
+
+    <img id="starTexture" src="assets/star.png">
+    <img id="gaia" src="assets/gaia.png">
+
+    <script src="components/aframe-environment-component.js"></script>
+    <script src="components/aframe-extras.primitives.min.js"></script>
+    <script src="components/spawn-in-circle.component.js"></script>
+    <script src="components/skyvr-high-res-component.js"></script>
+    <script src="components/skyvr-starfield-component.js"></script>
+    <script src="components/skyvr-cylinder-component.js"></script>
+    <script src="components/skyvr-rounded-component.js"></script>
+    <script src="components/skyvr-glow-effect-component.js"></script>
+    <script src="components/skyvr-drawing-component.js"></script>
+    <script src="components/skyvr-control-panel-component.js"></script>
+    <script src="components/skyvr-switch-component.js"></script>
+    <script src="components/skyvr-rig-follower-component.js"></script>
     </a-assets>
 
 
@@ -186,7 +215,8 @@
         camera="near: 0.1; far: 3600" look-controls position="0 1.6 0">
         <a-sphere class="head" visible="false" random-color></a-sphere>
       </a-entity>
-      <a-entity id="right-controller" material="shader: flat" meta-touch-controls="hand: right" laser-controls
+      <a-entity id="right-controller" networked="template:#right-controller-template;attachTemplateToLocal:false;"
+        material="shader: flat" meta-touch-controls="hand: right" laser-controls
         raycaster="objects: [data-raycastable]; far: 5; lineOpacity: 0.5;" drawing>
         <!-- Coordinate system for the right controller -->
         <a-entity>
@@ -198,7 +228,7 @@
           <a-entity line="start: 0 0 0; end: 0 0 0.1; color: blue;"></a-entity>
         </a-entity>
         <!-- Pointer -->
-        <a-entity id="pointer" position="0 0.005 0"
+        <a-entity id="pointer" class="pointer" position="0 0.005 0"
           bottom-origin-cylinder="height: 394; radius: 0.009; color: red; rotation: 54 9 0; opacity: 0.6;"
           visible="false">
         </a-entity>
@@ -854,7 +884,7 @@
       function rotateCameraRig(rotationStep) {
         const rig = document.getElementById('camera-rig');
         const camera = document.getElementById('camera');
-        
+
         // 1. Get current World Positions
         const camWorldPos = new THREE.Vector3();
         const rigWorldPos = new THREE.Vector3();
@@ -869,10 +899,10 @@
         // 3. THE "ANTI-SWING" MATH
         // We need to move the Rig so that after rotation, 
         // the camera stays at the EXACT same World Position.
-        
+
         // Vector from Rig center to Camera (horizontal only)
         const pivotOffset = new THREE.Vector3().subVectors(camWorldPos, rigWorldPos);
-        pivotOffset.y = 0; 
+        pivotOffset.y = 0;
 
         // Rotate that offset by the turn amount
         const rotatedOffset = pivotOffset.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), addRotY);
@@ -884,8 +914,8 @@
         // We use your rounding logic for the visual rotation
         const finalDegY = Math.round(THREE.MathUtils.radToDeg(newRotY) / azimuthRotationStep) * azimuthRotationStep;
 
-        rig.setAttribute('position', {x: newRigPos.x, y: 0, z: newRigPos.z});
-        rig.setAttribute('rotation', {x: 0, y: finalDegY, z: 0});
+        rig.setAttribute('position', { x: newRigPos.x, y: 0, z: newRigPos.z });
+        rig.setAttribute('rotation', { x: 0, y: finalDegY, z: 0 });
 
         // 5. CRITICAL: Tell the follower script to update its 'last known pos'
         // using the NEW rig position as the baseline
