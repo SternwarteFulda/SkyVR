@@ -12,9 +12,24 @@
     // see issue https://github.com/networked-aframe/networked-aframe/issues/267
     NAF.schemas.getComponentsOriginal = NAF.schemas.getComponents;
     NAF.schemas.getComponents = (template) => {
-      if (!NAF.schemas.hasTemplate('#avatar-template')) {
+      if (!NAF.schemas.hasTemplate('#rig-template')) {
         NAF.schemas.add({
-          template: '#avatar-template',
+          template: '#rig-template',
+          components: [
+            {
+              component: 'position',
+              requiresNetworkUpdate: NAF.utils.vectorRequiresUpdate(0.001)
+            },
+            {
+              component: 'rotation',
+              requiresNetworkUpdate: NAF.utils.vectorRequiresUpdate(0.5)
+            }
+          ]
+        });
+      }
+      if (!NAF.schemas.hasTemplate('#camera-template')) {
+        NAF.schemas.add({
+          template: '#camera-template',
           components: [
             {
               component: 'position',
@@ -94,38 +109,43 @@
       adapter: easyrtc;
       audio: true;
     "
-
+    
     <a-assets>
-    <!-- Templates -->
-    <!-- Avatar -->
-    <template id="avatar-template">
-      <a-entity class="avatar" networked-audio-source>
-        <a-sphere class="head" scale="0.45 0.5 0.4"></a-sphere>
-        <a-entity class="face" position="0 0.05 0">
-          <a-sphere class="eye" color="#efefef" position="0.16 0.1 -0.35" scale="0.12 0.12 0.12">
-            <a-sphere class="pupil" color="#000" position="0 0 -1" scale="0.2 0.2 0.2"></a-sphere>
-          </a-sphere>
-          <a-sphere class="eye" color="#efefef" position="-0.16 0.1 -0.35" scale="0.12 0.12 0.12">
-            <a-sphere class="pupil" color="#000" position="0 0 -1" scale="0.2 0.2 0.2"></a-sphere>
-          </a-sphere>
+      <!-- Templates -->
+      <!-- Avatar -->
+      <template id="rig-template">
+        <a-entity class="avatar-rig"></a-entity>
+      </template>
+      <template id="camera-template">
+        <a-entity class="avatar-camera" networked-audio-source>
+          <a-sphere class="head" scale="0.45 0.5 0.4"></a-sphere>
+          <a-entity class="face" position="0 0.05 0">
+              <a-sphere class="eye" color="#efefef" position="0.16 0.1 -0.35" scale="0.12 0.12 0.12">
+                <a-sphere class="pupil" color="#000" position="0 0 -1" scale="0.2 0.2 0.2"></a-sphere>
+              </a-sphere>
+              <a-sphere class="eye" color="#efefef" position="-0.16 0.1 -0.35" scale="0.12 0.12 0.12">
+                <a-sphere class="pupil" color="#000" position="0 0 -1" scale="0.2 0.2 0.2"></a-sphere>
+              </a-sphere>
+          </a-entity>
         </a-entity>
-      </a-entity>
-    </template>
-    <!-- /Templates -->
-    <img id="starTexture" src="assets/star.png">
-    <img id="gaia" src="assets/gaia.png">
+      </template>
+      <!-- /Templates -->
+      
+      <img id="starTexture" src="assets/star.png">
+      <img id="gaia" src="assets/gaia.png">
 
-    <script src="components/aframe-environment-component.js"></script>
-    <script src="components/aframe-extras.primitives.min.js"></script>
-    <script src="components/spawn-in-circle.component.js"></script>
-    <script src="components/skyvr-high-res-component.js"></script>
-    <script src="components/skyvr-starfield-component.js"></script>
-    <script src="components/skyvr-cylinder-component.js"></script>
-    <script src="components/skyvr-rounded-component.js"></script>
-    <script src="components/skyvr-glow-effect-component.js"></script>
-    <script src="components/skyvr-drawing-component.js"></script>
-    <script src="components/skyvr-control-panel-component.js"></script>
-    <script src="components/skyvr-switch-component.js"></script>
+      <script src="components/aframe-environment-component.js"></script>
+      <script src="components/aframe-extras.primitives.min.js"></script>
+      <script src="components/spawn-in-circle.component.js"></script>
+      <script src="components/skyvr-high-res-component.js"></script>
+      <script src="components/skyvr-starfield-component.js"></script>
+      <script src="components/skyvr-cylinder-component.js"></script>
+      <script src="components/skyvr-rounded-component.js"></script>
+      <script src="components/skyvr-glow-effect-component.js"></script>
+      <script src="components/skyvr-drawing-component.js"></script>
+      <script src="components/skyvr-control-panel-component.js"></script>
+      <script src="components/skyvr-switch-component.js"></script>
+      <script src="components/skyvr-rig-follower-component.js"></script>
     </a-assets>
 
 
@@ -135,14 +155,10 @@
     <!-- <a-ocean width="800" depth="800" density="400" opacity="1" position="0 0 0"></a-ocean> -->
 
     <!-- Camera with Meta Quest-Controller components and laser-controls -->
-    <a-entity id="camera-rig" position="0 0 0" rotation="0 0 0">
-      <a-entity
-        id="camera"
-        networked="template:#avatar-template;attachTemplateToLocal:false;"
-        camera="near: 0.1; far: 3600"
-        spawn-in-circle="radius:3"
-        look-controls
-        position="0 1.60 0">
+    <a-entity id="camera-rig" rig-follower networked="template:#rig-template;attachTemplateToLocal:false;"
+      spawn-in-circle="radius:3" position="0 0 0" rotation="0 0 0">
+      <a-entity id="camera" networked="template:#camera-template;attachTemplateToLocal:false;"
+        camera="near: 0.1; far: 3600" look-controls position="0 1.6 0">
         <a-sphere class="head" visible="false" random-color></a-sphere>
       </a-entity>
       <a-entity id="right-controller" material="shader: flat" meta-touch-controls="hand: right" laser-controls
@@ -178,7 +194,8 @@
           <a-entity id="switch-ecliptic" switch="position: -0.05 0.12 0; clickActionParam: toggleEcliptic"></a-entity>
           <a-text value="Ecliptic" position="-0.03 0.12 0" width="0.2" color="white" align="left"></a-text>
 
-          <a-entity id="switch-cardinal-points" switch="position: -0.05 0.09 0; clickActionParam: toggleCardinalPoints; toggled: true"></a-entity>
+          <a-entity id="switch-cardinal-points"
+            switch="position: -0.05 0.09 0; clickActionParam: toggleCardinalPoints; toggled: true"></a-entity>
           <a-text value="Cardinal Points" position="-0.03 0.09 0" width="0.2" color="white" align="left"></a-text>
 
           <a-entity id="switch-ncp" switch="position: -0.05 0.06 0; clickActionParam: toggleNCP"></a-entity>
@@ -187,22 +204,18 @@
           <!-- Coordinates adjusters -->
           <a-text value="Lat" position="-0.15 0.22 0" width="0.3" color="white" align="left"></a-text>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 0.22 0.001" color="#444"
-            text="value: -; align: center; width: 0.5" data-raycastable
-            onclick="adjustCoordinate('latitude', -0.1)">
+            text="value: -; align: center; width: 0.5" data-raycastable onclick="adjustCoordinate('latitude', -0.1)">
           </a-rounded>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 0.22 0.001" color="#444"
-            text="value: +; align: center; width: 0.5" data-raycastable
-            onclick="adjustCoordinate('latitude', 0.1)">
+            text="value: +; align: center; width: 0.5" data-raycastable onclick="adjustCoordinate('latitude', 0.1)">
           </a-rounded>
 
           <a-text value="Lon" position="-0.15 0.14 0" width="0.3" color="white" align="left"></a-text>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 0.14 0.001" color="#444"
-            text="value: -; align: center; width: 0.5" data-raycastable
-            onclick="adjustCoordinate('longitude', -0.1)">
+            text="value: -; align: center; width: 0.5" data-raycastable onclick="adjustCoordinate('longitude', -0.1)">
           </a-rounded>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 0.14 0.001" color="#444"
-            text="value: +; align: center; width: 0.5" data-raycastable
-            onclick="adjustCoordinate('longitude', 0.1)">
+            text="value: +; align: center; width: 0.5" data-raycastable onclick="adjustCoordinate('longitude', 0.1)">
           </a-rounded>
 
           <!-- Date/Time adjusters -->
@@ -340,8 +353,7 @@
 
 
     <a-rounded id="reset-button" width="2" height="0.5" radius="0.1" material="shader: flat; color: blue"
-      position="0 1 -5" text="value: Reset; align: center; width: 4" data-raycastable
-      onclick="resetScene()">
+      position="0 1 -5" text="value: Reset; align: center; width: 4" data-raycastable onclick="resetScene()">
     </a-rounded>
 
 
@@ -815,10 +827,49 @@
       });
 
       function rotateCameraRig(rotationStep) {
-        let currentRotation = cameraRig.getAttribute("rotation").y;
-        currentRotation += rotationStep;
-        let rotation = { x: 0, y: Math.round(currentRotation / azimuthRotationStep) * azimuthRotationStep, z: 0 };
-        cameraRig.setAttribute("rotation", rotation);
+        const rig = document.getElementById('camera-rig');
+        const camera = document.getElementById('camera');
+        
+        // 1. Get current World Positions
+        const camWorldPos = new THREE.Vector3();
+        const rigWorldPos = new THREE.Vector3();
+        camera.object3D.getWorldPosition(camWorldPos);
+        rig.object3D.getWorldPosition(rigWorldPos);
+
+        // 2. Calculate the rotation in Radians
+        const currentRotY = THREE.MathUtils.degToRad(rig.getAttribute('rotation').y);
+        const addRotY = THREE.MathUtils.degToRad(rotationStep);
+        const newRotY = currentRotY + addRotY;
+
+        // 3. THE "ANTI-SWING" MATH
+        // We need to move the Rig so that after rotation, 
+        // the camera stays at the EXACT same World Position.
+        
+        // Vector from Rig center to Camera (horizontal only)
+        const pivotOffset = new THREE.Vector3().subVectors(camWorldPos, rigWorldPos);
+        pivotOffset.y = 0; 
+
+        // Rotate that offset by the turn amount
+        const rotatedOffset = pivotOffset.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), addRotY);
+
+        // The Rig's new position is: CameraWorldPos - RotatedOffset
+        const newRigPos = new THREE.Vector3().subVectors(camWorldPos, rotatedOffset);
+
+        // 4. APPLY TO RIG (Atomic Update)
+        // We use your rounding logic for the visual rotation
+        const finalDegY = Math.round(THREE.MathUtils.radToDeg(newRotY) / azimuthRotationStep) * azimuthRotationStep;
+
+        rig.setAttribute('position', {x: newRigPos.x, y: 0, z: newRigPos.z});
+        rig.setAttribute('rotation', {x: 0, y: finalDegY, z: 0});
+
+        // 5. CRITICAL: Tell the follower script to update its 'last known pos'
+        // using the NEW rig position as the baseline
+        const follower = rig.components['rig-follower'];
+        if (follower) {
+          // We update the baseline to the current camera world pos
+          // so the next 'tick' sees 0 movement.
+          follower.lastCamWorldPos.copy(camWorldPos);
+        }
       }
 
     </script>
