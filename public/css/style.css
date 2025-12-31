@@ -28,3 +28,85 @@
   font-family: monospace;
   color: white;
 }
+
+/* Loading Screen Styles */
+#loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #050510;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  transition: opacity 1s ease-out, visibility 1s;
+  font-family: 'Outfit', sans-serif;
+  color: white;
+}
+
+#loading-overlay.fade-out {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.loader-container {
+  text-align: center;
+}
+
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid rgba(255, 255, 255, 0.1);
+  border-left-color: #8a2be2;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 20px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.status-list {
+  list-style: none;
+  padding: 0;
+  margin: 20px 0;
+}
+
+.status-item {
+  margin: 8px 0;
+  font-size: 1.1rem;
+  opacity: 0.6;
+  transition: opacity 0.3s, color 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.status-item.active {
+  opacity: 1;
+  color: #a855f7;
+}
+
+.status-item.complete {
+  opacity: 1;
+  color: #00ffaa;
+}
+
+.status-item .icon {
+  width: 20px;
+}
+
+.loading-title {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+  background: linear-gradient(135deg, #fff 30%, #a855f7 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: 600;
+}

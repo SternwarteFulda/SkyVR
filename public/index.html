@@ -178,6 +178,7 @@
 
     window.onConnect = function () {
       console.log('onConnect', new Date());
+      updateLoadingIndicator('network', true);
       const micBtnEle = document.getElementById('mic-btn');
       if (typeof NAF !== 'undefined' && NAF.connection && NAF.connection.adapter) {
         NAF.connection.adapter.enableMicrophone(false);
@@ -185,6 +186,7 @@
         if (micBtnEle) micBtnEle.textContent = 'Unmute Mic';
       }
     };
+
   </script>
   <script src="js/astronomy.browser.min.js"></script>
   <script src="js/luxon.min.js"></script>
@@ -192,6 +194,47 @@
   <script src="components/skyvr-player-info-component.js"></script>
   <script src="components/skyvr-drawing-component.js"></script>
   <link rel="stylesheet" type="text/css" href="/css/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+  <script>
+    window.loadingStatus = {
+      assets: false,
+      network: false
+    };
+
+    function updateLoadingIndicator(type, status) {
+      window.loadingStatus[type] = status;
+      const item = document.getElementById(`status-${type}`);
+      if (item) {
+        if (status) {
+          item.classList.remove('active');
+          item.classList.add('complete');
+          item.querySelector('.icon').textContent = '✓';
+
+          if (type === 'network') {
+            const urlParams = new URLSearchParams(window.location.search);
+            const room = urlParams.get('room') || 'default';
+            item.querySelector('.label').textContent = `Connected to Room: ${room}`;
+          } else if (type === 'assets') {
+            item.querySelector('.label').textContent = 'Assets Loaded';
+          }
+        } else {
+          item.classList.add('active');
+          item.querySelector('.icon').textContent = '○';
+        }
+      }
+
+      if (window.loadingStatus.assets && window.loadingStatus.network) {
+        const overlay = document.getElementById('loading-overlay');
+        if (overlay) {
+          overlay.classList.add('fade-out');
+          setTimeout(() => {
+            overlay.style.display = 'none';
+          }, 1000);
+        }
+      }
+    }
+  </script>
+
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
@@ -204,6 +247,23 @@
 </head>
 
 <body>
+  <div id="loading-overlay">
+    <div class="loader-container">
+      <div class="spinner"></div>
+      <h1 class="loading-title">SkyVR</h1>
+      <ul class="status-list">
+        <li id="status-assets" class="status-item active">
+          <span class="icon">○</span>
+          <span class="label">Preloading Assets...</span>
+        </li>
+        <li id="status-network" class="status-item active">
+          <span class="icon">○</span>
+          <span class="label">Connecting to Network...</span>
+        </li>
+      </ul>
+    </div>
+  </div>
+
   <!--  This <button> and <input> will overlay on top of the A-Frame canvas--this style is all you need.
         Note the onclick and oninput attributes; on every call, they will run .setAttribute() for the player-info
         component's data. NAF will keep that property in sync, since 'name' and 'color' are declared in the schema
@@ -217,9 +277,8 @@
   </button>
   <input id="username-overlay" style="z-index: 100; bottom: 64px; left: 48px; position: fixed"
     oninput="document.getElementById('camera').setAttribute('player-info', 'name', this.value)" />
-  <a-scene loading-screen="
-      dotsColor: white;
-      backgroundColor: black" high-res renderer="
+  <a-scene loading-screen="enabled: false" high-res renderer="
+
       antialias: true;
       highRefreshRate: true;
       foveationLevel: 0.3" environment="
@@ -252,8 +311,11 @@
       room: basic-audio;
       debug: true;
       adapter: easyrtc;
-      audio: true;">
-    <a-assets>
+      audio: true;
+      onConnect: onConnect;">
+
+    <a-assets timeout="60000">
+
       <!-- Templates -->
       <!-- Avatar -->
       <template id="rig-template">
@@ -745,11 +807,18 @@
       document.addEventListener('DOMContentLoaded', function () {
         const scene = document.querySelector('a-scene');
         if (scene) {
-          scene.addEventListener('loaded', function () {
+          if (scene.hasLoaded) {
+            updateLoadingIndicator('assets', true);
             updateScene();
-          });
+          } else {
+            scene.addEventListener('loaded', function () {
+              updateLoadingIndicator('assets', true);
+              updateScene();
+            });
+          }
         }
       });
+
 
 
 
