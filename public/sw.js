@@ -1,4 +1,4 @@
-const CACHE_NAME = 'skyvr-cache-v1';
+const CACHE_NAME = 'skyvr-cache-v2';
 const ASSETS_TO_CACHE = [
     '/',
     '/index.html',
@@ -44,6 +44,7 @@ const ASSETS_TO_CACHE = [
 ];
 
 self.addEventListener('install', (event) => {
+    self.skipWaiting();
     event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
             console.log('Opened cache');
@@ -54,16 +55,19 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
     event.waitUntil(
-        caches.keys().then((cacheNames) => {
-            return Promise.all(
-                cacheNames.map((cacheName) => {
-                    if (cacheName !== CACHE_NAME) {
-                        console.log('Deleting old cache:', cacheName);
-                        return caches.delete(cacheName);
-                    }
-                })
-            );
-        })
+        Promise.all([
+            caches.keys().then((cacheNames) => {
+                return Promise.all(
+                    cacheNames.map((cacheName) => {
+                        if (cacheName !== CACHE_NAME) {
+                            console.log('Deleting old cache:', cacheName);
+                            return caches.delete(cacheName);
+                        }
+                    })
+                );
+            }),
+            self.clients.claim()
+        ])
     );
 });
 
@@ -80,6 +84,22 @@ self.addEventListener('fetch', (event) => {
         }
         return url.pathname === asset;
     });
+
+    // Strategy: Network First for HTML, Cache First for assets/data
+    if (url.pathname.endsWith('.html') || url.pathname === '/') {
+        event.respondWith(
+            fetch(event.request)
+                .then((networkResponse) => {
+                    const responseToCache = networkResponse.clone();
+                    caches.open(CACHE_NAME).then((cache) => {
+                        cache.put(event.request, responseToCache);
+                    });
+                    return networkResponse;
+                })
+                .catch(() => caches.match(event.request))
+        );
+        return;
+    }
 
     // Strategy: Cache First for assets, data, and precached scripts
     if (isPrecached || url.pathname.startsWith('/assets/') || url.pathname.startsWith('/data/')) {
