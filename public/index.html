@@ -198,7 +198,8 @@
   <script>
     window.loadingStatus = {
       assets: false,
-      network: false
+      network: false,
+      stars: false
     };
 
     function updateLoadingIndicator(type, status) {
@@ -215,7 +216,9 @@
             const room = urlParams.get('room') || 'default';
             item.querySelector('.label').textContent = `Connected to Room: ${room}`;
           } else if (type === 'assets') {
-            item.querySelector('.label').textContent = 'Assets Loaded';
+            item.querySelector('.label').textContent = 'Modules Ready';
+          } else if (type === 'stars') {
+            item.querySelector('.label').textContent = 'Star Map Processed';
           }
         } else {
           item.classList.add('active');
@@ -223,7 +226,7 @@
         }
       }
 
-      if (window.loadingStatus.assets && window.loadingStatus.network) {
+      if (window.loadingStatus.assets && window.loadingStatus.network && window.loadingStatus.stars) {
         const overlay = document.getElementById('loading-overlay');
         if (overlay) {
           overlay.classList.add('fade-out');
@@ -260,7 +263,12 @@
           <span class="icon">○</span>
           <span class="label">Connecting to Network...</span>
         </li>
+        <li id="status-stars" class="status-item active">
+          <span class="icon">○</span>
+          <span class="label">Downloading Star Data (35MB)...</span>
+        </li>
       </ul>
+
     </div>
   </div>
 
@@ -356,6 +364,18 @@
 
       <img id="starTexture" src="assets/star.png">
       <img id="gaia" src="assets/gaia.png">
+      <img id="halo" src="assets/halo.png">
+      <img id="moon-map" src="assets/lroc_color_poles_1k.jpg">
+      <img id="moon-bump" src="assets/ldem_3_8bit.jpg">
+
+      <!-- UI Icons -->
+      <img id="icon-vessel" src="assets/icons/vessel.svg">
+      <img id="icon-mic-on" src="assets/icons/mic-on.svg">
+      <img id="icon-mic-off" src="assets/icons/mic-off.svg">
+      <img id="icon-draw" src="assets/icons/draw.svg">
+      <img id="icon-stamp" src="assets/icons/stamp.svg">
+      <img id="icon-sticky" src="assets/icons/sticky.svg">
+      <img id="icon-constellation" src="assets/icons/constellation.svg">
 
       <script src="components/aframe-environment-component.js"></script>
       <script src="components/aframe-extras.primitives.min.js"></script>

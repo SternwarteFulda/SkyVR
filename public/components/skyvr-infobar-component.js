@@ -2,13 +2,13 @@ AFRAME.registerComponent('skyvr-infobar', {
     init: function () {
         // Individual icon paths
         this.ICONS = {
-            vessel: 'assets/icons/vessel.svg',
-            micOn: 'assets/icons/mic-on.svg',
-            micOff: 'assets/icons/mic-off.svg',
-            draw: 'assets/icons/draw.svg',
-            stamp: 'assets/icons/stamp.svg',
-            sticky: 'assets/icons/sticky.svg',
-            constellation: 'assets/icons/constellation.svg'
+            vessel: '#icon-vessel',
+            micOn: '#icon-mic-on',
+            micOff: '#icon-mic-off',
+            draw: '#icon-draw',
+            stamp: '#icon-stamp',
+            sticky: '#icon-sticky',
+            constellation: '#icon-constellation'
         };
 
         // Create container
@@ -60,15 +60,16 @@ AFRAME.registerComponent('skyvr-infobar', {
         this.container.appendChild(this.micIcon);
 
         this.micIcon.addEventListener('click', () => {
-            if (typeof NAF !== 'undefined' && NAF.connection && NAF.connection.adapter) {
-                window.micEnabled = !window.micEnabled;
-                NAF.connection.adapter.enableMicrophone(window.micEnabled);
+            window.micEnabled = !window.micEnabled;
 
-                // Sync the manual button if it exists
-                const micBtnEle = document.getElementById('mic-btn');
-                if (micBtnEle) {
-                    micBtnEle.textContent = window.micEnabled ? 'Mute Mic' : 'Unmute Mic';
-                }
+            if (typeof NAF !== 'undefined' && NAF.connection && NAF.connection.adapter) {
+                NAF.connection.adapter.enableMicrophone(window.micEnabled);
+            }
+
+            // Sync the manual button if it exists
+            const micBtnEle = document.getElementById('mic-btn');
+            if (micBtnEle) {
+                micBtnEle.textContent = window.micEnabled ? 'Mute Mic' : 'Unmute Mic';
             }
         });
 
@@ -80,10 +81,9 @@ AFRAME.registerComponent('skyvr-infobar', {
         this.lastMic = null;
         this.lastRoom = null;
         this.lastMode = null;
+        this.lastConnected = false;
 
-        const urlParams = new URLSearchParams(window.location.search);
-        this.roomName = urlParams.get('room') || '1234';
-        this.roomText.setAttribute('value', this.roomName);
+        this.roomText.setAttribute('value', 'Connecting...');
 
         window.currentMode = 'draw';
     },
@@ -92,6 +92,7 @@ AFRAME.registerComponent('skyvr-infobar', {
         const icon = document.createElement('a-plane');
         icon.setAttribute('width', size);
         icon.setAttribute('height', size);
+        icon.classList.add('clickable');
         icon.setAttribute('material', {
             src: src,
             transparent: true,
@@ -101,17 +102,32 @@ AFRAME.registerComponent('skyvr-infobar', {
     },
 
     updateIcon: function (el, src, color) {
-        el.setAttribute('material', 'src', src);
-        if (color) {
-            el.setAttribute('material', 'color', color);
-        } else {
-            el.setAttribute('material', 'color', 'white');
-        }
+        el.setAttribute('material', {
+            src: src,
+            color: color || 'white',
+            transparent: true,
+            shader: 'flat'
+        });
     },
 
     tick: function () {
+        const isConnected = !!(typeof NAF !== 'undefined' && NAF.connection && NAF.connection.adapter);
         const currentMic = !!window.micEnabled;
         const currentMode = window.currentMode || 'draw';
+
+        // Update connection status and room name
+        if (isConnected !== this.lastConnected) {
+            this.lastConnected = isConnected;
+            if (isConnected) {
+                const urlParams = new URLSearchParams(window.location.search);
+                const roomName = urlParams.get('room') || '1234';
+                this.roomText.setAttribute('value', roomName);
+                this.vesselIcon.setAttribute('material', 'color', '#00ffaa'); // Green when connected
+            } else {
+                this.roomText.setAttribute('value', 'Connecting...');
+                this.vesselIcon.setAttribute('material', 'color', 'white');
+            }
+        }
 
         if (currentMic !== this.lastMic) {
             this.lastMic = currentMic;
