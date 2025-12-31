@@ -1,7 +1,7 @@
 AFRAME.registerComponent('drawing', {
     schema: {
         color: { default: 'yellow' },
-        width: { default: 0.4 },
+        width: { default: 2.5 },
         //offset: {type: 'vec3', default: {x: 0, y: 0, z: 0}}
         offset: { type: 'vec3', default: { x: -31.5, y: -146.5, z: -200 } }
     },
@@ -25,7 +25,7 @@ AFRAME.registerComponent('drawing', {
     },
     startDrawing: function () {
         this.isDrawing = true;
-        this.currentSegmentPoints = []; 
+        this.currentSegmentPoints = [];
     },
     stopDrawing: function () {
         this.isDrawing = false;
@@ -61,27 +61,27 @@ AFRAME.registerComponent('drawing', {
     },
     tick: function () {
         if (this.isDrawing && this.precessionContainerEl) { 
-            const controllerPosition = new THREE.Vector3();
-            this.el.object3D.getWorldPosition(controllerPosition);
+        const controllerPosition = new THREE.Vector3();
+        this.el.object3D.getWorldPosition(controllerPosition);
 
-            const controllerQuaternion = new THREE.Quaternion();
-            this.el.object3D.getWorldQuaternion(controllerQuaternion);
+        const controllerQuaternion = new THREE.Quaternion();
+        this.el.object3D.getWorldQuaternion(controllerQuaternion);
 
-            const offset = new THREE.Vector3(this.data.offset.x, this.data.offset.y, this.data.offset.z);
-            offset.applyQuaternion(controllerQuaternion);
+        const offset = new THREE.Vector3(this.data.offset.x, this.data.offset.y, this.data.offset.z);
+        offset.applyQuaternion(controllerQuaternion);
 
-            const offsetWorldPosition = controllerPosition.add(offset);
-            const localPosition = this.precessionContainerEl.object3D.worldToLocal(offsetWorldPosition.clone());
+        const offsetWorldPosition = controllerPosition.add(offset);
+        const localPosition = this.precessionContainerEl.object3D.worldToLocal(offsetWorldPosition.clone());
 
-            if (this.currentSegmentPoints.length > 0) {
-                const lastPoint = this.currentSegmentPoints[this.currentSegmentPoints.length - 1];
+        if (this.currentSegmentPoints.length > 0) {
+            const lastPoint = this.currentSegmentPoints[this.currentSegmentPoints.length - 1];
                 const interpolatedPoints = this.interpolatePoints(lastPoint, localPosition, 5);
                 interpolatedPoints.forEach(point => {
                     this.currentSegmentPoints.push(point);
                 });
-            } else {
+        } else {
                 this.currentSegmentPoints.push(localPosition);
-            }
+        }
 
             if (this.currentSegmentMesh) {
                 this.precessionContainerEl.object3D.remove(this.currentSegmentMesh);
@@ -89,7 +89,7 @@ AFRAME.registerComponent('drawing', {
             }
 
             if (this.currentSegmentPoints.length > 1) { 
-                const geometry = new THREE.BufferGeometry().setFromPoints(this.currentSegmentPoints);
+        const geometry = new THREE.BufferGeometry().setFromPoints(this.currentSegmentPoints);
                 this.currentSegmentMesh = new THREE.Line(geometry, this.lineMaterial);
                 this.precessionContainerEl.object3D.add(this.currentSegmentMesh);
             }

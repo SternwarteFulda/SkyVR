@@ -41,9 +41,9 @@ if (process.env.NODE_ENV === "development") {
 // Serve the files from the public folder
 const publicPath = path.resolve(__dirname, "..", "public");
 // If someone asks for the homepage, send them skyvr.html
-app.get('/', (req, res) => {
-  res.sendFile(path.join(publicPath, 'skyvr.html'));
-});
+// app.get('/', (req, res) => {
+//   res.sendFile(path.join(publicPath, 'skyvr.html'));
+// });
 // For everything else (scripts, textures, assets, components), look in the public folder
 app.use(express.static(publicPath));
 

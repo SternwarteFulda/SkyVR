@@ -125,9 +125,56 @@
           components: ['sky-state']
         });
       }
+      if (!NAF.schemas.hasTemplate('#drawing-stroke-template')) {
+        NAF.schemas.add({
+          template: '#drawing-stroke-template',
+          components: [
+            'drawing-stroke'
+          ]
+        });
+      }
       const components = NAF.schemas.getComponentsOriginal(template);
       return components;
     };
+
+    // Parse URL parameters for room, name, and color
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomParam = urlParams.get('room');
+    const nameParam = urlParams.get('name');
+    const colorParam = urlParams.get('color');
+
+    // If no room is specified, redirect to lobby
+    if (!roomParam && !window.location.search.includes('no-redirect')) {
+      window.location.href = 'lobby.html';
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const sceneEl = document.querySelector('a-scene');
+      const cameraEl = document.getElementById('camera');
+
+      if (sceneEl && roomParam) {
+        sceneEl.setAttribute('networked-scene', 'room', roomParam);
+      }
+
+      if (cameraEl) {
+        if (nameParam) cameraEl.setAttribute('player-info', 'name', nameParam);
+        if (colorParam) {
+          const color = colorParam.startsWith('#') ? colorParam : '#' + colorParam;
+          cameraEl.setAttribute('player-info', 'color', color);
+
+          // Also update the UI overlays if they exist
+          const colorChanger = document.querySelector('#color-changer');
+          if (colorChanger) {
+            colorChanger.style.backgroundColor = color;
+            colorChanger.style.color = color;
+          }
+          const usernameOverlay = document.getElementById('username-overlay');
+          if (usernameOverlay && nameParam) {
+            usernameOverlay.value = nameParam;
+          }
+        }
+      }
+    });
 
     window.onConnect = function () {
       console.log('onConnect', new Date());
@@ -143,6 +190,7 @@
   <script src="js/luxon.min.js"></script>
   <script src="js/custom-fogless-text.js"></script>
   <script src="components/skyvr-player-info-component.js"></script>
+  <script src="components/skyvr-drawing-component.js"></script>
   <link rel="stylesheet" type="text/css" href="/css/style.css" />
 </head>
 
@@ -195,57 +243,60 @@
       room: basic-audio;
       debug: true;
       adapter: easyrtc;
-      audio: true;" <a-assets>
-    <!-- Templates -->
-    <!-- Avatar -->
-    <template id="rig-template">
-      <a-entity class="avatar-rig"></a-entity>
-    </template>
-    <template id="camera-template">
-      <a-entity class="avatar-camera" networked-audio-source>
-        <a-sphere class="head" scale="0.2 0.22 0.2"></a-sphere>
-        <a-entity class="face" position="0 0.05 0">
-          <a-sphere class="eye" color="#efefef" position="0.06 0.05 -0.16" scale="0.04 0.04 0.04">
-            <a-sphere class="pupil" color="#000" position="0 0 -1" scale="0.2 0.2 0.2"></a-sphere>
-          </a-sphere>
-          <a-sphere class="eye" color="#efefef" position="-0.06 0.05 -0.16" scale="0.04 0.04 0.04">
-            <a-sphere class="pupil" color="#000" position="0 0 -1" scale="0.2 0.2 0.2"></a-sphere>
-          </a-sphere>
+      audio: true;">
+    <a-assets>
+      <!-- Templates -->
+      <!-- Avatar -->
+      <template id="rig-template">
+        <a-entity class="avatar-rig"></a-entity>
+      </template>
+      <template id="camera-template">
+        <a-entity class="avatar-camera" networked-audio-source>
+          <a-sphere class="head" scale="0.2 0.22 0.2"></a-sphere>
+          <a-entity class="face" position="0 0.05 0">
+            <a-sphere class="eye" color="#efefef" position="0.06 0.05 -0.16" scale="0.04 0.04 0.04">
+              <a-sphere class="pupil" color="#000" position="0 0 -1" scale="0.2 0.2 0.2"></a-sphere>
+            </a-sphere>
+            <a-sphere class="eye" color="#efefef" position="-0.06 0.05 -0.16" scale="0.04 0.04 0.04">
+              <a-sphere class="pupil" color="#000" position="0 0 -1" scale="0.2 0.2 0.2"></a-sphere>
+            </a-sphere>
+          </a-entity>
+
+          <!-- here we add a text component for a nametag; the value will be updated by the player-info component -->
+          <a-text class="nametag" value="?" rotation="0 180 0" position=".25 -.35 0" side="double"
+            scale=".5 .5 .5"></a-text>
         </a-entity>
-
-        <!-- here we add a text component for a nametag; the value will be updated by the player-info component -->
-        <a-text class="nametag" value="?" rotation="0 180 0" position=".25 -.35 0" side="double"
-          scale=".5 .5 .5"></a-text>
-      </a-entity>
-    </template>
-    <template id="right-controller-template">
-      <a-entity>
-        <a-entity class="pointer" position="0 0.005 0"
-          bottom-origin-cylinder="height: 394; radius: 0.009; color: red; rotation: 54 9 0; opacity: 0.6;"
-          visible="false">
+      </template>
+      <template id="right-controller-template">
+        <a-entity>
+          <a-entity class="pointer" position="0 0.005 0"
+            bottom-origin-cylinder="height: 394; radius: 0.009; color: red; rotation: 54 9 0; opacity: 0.6;"
+            visible="false">
+          </a-entity>
         </a-entity>
-      </a-entity>
-    </template>
-    <template id="sky-template">
-      <a-entity></a-entity>
-    </template>
-    <!-- /Templates -->
+      </template>
+      <template id="sky-template">
+        <a-entity></a-entity>
+      </template>
+      <template id="drawing-stroke-template">
+        <a-entity drawing-stroke></a-entity>
+      </template>
+      <!-- /Templates -->
 
-    <img id="starTexture" src="assets/star.png">
-    <img id="gaia" src="assets/gaia.png">
+      <img id="starTexture" src="assets/star.png">
+      <img id="gaia" src="assets/gaia.png">
 
-    <script src="components/aframe-environment-component.js"></script>
-    <script src="components/aframe-extras.primitives.min.js"></script>
-    <script src="components/spawn-in-circle.component.js"></script>
-    <script src="components/skyvr-high-res-component.js"></script>
-    <script src="components/skyvr-starfield-component.js"></script>
-    <script src="components/skyvr-cylinder-component.js"></script>
-    <script src="components/skyvr-rounded-component.js"></script>
-    <script src="components/skyvr-glow-effect-component.js"></script>
-    <script src="components/skyvr-drawing-component.js"></script>
-    <script src="components/skyvr-control-panel-component.js"></script>
-    <script src="components/skyvr-switch-component.js"></script>
-    <script src="components/skyvr-rig-follower-component.js"></script>
+      <script src="components/aframe-environment-component.js"></script>
+      <script src="components/aframe-extras.primitives.min.js"></script>
+      <script src="components/spawn-in-circle.component.js"></script>
+      <script src="components/skyvr-high-res-component.js"></script>
+      <script src="components/skyvr-starfield-component.js"></script>
+      <script src="components/skyvr-cylinder-component.js"></script>
+      <script src="components/skyvr-rounded-component.js"></script>
+      <script src="components/skyvr-glow-effect-component.js"></script>
+      <script src="components/skyvr-control-panel-component.js"></script>
+      <script src="components/skyvr-switch-component.js"></script>
+      <script src="components/skyvr-rig-follower-component.js"></script>
     </a-assets>
 
     <a-entity id="sky-master" networked="template:#sky-template;persistent:true;networkId:sky-master"

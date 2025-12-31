@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SkyVR Lobby - Enter the Portal</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #8a2be2;
+            --secondary: #4b0082;
+            --text: #ffffff;
+            --glass: rgba(255, 255, 255, 0.08);
+            --glass-border: rgba(255, 255, 255, 0.15);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+            background: #050510 url('assets/cosmic_background.png') no-repeat center center fixed;
+            background-size: cover;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text);
+            overflow: hidden;
+        }
+
+        /* Ambient overlay to darken the background slightly */
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle at center, transparent 0%, rgba(0, 0, 0, 0.4) 100%);
+            z-index: 0;
+        }
+
+        .lobby-card {
+            position: relative;
+            z-index: 1;
+            background: var(--glass);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            border: 1px solid var(--glass-border);
+            padding: 3rem;
+            border-radius: 32px;
+            box-shadow: 0 15px 45px rgba(0, 0, 0, 0.5);
+            width: 90%;
+            max-width: 420px;
+            text-align: center;
+            animation: cardEntrance 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes cardEntrance {
+            from {
+                opacity: 0;
+                transform: scale(0.9) translateY(30px);
+                filter: blur(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+                filter: blur(0);
+            }
+        }
+
+        h1 {
+            font-weight: 600;
+            font-size: 3rem;
+            margin: 0 0 0.5rem 0;
+            letter-spacing: -1px;
+            background: linear-gradient(135deg, #fff 30%, #a855f7 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            opacity: 0.6;
+            margin-bottom: 2.5rem;
+            font-weight: 300;
+            font-size: 1.1rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .input-group {
+            margin-bottom: 1.8rem;
+            text-align: left;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.6rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.5;
+        }
+
+        input {
+            width: 100%;
+            padding: 14px 18px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--glass-border);
+            border-radius: 14px;
+            color: white;
+            font-family: inherit;
+            font-size: 1rem;
+            box-sizing: border-box;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #a855f7;
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 0 0 4px rgba(168, 85, 247, 0.15);
+        }
+
+        .color-picker-label {
+            margin-top: 1rem;
+        }
+
+        .color-picker {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 0.8rem;
+            flex-wrap: wrap;
+        }
+
+        .color-option {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 3px solid transparent;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .color-option:hover {
+            transform: scale(1.25);
+        }
+
+        .color-option.selected {
+            border-color: white;
+            transform: scale(1.15);
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.4);
+        }
+
+        .btn-join {
+            width: 100%;
+            padding: 18px;
+            margin-top: 2.5rem;
+            background: linear-gradient(135deg, #a855f7 0%, #6b21a8 100%);
+            border: none;
+            border-radius: 16px;
+            color: white;
+            font-size: 1.2rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 8px 25px rgba(168, 85, 247, 0.4);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-join::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.2) 0%, transparent 70%);
+            opacity: 0;
+            transition: opacity 0.4s;
+        }
+
+        .btn-join:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 30px rgba(168, 85, 247, 0.6);
+        }
+
+        .btn-join:hover::after {
+            opacity: 1;
+        }
+
+        .btn-join:active {
+            transform: translateY(-1px);
+        }
+
+        /* Micro-animations */
+        .color-option {
+            animation: popIn 0.5s backwards;
+        }
+
+        .color-option:nth-child(1) {
+            animation-delay: 0.1s;
+        }
+
+        .color-option:nth-child(2) {
+            animation-delay: 0.15s;
+        }
+
+        .color-option:nth-child(3) {
+            animation-delay: 0.2s;
+        }
+
+        .color-option:nth-child(4) {
+            animation-delay: 0.25s;
+        }
+
+        .color-option:nth-child(5) {
+            animation-delay: 0.3s;
+        }
+
+        .color-option:nth-child(6) {
+            animation-delay: 0.35s;
+        }
+
+        .color-option:nth-child(7) {
+            animation-delay: 0.4s;
+        }
+
+        .color-option:nth-child(8) {
+            animation-delay: 0.45s;
+        }
+
+        @keyframes popIn {
+            from {
+                transform: scale(0);
+                opacity: 0;
+            }
+
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="lobby-card">
+        <h1>SkyVR</h1>
+        <div class="subtitle">Observation Portal</div>
+
+        <div class="input-group">
+            <label for="room-id">Vessel Channel (Room)</label>
+            <input type="text" id="room-id" placeholder="e.g. 1984" value="1234">
+        </div>
+
+        <div class="input-group">
+            <label for="username">Observer Identity</label>
+            <input type="text" id="username" placeholder="Enter nametag">
+        </div>
+
+        <div class="input-group">
+            <label class="color-picker-label">Avatar Core Signature</label>
+            <div class="color-picker" id="color-picker">
+                <!-- Colors injected by JS -->
+            </div>
+            <input type="hidden" id="selected-color" value="#ff4444">
+        </div>
+
+        <button class="btn-join" onclick="joinSession()">Beitreten</button>
+    </div>
+
+    <script>
+        const colors = [
+            '#ff4444', '#ff8800', '#ffd700', '#00ffaa',
+            '#00d4ff', '#3b82f6', '#8b5cf6', '#d946ef'
+        ];
+
+        const colorPicker = document.getElementById('color-picker');
+        const colorInput = document.getElementById('selected-color');
+
+        colors.forEach((color, index) => {
+            const div = document.createElement('div');
+            div.className = 'color-option' + (index === 0 ? ' selected' : '');
+            div.style.backgroundColor = color;
+            div.onclick = () => {
+                document.querySelectorAll('.color-option').forEach(opt => opt.classList.remove('selected'));
+                div.classList.add('selected');
+                colorInput.value = color;
+            };
+            colorPicker.appendChild(div);
+        });
+
+        // Set a random cool sounding name if none provided
+        const prefix = ['Nebula', 'Solar', 'Lunar', 'Astral', 'Cosmos', 'Nova', 'Pulsar', 'Zenith'];
+        const suffix = ['Seeker', 'Sage', 'Watcher', 'Pilot', 'Nomad', 'Explorer'];
+        const randomName = prefix[Math.floor(Math.random() * prefix.length)] + ' ' + suffix[Math.floor(Math.random() * suffix.length)] + ' ' + Math.floor(Math.random() * 99);
+        document.getElementById('username').value = randomName;
+
+        function joinSession() {
+            const room = document.getElementById('room-id').value || '1234';
+            const name = document.getElementById('username').value || 'Anonymous';
+            const color = encodeURIComponent(colorInput.value);
+
+            // Redirect to main skyvr page
+            window.location.href = `./?room=${room}&name=${name}&color=${color}`;
+        }
+
+        // Add keyboard support
+        document.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') joinSession();
+        });
+    </script>
+</body>
+
+</html>
