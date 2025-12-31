@@ -306,6 +306,7 @@
       <script src="components/skyvr-control-panel-component.js"></script>
       <script src="components/skyvr-switch-component.js"></script>
       <script src="components/skyvr-rig-follower-component.js"></script>
+      <script src="components/skyvr-infobar-component.js"></script>
     </a-assets>
 
     <a-entity id="sky-master" networked="template:#sky-template;persistent:true;networkId:sky-master"
@@ -324,6 +325,8 @@
         camera="near: 0.1; far: 3600" look-controls position="0 1.6 0">
         <a-sphere class="head" visible="false" random-color></a-sphere>
       </a-entity>
+      <!-- Infobar placed in front of user, visible when looking down -->
+      <a-entity id="infobar" skyvr-infobar position="0 0.8 -0.6" rotation="-40 0 0"></a-entity>
       <a-entity id="right-controller" networked="template:#right-controller-template;attachTemplateToLocal:false;"
         material="shader: flat" meta-touch-controls="hand: right" laser-controls
         raycaster="objects: [data-raycastable]; far: 5; lineOpacity: 0.5;" drawing>
