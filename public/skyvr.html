@@ -9,6 +9,55 @@
   <script src="/easyrtc/easyrtc.js"></script>
   <script src="https://unpkg.com/networked-aframe@^0.14.0/dist/networked-aframe.min.js"></script>
   <script>
+    AFRAME.registerComponent('sky-state', {
+      schema: {
+        time: { type: 'string', default: '' },
+        latitude: { type: 'number', default: 50.5 },
+        longitude: { type: 'number', default: 9.7 },
+        showMeridian: { type: 'boolean', default: false },
+        showEquator: { type: 'boolean', default: false },
+        showEcliptic: { type: 'boolean', default: false },
+        showCardinalPoints: { type: 'boolean', default: true },
+        showCelestialPoles: { type: 'boolean', default: false }
+      },
+      update: function (oldData) {
+        if (typeof luxon === 'undefined') return;
+
+        if (this.data.time && this.data.time !== oldData.time) {
+          window.simulationTime = luxon.DateTime.fromISO(this.data.time);
+          console.log("Sky State Received: Time updated to", this.data.time);
+        }
+        if (this.data.latitude !== undefined && this.data.latitude !== oldData.latitude) {
+          window.latitude = this.data.latitude;
+          console.log("Sky State Received: Latitude updated to", this.data.latitude);
+        }
+        if (this.data.longitude !== undefined && this.data.longitude !== oldData.longitude) {
+          window.longitude = this.data.longitude;
+          console.log("Sky State Received: Longitude updated to", this.data.longitude);
+        }
+
+        const guides = {
+          'meridian': this.data.showMeridian,
+          'equator': this.data.showEquator,
+          'ecliptic': this.data.showEcliptic,
+          'cardinal-points': this.data.showCardinalPoints,
+          'ncp': this.data.showCelestialPoles,
+          'ncp_glow': this.data.showCelestialPoles,
+          'scp': this.data.showCelestialPoles,
+          'scp_glow': this.data.showCelestialPoles
+        };
+
+        for (let id in guides) {
+          let el = document.getElementById(id);
+          if (el) el.setAttribute('visible', guides[id]);
+        }
+
+        if (typeof updateScene === 'function') {
+          updateScene();
+        }
+      }
+    });
+
     // see issue https://github.com/networked-aframe/networked-aframe/issues/267
     NAF.schemas.getComponentsOriginal = NAF.schemas.getComponents;
     NAF.schemas.getComponents = (template) => {
@@ -70,6 +119,12 @@
           ]
         });
       }
+      if (!NAF.schemas.hasTemplate('#sky-template')) {
+        NAF.schemas.add({
+          template: '#sky-template',
+          components: ['sky-state']
+        });
+      }
       const components = NAF.schemas.getComponentsOriginal(template);
       return components;
     };
@@ -97,29 +152,20 @@
         component's data. NAF will keep that property in sync, since 'name' and 'color' are declared in the schema
         of the 'player-info' component
   -->
-  <button
-    id="color-changer"
-    style="z-index: 100; bottom: 64px; left: 24px; position: fixed"
-    onclick="let newColor = window.ntExample.randomColor();
+  <button id="color-changer" style="z-index: 100; bottom: 64px; left: 24px; position: fixed" onclick="let newColor = window.ntExample.randomColor();
             document.getElementById('camera').setAttribute('player-info', 'color', newColor); 
             document.querySelector('#color-changer').style.backgroundColor = newColor;
             document.querySelector('#color-changer').style.color = newColor;">
     ■
   </button>
-  <input
-    id="username-overlay"
-    style="z-index: 100; bottom: 64px; left: 48px; position: fixed"
-    oninput="document.getElementById('camera').setAttribute('player-info', 'name', this.value)"
-  />
-  <a-scene
-    loading-screen="
+  <input id="username-overlay" style="z-index: 100; bottom: 64px; left: 48px; position: fixed"
+    oninput="document.getElementById('camera').setAttribute('player-info', 'name', this.value)" />
+  <a-scene loading-screen="
       dotsColor: white;
-      backgroundColor: black"
-    high-res renderer="
+      backgroundColor: black" high-res renderer="
       antialias: true;
       highRefreshRate: true;
-      foveationLevel: 0.3"
-    environment="
+      foveationLevel: 0.3" environment="
       active: true;
       preset: none;
       seed: 0;
@@ -145,14 +191,11 @@
       grid: crosses;
       dressingOnPlayArea: 0;
       gridColor: #39d2f2;
-      shadow: false"
-    networked-scene="
+      shadow: false" networked-scene="
       room: basic-audio;
       debug: true;
       adapter: easyrtc;
-      audio: true;"
-    
-    <a-assets>
+      audio: true;" <a-assets>
     <!-- Templates -->
     <!-- Avatar -->
     <template id="rig-template">
@@ -183,6 +226,9 @@
         </a-entity>
       </a-entity>
     </template>
+    <template id="sky-template">
+      <a-entity></a-entity>
+    </template>
     <!-- /Templates -->
 
     <img id="starTexture" src="assets/star.png">
@@ -201,6 +247,9 @@
     <script src="components/skyvr-switch-component.js"></script>
     <script src="components/skyvr-rig-follower-component.js"></script>
     </a-assets>
+
+    <a-entity id="sky-master" networked="template:#sky-template;persistent:true;networkId:sky-master"
+      sky-state></a-entity>
 
 
     <!-- <a-entity light="type: ambient; color: #aaa"></a-entity> -->
@@ -413,20 +462,33 @@
 
 
     <script type="text/javascript">
-      const latitudeDisplay = document.getElementById("latitude-display");
-      const longitudeDisplay = document.getElementById("longitude-display");
-      const dateTimeDisplay = document.getElementById("date-time-display");
-      //const sunElevationDisplay = document.getElementById("sun-elevation-display");
+      let latitudeDisplay = document.getElementById("latitude-display");
+      let longitudeDisplay = document.getElementById("longitude-display");
+      let dateTimeDisplay = document.getElementById("date-time-display");
+      let sceneEl = document.querySelector('a-scene');
+      let cameraRig = document.getElementById("camera-rig");
+      let azContainer = document.getElementById("az-container");
+      let eqContainer = document.getElementById("eq-container");
+      let precessionContainer = document.getElementById("precession-container");
+      let starsPointCloud = document.getElementById("stars-point-cloud");
+      let milkyway = document.getElementById("milkyway");
+
       const initialLatitude = 50.5;
       const initialLongitude = 9.7;
-      let latitude = initialLatitude;
-      let longitude = initialLongitude;
+      window.latitude = initialLatitude;
+      window.longitude = initialLongitude;
       let elevation = 300;
-      latitudeDisplay.setAttribute("text", `value: Latitude: ${latitude.toFixed(1)}; color: white; width: 1; align: center`);
-      //sunElevationDisplay.setAttribute("text", `value: sun elev.: ${sunAltAz.altitude.toFixed(1)}; color: white; width: 1; align: center`);
+
+      function updateInitText() {
+        if (!latitudeDisplay) latitudeDisplay = document.getElementById("latitude-display");
+        if (latitudeDisplay) {
+          latitudeDisplay.setAttribute("text", `value: Latitude: ${latitude.toFixed(1)}; color: white; width: 1; align: center`);
+        }
+      }
+      updateInitText();
 
       // Initialize a base date/time for the simulation.
-      let simulationTime = luxon.DateTime.now(); // Current local date and time
+      window.simulationTime = luxon.DateTime.now(); // Current local date and time
       console.log(simulationTime.zoneName);
 
       let observer = new Astronomy.Observer(latitude, longitude, elevation);
@@ -434,13 +496,40 @@
       let isRightControllerGripDown = false;
       window.micEnabled = false;
 
+      function syncSky() {
+        const skyMaster = document.getElementById('sky-master');
+        if (skyMaster && NAF.connection && NAF.connection.adapter) {
+          if (!NAF.utils.isMine(skyMaster)) {
+            console.log("Taking ownership of sky-master to sync state...");
+            NAF.utils.takeOwnership(skyMaster);
+          }
+          console.log("Broadcasting Sky State:", {
+            time: simulationTime.toISO(),
+            latitude: latitude,
+            longitude: longitude
+          });
+          skyMaster.setAttribute('sky-state', {
+            time: simulationTime.toISO(),
+            latitude: window.latitude,
+            longitude: window.longitude,
+            showMeridian: document.getElementById('meridian')?.getAttribute('visible') || false,
+            showEquator: document.getElementById('equator')?.getAttribute('visible') || false,
+            showEcliptic: document.getElementById('ecliptic')?.getAttribute('visible') || false,
+            showCardinalPoints: document.getElementById('cardinal-points')?.getAttribute('visible') || false,
+            showCelestialPoles: document.getElementById('ncp')?.getAttribute('visible') || false
+          });
+        }
+      }
+
       function setNow() {
         simulationTime = luxon.DateTime.now();
+        syncSky();
         updateScene();
       }
 
       function adjustTime(unit, amount) {
         simulationTime = simulationTime.plus({ [unit]: amount });
+        syncSky();
         updateScene();
       }
 
@@ -453,35 +542,57 @@
           if (longitude > 180) longitude -= 360;
           if (longitude < -180) longitude += 360;
         }
+        syncSky();
         updateScene();
       }
 
       // Function to update the scene
       function updateScene() {
+        if (!sceneEl) sceneEl = document.querySelector('a-scene');
+        if (!cameraRig) cameraRig = document.getElementById("camera-rig");
+        if (!azContainer) azContainer = document.getElementById("az-container");
+        if (!eqContainer) eqContainer = document.getElementById("eq-container");
+        if (!precessionContainer) precessionContainer = document.getElementById("precession-container");
+        if (!starsPointCloud) starsPointCloud = document.getElementById("stars-point-cloud");
+        if (!milkyway) milkyway = document.getElementById("milkyway");
+        if (!latitudeDisplay) latitudeDisplay = document.getElementById("latitude-display");
+        if (!longitudeDisplay) longitudeDisplay = document.getElementById("longitude-display");
+        if (!dateTimeDisplay) dateTimeDisplay = document.getElementById("date-time-display");
+
         let lst = calculateLocalSiderealTime(simulationTime.toUTC().toJSDate(), longitude);
         let lstDegrees = lst * 15; // Convert LST from hours to degrees
 
         // Update scene elements based on the new simulation time or latitude
-        eqContainer.setAttribute('rotation', { x: latitude - 180, y: 0, z: lstDegrees - 90 });
+        if (eqContainer) {
+          eqContainer.setAttribute('rotation', { x: latitude - 180, y: 0, z: lstDegrees - 90 });
+        }
 
         let currentYear = simulationTime.year;
         let precessionDegrees = (currentYear - 2000) * 360 / 25750; // Simplified precession effect
-        precessionContainer.setAttribute('rotation', { x: 23.43619, y: 0, z: precessionDegrees });
+        if (precessionContainer) {
+          precessionContainer.setAttribute('rotation', { x: 23.43619, y: 0, z: precessionDegrees });
+        }
 
         observer = new Astronomy.Observer(latitude, longitude, elevation);
         let sunRaDec = Astronomy.Equator('Sun', simulationTime.toJSDate(), observer, false, false);
         let sunAltAz = Astronomy.Horizon(simulationTime.toJSDate(), observer, sunRaDec.ra, sunRaDec.dec, false);
         console.log(sunAltAz);
 
-        dateTimeDisplay.setAttribute("text", `value: ${simulationTime.toLocaleString(luxon.DateTime.DATETIME_FULL_WITH_SECONDS)}; color: white; width: 0.5; align: center`);
+        if (dateTimeDisplay) {
+          dateTimeDisplay.setAttribute("text", `value: ${simulationTime.toLocaleString(luxon.DateTime.DATETIME_FULL_WITH_SECONDS)}; color: white; width: 0.5; align: center`);
+        }
         //sunElevationDisplay.setAttribute("text", `value: sun elev.: ${sunAltAz.altitude.toFixed(1)}; color: white; width: 1; align: center`);
 
         // Update latitude/longitude displays on the control panel
         const latLabel = latitude >= 0 ? "N" : "S";
-        latitudeDisplay.setAttribute("text", `value: Latitude: ${Math.abs(latitude).toFixed(1)}° ${latLabel}; color: white; width: 1; align: center`);
+        if (latitudeDisplay) {
+          latitudeDisplay.setAttribute("text", `value: Latitude: ${Math.abs(latitude).toFixed(1)}° ${latLabel}; color: white; width: 1; align: center`);
+        }
 
         const lonLabel = longitude >= 0 ? "O" : "W";
-        longitudeDisplay.setAttribute("text", `value: Longitude: ${Math.abs(longitude).toFixed(1)}° ${lonLabel}; color: white; width: 1; align: center`);
+        if (longitudeDisplay) {
+          longitudeDisplay.setAttribute("text", `value: Longitude: ${Math.abs(longitude).toFixed(1)}° ${lonLabel}; color: white; width: 1; align: center`);
+        }
 
         const distance = 394;
 
@@ -489,14 +600,24 @@
         const y = distance * Math.sin((sunAltAz.altitude * Math.PI) / 180);
         const z = distance * Math.cos((sunAltAz.altitude * Math.PI) / 180) * Math.cos((sunAltAz.azimuth * Math.PI) / 180);
 
-        sceneEl.setAttribute('environment', 'lightPosition', `${x} ${y} ${z}`);
+        if (sceneEl) {
+          sceneEl.setAttribute('environment', 'lightPosition', `${x} ${y} ${z}`);
+        }
 
-        starsPointCloud.components.starfield.update();
+        if (starsPointCloud && starsPointCloud.components && starsPointCloud.components.starfield) {
+          starsPointCloud.components.starfield.update();
+        }
 
         let skyBrightness = mapSunAltitudeToSkyBrightness(sunAltAz.altitude, 0.0);
-        starShaderMaterial.uniforms.skyBrightness.value = skyBrightness;
-        haloShaderMaterial.uniforms.skyBrightness.value = skyBrightness;
-        milkyway.setAttribute('opacity', mapRange(skyBrightness, 0.0, 0.2, 0.25, 0.0)); //milky way max. brightness 25%, fading 5x faster than the stars
+        if (typeof starShaderMaterial !== 'undefined') {
+          starShaderMaterial.uniforms.skyBrightness.value = skyBrightness;
+        }
+        if (typeof haloShaderMaterial !== 'undefined') {
+          haloShaderMaterial.uniforms.skyBrightness.value = skyBrightness;
+        }
+        if (milkyway) {
+          milkyway.setAttribute('opacity', mapRange(skyBrightness, 0.0, 0.2, 0.25, 0.0)); //milky way max. brightness 25%, fading 5x faster than the stars
+        }
       }
 
 
@@ -548,14 +669,6 @@
       function mapRange(value, inMin, inMax, outMin, outMax) {
         return ((value - inMin) * (outMax - outMin)) / (inMax - inMin) + outMin;
       }
-
-      const sceneEl = document.querySelector('a-scene');
-      const cameraRig = document.getElementById("camera-rig");
-      const azContainer = document.getElementById("az-container");
-      const eqContainer = document.getElementById("eq-container");
-      const precessionContainer = document.getElementById("precession-container");
-      const starsPointCloud = document.getElementById("stars-point-cloud");
-      const milkyway = document.getElementById("milkyway");
 
       //eqContainer.setAttribute('rotation', `${latitude - 180} 0 180`);
 
@@ -609,6 +722,7 @@
           // Update the scene based on the new simulation time.
           //debouncedUpdateScene();
           //throttledUpdateScene()
+          syncSky();
           updateScene();
         }
         if (Math.abs(event.detail.y) >= joystickThreshold) {
@@ -616,6 +730,7 @@
           let latitudeAdjustment = -event.detail.y * latitudeAdjustmentSpeed;
           updateLatitude(latitude + latitudeAdjustment);
 
+          syncSky();
           updateScene();
         }
       });
@@ -763,6 +878,7 @@
           default:
             console.warn('Unknown or unhandled toggle action:', action);
         }
+        syncSky();
       }
 
       // Rotation of the Az-Container around the y-Axis
