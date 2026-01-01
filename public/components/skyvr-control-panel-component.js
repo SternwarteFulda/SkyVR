@@ -37,28 +37,28 @@ AFRAME.registerComponent("control-panel", {
 
   update: function () {
     if (this.data.enabled) {
-        if (this.controlPanel) {
-            this.controlPanel.visible = true;
-            this.controlPanel.geometry = this.draw();
-            this.controlPanel.material.color = new THREE.Color(this.color);
-            this.el.object3D.visible = true;
-            this.el.setAttribute('data-raycastable', '');
-            // Set data-raycastable attribute for all switch-clickarea elements
-            this.el.querySelectorAll('.switch-clickarea').forEach(clickarea => {
-              clickarea.setAttribute('data-raycastable', '');
-            });
-            //console.log('Raycaster objects', this.el.sceneEl.querySelector('[raycaster]').components.raycaster.objects);
-            this.updateOpacity();
-        }
-    } else {
-        this.controlPanel.visible = false;
-        this.el.object3D.visible = false;
-        this.el.removeAttribute('data-raycastable');
-        // Remove data-raycastable attribute from all switch-clickarea elements
-        this.el.querySelectorAll('.switch-clickarea').forEach(clickarea => {
-          clickarea.removeAttribute('data-raycastable');
+      if (this.controlPanel) {
+        this.controlPanel.visible = true;
+        this.controlPanel.geometry = this.draw();
+        this.controlPanel.material.color = new THREE.Color(this.color);
+        this.el.object3D.visible = true;
+        this.el.setAttribute('data-raycastable', '');
+        // Set data-raycastable attribute for all switch-clickarea elements
+        this.el.querySelectorAll('.switch-clickarea, .control-panel-button').forEach(clickarea => {
+          clickarea.setAttribute('data-raycastable', '');
         });
-        console.log('Raycaster objects', this.el.sceneEl.querySelector('[raycaster]').components.raycaster.objects);
+        //console.log('Raycaster objects', this.el.sceneEl.querySelector('[raycaster]').components.raycaster.objects);
+        this.updateOpacity();
+      }
+    } else {
+      this.controlPanel.visible = false;
+      this.el.object3D.visible = false;
+      this.el.removeAttribute('data-raycastable');
+      // Remove data-raycastable attribute from all switch-clickarea elements
+      this.el.querySelectorAll('.switch-clickarea, .control-panel-button').forEach(clickarea => {
+        clickarea.removeAttribute('data-raycastable');
+      });
+      // console.log('Raycaster objects', this.el.sceneEl.querySelector('[raycaster]').components.raycaster.objects);
     }
   },
 
@@ -66,9 +66,9 @@ AFRAME.registerComponent("control-panel", {
     if (this.data.opacity < 0) { this.data.opacity = 0; }
     if (this.data.opacity > 1) { this.data.opacity = 1; }
     if (this.data.opacity < 1) {
-        this.controlPanel.material.transparent = true;
+      this.controlPanel.material.transparent = true;
     } else {
-        this.controlPanel.material.transparent = false;
+      this.controlPanel.material.transparent = false;
     }
     this.controlPanel.material.opacity = this.data.opacity;
   },
@@ -82,20 +82,20 @@ AFRAME.registerComponent("control-panel", {
   draw: function () {
     var roundedRectShape = new THREE.Shape();
     function roundedRect(ctx, x, y, width, height, topLeftRadius, topRightRadius, bottomLeftRadius, bottomRightRadius) {
-        if (!topLeftRadius) { topLeftRadius = 0.00001; }
-        if (!topRightRadius) { topRightRadius = 0.00001; }
-        if (!bottomLeftRadius) { bottomLeftRadius = 0.00001; }
-        if (!bottomRightRadius) { bottomRightRadius = 0.00001; }
+      if (!topLeftRadius) { topLeftRadius = 0.00001; }
+      if (!topRightRadius) { topRightRadius = 0.00001; }
+      if (!bottomLeftRadius) { bottomLeftRadius = 0.00001; }
+      if (!bottomRightRadius) { bottomRightRadius = 0.00001; }
 
-        ctx.moveTo(x + topLeftRadius, y);
-        ctx.lineTo(x + width - topRightRadius, y);
-        ctx.absarc(x + width - topRightRadius, y + topRightRadius, topRightRadius, Math.PI * 1.5, Math.PI * 2);
-        ctx.lineTo(x + width, y + height - topRightRadius);
-        ctx.absarc(x + width - bottomRightRadius, y + height - bottomRightRadius, bottomRightRadius, 0, Math.PI * 0.5);
-        ctx.lineTo(x + bottomLeftRadius, y + height);
-        ctx.absarc(x + bottomLeftRadius, y + height - bottomLeftRadius, bottomLeftRadius, Math.PI * 0.5, Math.PI);
-        ctx.lineTo(x, y + topLeftRadius);
-        ctx.absarc(x + topLeftRadius, y + topLeftRadius, topLeftRadius, Math.PI, Math.PI * 1.5);
+      ctx.moveTo(x + topLeftRadius, y);
+      ctx.lineTo(x + width - topRightRadius, y);
+      ctx.absarc(x + width - topRightRadius, y + topRightRadius, topRightRadius, Math.PI * 1.5, Math.PI * 2);
+      ctx.lineTo(x + width, y + height - topRightRadius);
+      ctx.absarc(x + width - bottomRightRadius, y + height - bottomRightRadius, bottomRightRadius, 0, Math.PI * 0.5);
+      ctx.lineTo(x + bottomLeftRadius, y + height);
+      ctx.absarc(x + bottomLeftRadius, y + height - bottomLeftRadius, bottomLeftRadius, Math.PI * 0.5, Math.PI);
+      ctx.lineTo(x, y + topLeftRadius);
+      ctx.absarc(x + topLeftRadius, y + topLeftRadius, topLeftRadius, Math.PI, Math.PI * 1.5);
     }
 
     var corners = [this.data.radius, this.data.radius, this.data.radius, this.data.radius];
@@ -111,18 +111,18 @@ AFRAME.registerComponent("control-panel", {
 
 AFRAME.registerPrimitive('a-control-panel', {
   defaultComponents: {
-      'control-panel': {}
+    'control-panel': {}
   },
   mappings: {
-      enabled: 'control-panel.enabled',
-      width: 'control-panel.width',
-      height: 'control-panel.height',
-      radius: 'control-panel.radius',
-      'top-left-radius': 'control-panel.topLeftRadius',
-      'top-right-radius': 'control-panel.topRightRadius',
-      'bottom-left-radius': 'control-panel.bottomLeftRadius',
-      'bottom-right-radius': 'control-panel.bottomRightRadius',
-      //color: 'control-panel.color',
-      opacity: 'control-panel.opacity'
+    enabled: 'control-panel.enabled',
+    width: 'control-panel.width',
+    height: 'control-panel.height',
+    radius: 'control-panel.radius',
+    'top-left-radius': 'control-panel.topLeftRadius',
+    'top-right-radius': 'control-panel.topRightRadius',
+    'bottom-left-radius': 'control-panel.bottomLeftRadius',
+    'bottom-right-radius': 'control-panel.bottomRightRadius',
+    //color: 'control-panel.color',
+    opacity: 'control-panel.opacity'
   }
 });

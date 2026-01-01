@@ -404,6 +404,7 @@
       <script src="components/skyvr-switch-component.js"></script>
       <script src="components/skyvr-rig-follower-component.js"></script>
       <script src="components/skyvr-infobar-component.js"></script>
+      <script src="components/skyvr-tooltip-component.js"></script>
     </a-assets>
 
     <a-entity id="sky-master" networked="template:#sky-template;persistent:true;networkId:sky-master"
@@ -441,14 +442,84 @@
           bottom-origin-cylinder="height: 394; radius: 0.009; color: red; rotation: 54 9 0; opacity: 0.6;"
           visible="false">
         </a-entity>
+
+        <!-- Controller Hints -->
+        <a-entity id="hint-trigger" class="controller-hint" position="0 -0.03 -0.05" rotation="-130 0 0">
+          <a-rounded width="0.12" height="0.025" radius="0.005" color="#111" opacity="0.9"
+            position="-0.06 -0.0125 0"></a-rounded>
+          <a-text value="Select" width="0.25" align="center" color="white" position="0 0 0.001"></a-text>
+          <a-entity line="start: 0 0 0; end: 0 0.02 0.03; color: white; opacity: 0.5"></a-entity>
+        </a-entity>
+
+        <a-entity id="hint-right-joy" class="controller-hint" position="0.04 0.03 -0.01" rotation="-120 0 0">
+          <a-rounded width="0.10" height="0.025" radius="0.005" color="#111" opacity="0.9"
+            position="-0.05 -0.0125 0"></a-rounded>
+          <a-text value="Rotate" width="0.25" align="center" color="white" position="0 0 0.001"></a-text>
+          <a-entity line="start: 0 0 0; end: -0.01 -0.01 0.01; color: white; opacity: 0.5"></a-entity>
+        </a-entity>
+
+        <a-entity id="hint-right-grip" class="controller-hint" position="0.06 0 0.08" rotation="-90 90 0">
+          <a-rounded width="0.14" height="0.025" radius="0.005" color="#111" opacity="0.9"
+            position="-0.07 -0.0125 0"></a-rounded>
+          <a-text value="Show Pointer" width="0.25" align="center" color="white" position="0 0 0.001"></a-text>
+          <a-entity line="start: -0.02 0 -0.02; end: -0.05 0 -0.05; color: white; opacity: 0.5"></a-entity>
+        </a-entity>
+
+        <a-entity id="hint-a" class="controller-hint" position="-0.04 0.05 0.02" rotation="-120 0 0">
+          <a-rounded width="0.1" height="0.025" radius="0.005" color="#111" opacity="0.9"
+            position="-0.05 -0.0125 0"></a-rounded>
+          <a-text value="Remove (A)" width="0.25" align="center" color="white" position="0 0 0.001"></a-text>
+          <a-entity line="start: 0 0 0; end: 0.01 -0.02 -0.01; color: white; opacity: 0.5"></a-entity>
+        </a-entity>
+
+        <a-entity id="hint-b" class="controller-hint" position="0.02 0.08 0.02" rotation="-120 0 0">
+          <a-rounded id="hint-b-bg" width="0.2" height="0.025" radius="0.005" color="#111" opacity="0.9"
+            position="-0.1 -0.0125 0"></a-rounded>
+          <a-text id="hint-b-text" value="Action (B)" width="0.25" align="center" color="white"
+            position="0 0 0.001"></a-text>
+          <a-entity line="start: 0 0 0; end: -0.01 -0.03 -0.01; color: white; opacity: 0.5"></a-entity>
+        </a-entity>
       </a-entity>
       <a-entity id="left-controller" meta-touch-controls="hand: left" position="0 0 0">
-        <a-control-panel id="control-panel-1" enabled="true" height="0.5">
+        <!-- Controller Hints -->
+        <a-entity id="hint-x" class="controller-hint" position="-0.04 0.05 0.02" rotation="-120 0 0">
+          <a-rounded width="0.1" height="0.025" radius="0.005" color="#111" opacity="0.9"
+            position="-0.05 -0.0125 0"></a-rounded>
+          <a-text value="Menu (X)" width="0.25" align="center" color="white" position="0 0 0.001"></a-text>
+          <a-entity line="start: 0 0 0; end: 0.01 -0.02 -0.01; color: white; opacity: 0.5"></a-entity>
+        </a-entity>
+
+        <a-entity id="hint-y" class="controller-hint" position="0.04 0.05 0.02" rotation="-120 0 0">
+          <a-rounded width="0.11" height="0.025" radius="0.005" color="#111" opacity="0.9"
+            position="-0.055 -0.0125 0"></a-rounded>
+          <a-text value="Mode (Y)" width="0.25" align="center" color="white" position="0 0 0.001"></a-text>
+          <a-entity line="start: 0 0 0; end: -0.01 -0.02 -0.01; color: white; opacity: 0.5"></a-entity>
+        </a-entity>
+
+        <a-entity id="hint-grip" class="controller-hint" position="-0.06 0 0.08" rotation="-90 -90 0">
+          <a-rounded width="0.13" height="0.025" radius="0.005" color="#111" opacity="0.9"
+            position="-0.065 -0.0125 0"></a-rounded>
+          <a-text value="Talk (Grip)" width="0.25" align="center" color="white" position="0 0 0.001"></a-text>
+          <a-entity line="start: 0.02 0 -0.02; end: 0.05 0 -0.05; color: white; opacity: 0.5"></a-entity>
+        </a-entity>
+
+        <a-entity id="hint-left-joy" class="controller-hint" position="0 0.06 -0.02" rotation="-120 0 0">
+          <a-rounded width="0.08" height="0.025" radius="0.005" color="#111" opacity="0.9"
+            position="-0.04 -0.0125 0"></a-rounded>
+          <a-text value="Time" width="0.25" align="center" color="white" position="0 0 0.001"></a-text>
+          <a-entity line="start: 0 0 0; end: 0 -0.02 0.02; color: white; opacity: 0.5"></a-entity>
+        </a-entity>
+
+        <a-control-panel id="control-panel-1" enabled="false" height="0.5">
           <a-entity id="latitude-display" position="0 0.22 0"></a-entity>
           <a-entity id="longitude-display" position="0 0.14 0"></a-entity>
           <a-entity id="date-time-display" position="0 0.02 0"></a-entity>
 
           <!-- buttons on the control panel -->
+          <a-entity id="switch-hints"
+            switch="position: -0.05 0.21 0; clickActionParam: toggleHints; toggled: true"></a-entity>
+          <a-text value="Controller Tooltips" position="-0.03 0.21 0" width="0.2" color="white" align="left"></a-text>
+
           <a-entity id="switch-meridian" switch="position: -0.05 0.18 0; clickActionParam: toggleMeridian"></a-entity>
           <a-text value="Meridian" position="-0.03 0.18 0" width="0.2" color="white" align="left"></a-text>
 
@@ -468,63 +539,63 @@
           <!-- Coordinates adjusters -->
           <a-text value="Lat" position="-0.15 0.22 0" width="0.3" color="white" align="left"></a-text>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 0.22 0.001" color="#444"
-            text="value: -; align: center; width: 0.5" data-raycastable onclick="adjustCoordinate('latitude', -0.1)">
-          </a-rounded>
+            text="value: -; align: center; width: 0.5" class="control-panel-button" data-raycastable
+            onclick="adjustCoordinate('latitude', -0.1)"></a-rounded>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 0.22 0.001" color="#444"
-            text="value: +; align: center; width: 0.5" data-raycastable onclick="adjustCoordinate('latitude', 0.1)">
-          </a-rounded>
+            text="value: +; align: center; width: 0.5" class="control-panel-button" data-raycastable
+            onclick="adjustCoordinate('latitude', 0.1)"></a-rounded>
 
           <a-text value="Lon" position="-0.15 0.14 0" width="0.3" color="white" align="left"></a-text>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 0.14 0.001" color="#444"
-            text="value: -; align: center; width: 0.5" data-raycastable onclick="adjustCoordinate('longitude', -0.1)">
-          </a-rounded>
+            text="value: -; align: center; width: 0.5" class="control-panel-button" data-raycastable
+            onclick="adjustCoordinate('longitude', -0.1)"></a-rounded>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 0.14 0.001" color="#444"
-            text="value: +; align: center; width: 0.5" data-raycastable onclick="adjustCoordinate('longitude', 0.1)">
-          </a-rounded>
+            text="value: +; align: center; width: 0.5" class="control-panel-button" data-raycastable
+            onclick="adjustCoordinate('longitude', 0.1)"></a-rounded>
 
           <!-- Date/Time adjusters -->
           <a-rounded id="now-button" width="0.08" height="0.03" radius="0.01" position="0.09 0.02 0.001" color="#222"
-            text="value: NOW; align: center; width: 0.5" data-raycastable onclick="setNow()">
-          </a-rounded>
+            text="value: NOW; align: center; width: 0.5" class="control-panel-button" data-raycastable
+            onclick="setNow()"></a-rounded>
           <a-text value="Year" position="-0.15 -0.02 0" width="0.3" color="white" align="left"></a-text>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 -0.02 0.001" color="#444"
-            text="value: -; align: center; width: 0.5" data-raycastable onclick="adjustTime('years', -1)">
-          </a-rounded>
+            text="value: -; align: center; width: 0.5" class="control-panel-button" data-raycastable
+            onclick="adjustTime('years', -1)"></a-rounded>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 -0.02 0.001" color="#444"
-            text="value: +; align: center; width: 0.5" data-raycastable onclick="adjustTime('years', 1)">
-          </a-rounded>
+            text="value: +; align: center; width: 0.5" class="control-panel-button" data-raycastable
+            onclick="adjustTime('years', 1)"></a-rounded>
 
           <a-text value="Month" position="-0.15 -0.06 0" width="0.3" color="white" align="left"></a-text>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 -0.06 0.001" color="#444"
-            text="value: -; align: center; width: 0.5" data-raycastable onclick="adjustTime('months', -1)">
-          </a-rounded>
+            text="value: -; align: center; width: 0.5" class="control-panel-button" data-raycastable
+            onclick="adjustTime('months', -1)"></a-rounded>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 -0.06 0.001" color="#444"
-            text="value: +; align: center; width: 0.5" data-raycastable onclick="adjustTime('months', 1)">
-          </a-rounded>
+            text="value: +; align: center; width: 0.5" class="control-panel-button" data-raycastable
+            onclick="adjustTime('months', 1)"></a-rounded>
 
           <a-text value="Day" position="-0.15 -0.1 0" width="0.3" color="white" align="left"></a-text>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 -0.1 0.001" color="#444"
-            text="value: -; align: center; width: 0.5" data-raycastable onclick="adjustTime('days', -1)">
-          </a-rounded>
+            text="value: -; align: center; width: 0.5" class="control-panel-button" data-raycastable
+            onclick="adjustTime('days', -1)"></a-rounded>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 -0.1 0.001" color="#444"
-            text="value: +; align: center; width: 0.5" data-raycastable onclick="adjustTime('days', 1)">
-          </a-rounded>
+            text="value: +; align: center; width: 0.5" class="control-panel-button" data-raycastable
+            onclick="adjustTime('days', 1)"></a-rounded>
 
           <a-text value="Hour" position="-0.15 -0.14 0" width="0.3" color="white" align="left"></a-text>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 -0.14 0.001" color="#444"
-            text="value: -; align: center; width: 0.5" data-raycastable onclick="adjustTime('hours', -1)">
-          </a-rounded>
+            text="value: -; align: center; width: 0.5" class="control-panel-button" data-raycastable
+            onclick="adjustTime('hours', -1)"></a-rounded>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 -0.14 0.001" color="#444"
-            text="value: +; align: center; width: 0.5" data-raycastable onclick="adjustTime('hours', 1)">
-          </a-rounded>
+            text="value: +; align: center; width: 0.5" class="control-panel-button" data-raycastable
+            onclick="adjustTime('hours', 1)"></a-rounded>
 
           <a-text value="Minute" position="-0.15 -0.18 0" width="0.3" color="white" align="left"></a-text>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 -0.18 0.001" color="#444"
-            text="value: -; align: center; width: 0.5" data-raycastable onclick="adjustTime('minutes', -1)">
-          </a-rounded>
+            text="value: -; align: center; width: 0.5" class="control-panel-button" data-raycastable
+            onclick="adjustTime('minutes', -1)"></a-rounded>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 -0.18 0.001" color="#444"
-            text="value: +; align: center; width: 0.5" data-raycastable onclick="adjustTime('minutes', 1)">
-          </a-rounded>
+            text="value: +; align: center; width: 0.5" class="control-panel-button" data-raycastable
+            onclick="adjustTime('minutes', 1)"></a-rounded>
         </a-control-panel>
       </a-entity>
     </a-entity>
@@ -617,8 +688,8 @@
 
 
     <a-rounded id="reset-button" width="2" height="0.5" radius="0.1" material="shader: flat; color: blue"
-      position="0 1 -5" text="value: Reset; align: center; width: 4" data-raycastable onclick="resetScene()">
-    </a-rounded>
+      position="0 1 -5" text="value: Reset; align: center; width: 4" data-raycastable
+      onclick="resetScene()"></a-rounded>
 
 
     <script type="text/javascript">
@@ -930,16 +1001,12 @@
       console.log("Control Panels:", controlPanels);
 
       leftController.addEventListener("xbuttonup", function (event) {
+        if (!lastEnabledControlPanel) {
+          lastEnabledControlPanel = document.querySelector('a-control-panel');
+        }
         if (lastEnabledControlPanel) {
           const isEnabled = lastEnabledControlPanel.getAttribute("enabled") === "true";
           lastEnabledControlPanel.setAttribute("enabled", !isEnabled);
-        } else {
-          // If no control panel is currently enabled, find the first control panel and enable it
-          const firstControlPanel = controlPanels[0];
-          if (firstControlPanel) {
-            firstControlPanel.setAttribute("enabled", "false");
-            lastEnabledControlPanel = firstControlPanel;
-          }
         }
       });
 
@@ -1019,6 +1086,14 @@
               eclipticEl.setAttribute('visible', newVisibility);
               console.log('Ecliptic visibility toggled to:', newVisibility);
             }
+            break;
+          case 'toggleHints':
+            const hints = document.querySelectorAll('.controller-hint');
+            hints.forEach(hint => {
+              newVisibility = !hint.getAttribute('visible');
+              hint.setAttribute('visible', newVisibility);
+            });
+            console.log('Controller hints visibility toggled');
             break;
           case 'toggleCardinalPoints':
             if (cardinalPointsEl) {

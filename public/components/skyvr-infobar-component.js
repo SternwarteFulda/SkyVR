@@ -186,9 +186,25 @@ AFRAME.registerComponent('skyvr-infobar', {
             Object.keys(this.modeButtons).forEach(id => {
                 const btn = this.modeButtons[id];
                 const isActive = id === currentMode;
-                btn.setAttribute('material', 'color', isActive ? '#a855f7' : '#ffffff');
-                btn.setAttribute('material', 'opacity', isActive ? 1.0 : 0.6);
+                btn.setAttribute('material', 'color', isActive ? '#ffffff' : '#ffffff');
+                btn.setAttribute('material', 'opacity', isActive ? 1.0 : 0.3);
             });
+
+            // Update B-button hint text dynamically
+            const bText = document.getElementById('hint-b-text');
+            const bBg = document.getElementById('hint-b-bg');
+            if (bText && bBg) {
+                let label = "Action (B)";
+                let width = 0.15;
+                if (currentMode === 'draw') { label = "Draw (B)"; width = 0.1; }
+                else if (currentMode === 'stamp') { label = "Stamp (B)"; width = 0.12; }
+                else if (currentMode === 'sticky') { label = "Show Stick Figure (B)"; width = 0.24; }
+                else if (currentMode === 'constellation') { label = "Show Constellation (B)"; width = 0.27; }
+
+                bText.setAttribute('value', label);
+                bBg.setAttribute('width', width);
+                bBg.setAttribute('position', `${-width / 2} -0.0125 0`);
+            }
         }
     }
 });
