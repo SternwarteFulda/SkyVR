@@ -428,7 +428,7 @@
 
       <script src="components/aframe-environment-component.js"></script>
       <script src="components/aframe-extras.primitives.min.js"></script>
-      <script src="components/spawn-in-circle.component.js"></script>
+      <script src="components/spawn-in-spots.component.js"></script>
       <script src="components/skyvr-high-res-component.js"></script>
       <script src="components/skyvr-starfield-component.js"></script>
       <script src="components/skyvr-cylinder-component.js"></script>
@@ -452,7 +452,7 @@
 
     <!-- Camera with Meta Quest-Controller components and laser-controls -->
     <a-entity id="camera-rig" rig-follower networked="template:#rig-template;attachTemplateToLocal:false;"
-      spawn-in-circle="radius:3" position="0 0 0" rotation="0 0 0">
+      spawn-in-spots="radius:4" position="0 0 0" rotation="0 0 0">
       <a-entity id="camera" player-info networked="template:#camera-template;attachTemplateToLocal:false;"
         camera="near: 0.1; far: 3600" look-controls position="0 1.6 0">
         <a-sphere class="head" visible="false" random-color></a-sphere>

@@ -1,7 +1,11 @@
 AFRAME.registerComponent('rig-follower', {
-  init: function() {
+  init: function () {
     this.camWorldPos = new THREE.Vector3();
     this.lastCamWorldPos = new THREE.Vector3();
+    this.isFirstFrame = true;
+  },
+
+  reset: function () {
     this.isFirstFrame = true;
   },
 
@@ -28,7 +32,7 @@ AFRAME.registerComponent('rig-follower', {
     if (Math.abs(dx) > 0.0001 || Math.abs(dz) > 0.0001) {
       rig.object3D.position.x += dx;
       rig.object3D.position.z += dz;
-      
+
       // Update the Rig's matrix so it's ready for the next frame
       rig.object3D.updateMatrixWorld();
     }
