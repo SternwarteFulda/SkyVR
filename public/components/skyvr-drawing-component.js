@@ -14,10 +14,10 @@ AFRAME.registerComponent('drawing', {
         this.tempVector = new THREE.Vector3();
         this.tempQuaternion = new THREE.Quaternion();
         this.offsetVector = new THREE.Vector3();
-        this.currentSegmentPoints = []; 
-        this.currentSegmentMesh = null;   
-        this.completedSegmentMeshes = []; 
-        this.isDrawing = false;           
+        this.currentSegmentPoints = [];
+        this.currentSegmentMesh = null;
+        this.completedSegmentMeshes = [];
+        this.isDrawing = false;
         this.precessionContainerEl = document.getElementById("precession-container");
         if (!this.precessionContainerEl) {
             console.error('Drawing component: precession-container not found!');
@@ -32,7 +32,7 @@ AFRAME.registerComponent('drawing', {
         if (this.currentSegmentMesh && this.currentSegmentPoints.length > 1) {
             this.completedSegmentMeshes.push(this.currentSegmentMesh);
         }
-        this.currentSegmentMesh = null; 
+        this.currentSegmentMesh = null;
     },
     clearDrawing: function () {
         this.completedSegmentMeshes.forEach(mesh => {
@@ -60,36 +60,36 @@ AFRAME.registerComponent('drawing', {
         }
     },
     tick: function () {
-        if (this.isDrawing && this.precessionContainerEl) { 
-        const controllerPosition = new THREE.Vector3();
-        this.el.object3D.getWorldPosition(controllerPosition);
+        if (this.isDrawing && this.precessionContainerEl) {
+            const controllerPosition = new THREE.Vector3();
+            this.el.object3D.getWorldPosition(controllerPosition);
 
-        const controllerQuaternion = new THREE.Quaternion();
-        this.el.object3D.getWorldQuaternion(controllerQuaternion);
+            const controllerQuaternion = new THREE.Quaternion();
+            this.el.object3D.getWorldQuaternion(controllerQuaternion);
 
-        const offset = new THREE.Vector3(this.data.offset.x, this.data.offset.y, this.data.offset.z);
-        offset.applyQuaternion(controllerQuaternion);
+            const offset = new THREE.Vector3(this.data.offset.x, this.data.offset.y, this.data.offset.z);
+            offset.applyQuaternion(controllerQuaternion);
 
-        const offsetWorldPosition = controllerPosition.add(offset);
-        const localPosition = this.precessionContainerEl.object3D.worldToLocal(offsetWorldPosition.clone());
+            const offsetWorldPosition = controllerPosition.add(offset);
+            const localPosition = this.precessionContainerEl.object3D.worldToLocal(offsetWorldPosition.clone());
 
-        if (this.currentSegmentPoints.length > 0) {
-            const lastPoint = this.currentSegmentPoints[this.currentSegmentPoints.length - 1];
+            if (this.currentSegmentPoints.length > 0) {
+                const lastPoint = this.currentSegmentPoints[this.currentSegmentPoints.length - 1];
                 const interpolatedPoints = this.interpolatePoints(lastPoint, localPosition, 5);
                 interpolatedPoints.forEach(point => {
                     this.currentSegmentPoints.push(point);
                 });
-        } else {
+            } else {
                 this.currentSegmentPoints.push(localPosition);
-        }
+            }
 
             if (this.currentSegmentMesh) {
                 this.precessionContainerEl.object3D.remove(this.currentSegmentMesh);
                 this.currentSegmentMesh.geometry.dispose();
             }
 
-            if (this.currentSegmentPoints.length > 1) { 
-        const geometry = new THREE.BufferGeometry().setFromPoints(this.currentSegmentPoints);
+            if (this.currentSegmentPoints.length > 1) {
+                const geometry = new THREE.BufferGeometry().setFromPoints(this.currentSegmentPoints);
                 this.currentSegmentMesh = new THREE.Line(geometry, this.lineMaterial);
                 this.precessionContainerEl.object3D.add(this.currentSegmentMesh);
             }

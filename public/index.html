@@ -129,7 +129,22 @@
         NAF.schemas.add({
           template: '#drawing-stroke-template',
           components: [
-            'drawing-stroke'
+            {
+              component: 'drawing-stroke',
+              property: 'points'
+            },
+            {
+              component: 'drawing-stroke',
+              property: 'color'
+            }
+          ]
+        });
+      }
+      if (!NAF.schemas.hasTemplate('#constellation-illustration-template')) {
+        NAF.schemas.add({
+          template: '#constellation-illustration-template',
+          components: [
+            'constellation-illustration'
           ]
         });
       }
@@ -409,6 +424,9 @@
       <template id="drawing-stroke-template">
         <a-entity drawing-stroke></a-entity>
       </template>
+      <template id="constellation-illustration-template">
+        <a-entity constellation-illustration></a-entity>
+      </template>
       <!-- /Templates -->
 
       <img id="starTexture" src="assets/star.png">
@@ -439,6 +457,9 @@
       <script src="components/skyvr-rig-follower-component.js"></script>
       <script src="components/skyvr-infobar-component.js"></script>
       <script src="components/skyvr-tooltip-component.js"></script>
+      <script src="components/skyvr-constellation-component.js"></script>
+      <script src="components/skyvr-constellation-pointer-component.js"></script>
+      <script src="components/skyvr-networked-components.js"></script>
     </a-assets>
 
     <a-entity id="sky-master" networked="template:#sky-template;persistent:true;networkId:sky-master"
@@ -461,7 +482,7 @@
       <a-entity id="infobar" skyvr-infobar position="0 0.8 -0.6" rotation="-40 0 0"></a-entity>
       <a-entity id="right-controller" networked="template:#right-controller-template;attachTemplateToLocal:false;"
         meta-touch-controls="hand: right" laser-controls
-        raycaster="objects: [data-raycastable]; far: 5; lineOpacity: 0.5;" drawing>
+        raycaster="objects: [data-raycastable]; far: 500; lineOpacity: 0.5;" drawing constellation-pointer>
         <a-entity light="type: point; intensity: 0.2; distance: 0.5; decay: 1" position="0 0.05 0"></a-entity>
         <!-- Coordinate system for the right controller -->
         <a-entity>
@@ -716,8 +737,12 @@
           <a-entity id="stars-point-cloud" position="0 0 0" rotation="-23.43619 0 0" starfield></a-entity>
 
           <a-sphere id="milkyway" radius="397" rotation="6.45 29.85 90.06" scale="-1.0 1.0 1.0"
-            material="shader: flat; src: url(assets/gaia.png); side: back; fog: false; transparent: true; opacity: 0.0; blending: additive;">
+            material="shader: flat; src: url(assets/gaia.png); side: back; fog: false; transparent: true; opacity: 0.0; blending: additive; depthWrite: false;">
           </a-sphere>
+
+          <!-- Constellation lines and illustration renderer -->
+          <a-entity id="constellation-lines" rotation="-23.43619 0 0"
+            constellation-renderer="showLines: false"></a-entity>
         </a-entity>
       </a-entity>
     </a-entity>
@@ -1185,10 +1210,28 @@
       });
 
       rightController.addEventListener('bbuttondown', () => {
-        rightController.components.drawing.startDrawing();
+        const currentMode = window.currentMode || 'draw';
+
+        if (currentMode === 'draw') {
+          rightController.components.drawing.startDrawing();
+        } else if (currentMode === 'constellation') {
+          // Place constellation illustration
+          const constellationLines = document.getElementById('constellation-lines');
+          if (constellationLines && constellationLines.components['constellation-renderer']) {
+            constellationLines.components['constellation-renderer'].placeIllustration();
+            // Haptic pulse for feedback
+            if (rightController.components['haptics']) {
+              rightController.components['haptics'].pulse(0.3, 100);
+            }
+          }
+        }
       });
       rightController.addEventListener('bbuttonup', () => {
-        rightController.components.drawing.stopDrawing();
+        const currentMode = window.currentMode || 'draw';
+
+        if (currentMode === 'draw') {
+          rightController.components.drawing.stopDrawing();
+        }
       });
       rightController.addEventListener('abuttondown', (event) => {
         aButtonIsPhysicallyDown = true;
@@ -1218,9 +1261,19 @@
 
         // Process tap if the button was down AND hold was not triggered during its press cycle
         if (wasPhysicallyDown && !holdActionTriggered) {
-          const drawingComponent = rightController.components.drawing;
-          if (drawingComponent) {
-            drawingComponent.clearLastSegment();
+          const currentMode = window.currentMode || 'draw';
+
+          if (currentMode === 'draw') {
+            const drawingComponent = rightController.components.drawing;
+            if (drawingComponent) {
+              drawingComponent.clearLastSegment();
+            }
+          } else if (currentMode === 'constellation') {
+            // Remove last illustration
+            const constellationLines = document.getElementById('constellation-lines');
+            if (constellationLines && constellationLines.components['constellation-renderer']) {
+              constellationLines.components['constellation-renderer'].removeLastIllustration();
+            }
           }
         }
         // holdActionTriggered is reset in abuttondown for the next full press sequence
@@ -1238,13 +1291,21 @@
         const currentHoldDuration = performance.now() - aButtonDownTimestamp;
 
         if (currentHoldDuration >= HOLD_DURATION_THRESHOLD) {
-          const comp = rightController.components.drawing;
-          if (comp) {
-            // if (comp.lineMaterial) { 
-            //   comp.lineMaterial.color.set('magenta'); 
-            // }
-            comp.clearDrawing();
+          const currentMode = window.currentMode || 'draw';
+
+          if (currentMode === 'draw') {
+            const comp = rightController.components.drawing;
+            if (comp) {
+              comp.clearDrawing();
+            }
+          } else if (currentMode === 'constellation') {
+            // Clear all illustrations
+            const constellationLines = document.getElementById('constellation-lines');
+            if (constellationLines && constellationLines.components['constellation-renderer']) {
+              constellationLines.components['constellation-renderer'].clearAllIllustrations();
+            }
           }
+
           holdActionTriggered = true;
 
           // Interval is already cleared in the first check of this function if holdActionTriggered becomes true

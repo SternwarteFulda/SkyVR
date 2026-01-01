@@ -1,4 +1,4 @@
-const CACHE_NAME = 'skyvr-cache-v26';
+const CACHE_NAME = 'skyvr-cache-v28';
 
 const ASSETS_TO_CACHE = [
     '/',
@@ -15,6 +15,7 @@ const ASSETS_TO_CACHE = [
     '/components/spawn-in-spots.component.js',
     '/components/skyvr-high-res-component.js',
     '/components/skyvr-starfield-component.js',
+    '/components/skyvr-constellation-component.js',
     '/components/skyvr-cylinder-component.js',
     '/components/skyvr-rounded-component.js',
     '/components/skyvr-glow-effect-component.js',
@@ -22,6 +23,9 @@ const ASSETS_TO_CACHE = [
     '/components/skyvr-switch-component.js',
     '/components/skyvr-rig-follower-component.js',
     '/components/skyvr-infobar-component.js',
+    '/components/skyvr-tooltip-component.js',
+    '/components/skyvr-constellation-pointer-component.js',
+    '/components/skyvr-networked-components.js',
     '/assets/icons/door.svg',
     '/assets/icons/mic-on.svg',
     '/assets/icons/mic-off.svg',

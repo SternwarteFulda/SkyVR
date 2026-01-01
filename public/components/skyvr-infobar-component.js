@@ -198,8 +198,8 @@ AFRAME.registerComponent('skyvr-infobar', {
                 let width = 0.15;
                 if (currentMode === 'draw') { label = "Draw (B)"; width = 0.1; }
                 else if (currentMode === 'stamp') { label = "Stamp (B)"; width = 0.12; }
-                else if (currentMode === 'sticky') { label = "Show Stick Figure (B)"; width = 0.24; }
-                else if (currentMode === 'constellation') { label = "Show Constellation (B)"; width = 0.27; }
+                else if (currentMode === 'sticky') { label = "Add Stick Figure (B)"; width = 0.22; }
+                else if (currentMode === 'constellation') { label = "Add Illustration (B)"; width = 0.22; }
 
                 bText.setAttribute('value', label);
                 bBg.setAttribute('width', width);
