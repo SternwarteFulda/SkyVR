@@ -17,10 +17,7 @@ AFRAME.registerComponent('constellation-renderer', {
         this.constellationLines = [];
         this.placedIllustrations = [];
         this.currentPointedConstellation = null;
-        this.targetSphere = null;
         this.textureCache = new Map();
-
-        this.createTargetSphere();
 
         // Load data sequentially because constellation processing depends on star data
         this.loadStarData()
@@ -165,27 +162,11 @@ AFRAME.registerComponent('constellation-renderer', {
         this.constellationLines = [];
     },
 
-    createTargetSphere: function () {
-        const geo = new THREE.SphereGeometry(4, 16, 16);
-        const mat = new THREE.MeshBasicMaterial({
-            color: '#ff00ff', // Magenta
-            transparent: true,
-            opacity: 0,
-            depthTest: false,
-            fog: false
-        });
-        this.targetSphere = new THREE.Mesh(geo, mat);
-        this.targetSphere.renderOrder = 9999;
-        this.targetSphere.name = 'constellation-target-diagnostic';
 
-        // Add directly to the entity's object3D
-        this.el.object3D.add(this.targetSphere);
-    },
 
     // Find which constellation the user is pointing at
     findPointedConstellation: function (raycaster) {
         if (!this.loadingComplete || !this.constellationData) {
-            if (this.targetSphere) this.targetSphere.material.opacity = 0;
             return null;
         }
 
@@ -193,7 +174,6 @@ AFRAME.registerComponent('constellation-renderer', {
         const isConstMode = currentMode === 'constellation';
 
         if (!isConstMode) {
-            if (this.targetSphere) this.targetSphere.material.opacity = 0;
             return null;
         }
 
@@ -207,14 +187,6 @@ AFRAME.registerComponent('constellation-renderer', {
 
         // 2. Project local ray direction onto the sphere (since user is roughly at center)
         const hitPoint = localRayDirection.clone().multiplyScalar(this.data.radius);
-
-        // Update diagnostic sphere
-        if (this.targetSphere) {
-            this.targetSphere.position.copy(hitPoint);
-            this.targetSphere.material.opacity = 0.8;
-            this.targetSphere.visible = true;
-            this.targetSphere.material.color.set('#ff00ff');
-        }
 
         // 3. Direction from center to hit point is what we compare with stars
         const hitDir = hitPoint.clone().normalize();
@@ -234,15 +206,7 @@ AFRAME.registerComponent('constellation-renderer', {
             }
         });
 
-        if (this.targetSphere && closestConstellation) {
-            this.targetSphere.material.opacity = isConstMode ? 1.0 : 0;
-            this.targetSphere.material.color.set('#00ff00'); // Turn green on hit
-            this.targetSphere.scale.set(1.5, 1.5, 1.5);
-        } else if (this.targetSphere) {
-            this.targetSphere.scale.set(1.0, 1.0, 1.0);
-            this.targetSphere.material.color.set('#ff00ff');
-            this.targetSphere.material.opacity = isConstMode ? 0.3 : 0;
-        }
+
 
         return closestConstellation;
     },
