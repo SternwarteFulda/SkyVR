@@ -2,7 +2,7 @@ AFRAME.registerComponent('skyvr-infobar', {
     init: function () {
         // Individual icon paths
         this.ICONS = {
-            vessel: '#icon-door',
+            room: '#icon-door',
             micOn: '#icon-mic-on',
             micOff: '#icon-mic-off',
             draw: '#icon-draw',
@@ -34,17 +34,17 @@ AFRAME.registerComponent('skyvr-infobar', {
         this.borderEl.setAttribute('material', 'shader: flat');
         this.container.appendChild(this.borderEl);
 
-        // 3. Vessel Section (Icon + Text)
-        this.vesselGroup = document.createElement('a-entity');
-        this.vesselGroup.setAttribute('position', '-0.33 0 0');
-        this.container.appendChild(this.vesselGroup);
+        // 3. Room Section (Icon + Text)
+        this.roomGroup = document.createElement('a-entity');
+        this.roomGroup.setAttribute('position', '-0.33 0 0');
+        this.container.appendChild(this.roomGroup);
 
-        this.vesselIcon = this.createIcon(this.ICONS.vessel, 0.035);
-        this.vesselIcon.setAttribute('position', '-0.03 0 0');
-        this.vesselIcon.setAttribute('data-raycastable', '');
-        this.vesselGroup.appendChild(this.vesselIcon);
+        this.roomIcon = this.createIcon(this.ICONS.room, 0.035);
+        this.roomIcon.setAttribute('position', '-0.03 0 0');
+        this.roomIcon.setAttribute('data-raycastable', '');
+        this.roomGroup.appendChild(this.roomIcon);
 
-        this.vesselIcon.addEventListener('click', () => {
+        this.roomIcon.addEventListener('click', () => {
             const params = typeof window.getLobbyParams === 'function' ? window.getLobbyParams() : window.location.search;
             window.location.href = 'lobby.html' + params;
         });
@@ -56,7 +56,7 @@ AFRAME.registerComponent('skyvr-infobar', {
         this.roomText.setAttribute('align', 'left');
         this.roomText.setAttribute('position', '0 0 0');
         this.roomText.setAttribute('font', 'mozillavr');
-        this.vesselGroup.appendChild(this.roomText);
+        this.roomGroup.appendChild(this.roomText);
 
         // 4. Mic Section (Icon only, click to toggle)
         this.micIcon = this.createIcon(this.ICONS.micOff, 0.035);
