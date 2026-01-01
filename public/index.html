@@ -483,7 +483,11 @@
       <script>
         // Set low renderOrder for milkyway sphere
         document.getElementById('milkyway').addEventListener('loaded', function () {
-          this.object3D.renderOrder = 10;
+          this.object3D.renderOrder = 5;
+          const mesh = this.getObject3D('mesh');
+          if (mesh && mesh.material) {
+            mesh.material.depthWrite = false;
+          }
         });
       </script>
       <a-entity id="right-controller" networked="template:#right-controller-template;attachTemplateToLocal:false;"
@@ -754,7 +758,7 @@
     </a-entity>
 
 
-<!--     <a-rounded id="reset-button" width="2" height="0.5" radius="0.1" material="shader: flat; color: blue"
+    <!--     <a-rounded id="reset-button" width="2" height="0.5" radius="0.1" material="shader: flat; color: blue"
       position="0 1 -5" text="value: Reset; align: center; width: 4" data-raycastable
       onclick="resetScene()"></a-rounded> -->
 

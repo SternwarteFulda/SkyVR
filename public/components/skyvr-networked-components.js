@@ -64,7 +64,8 @@ AFRAME.registerComponent('constellation-illustration', {
     schema: {
         constellationId: { type: 'string' },
         opacity: { type: 'number', default: 0.4 },
-        rotation: { type: 'vec3', default: { x: 0, y: 0, z: 0 } }
+        rotation: { type: 'vec3', default: { x: 0, y: 0, z: 0 } },
+        position: { type: 'vec3', default: { x: 0, y: 0, z: 0 } }
     },
 
     init: function () {
@@ -97,23 +98,28 @@ AFRAME.registerComponent('constellation-illustration', {
         const constellation = this.renderer.constellationData.constellations.find(c => c.id === this.data.constellationId);
         if (!constellation) return;
 
-        const bounds = this.renderer.getConstellationBounds(constellation);
+        const jitter = this.renderer.getZOffset(this.data.constellationId);
+        const illustRadius = 395 + jitter;
+        const bounds = this.renderer.getConstellationBounds(constellation, illustRadius);
         const imagePath = constellation.image ? `/assets/constellations/${constellation.image.file}` : null;
 
-        const geometry = new THREE.PlaneGeometry(bounds.width * 1.2, bounds.height * 1.2, 16, 16);
-        this.renderer.spherizeGeometry(geometry, 398);
+        const geometry = new THREE.PlaneGeometry(bounds.width, bounds.height, 16, 16);
 
         const addMesh = (texture) => {
             const material = new THREE.ShaderMaterial({
                 uniforms: {
                     map: { value: texture },
-                    opacity: { value: this.data.opacity }
+                    opacity: { value: this.data.opacity },
+                    targetRadius: { value: illustRadius }
                 },
                 vertexShader: `
+                    uniform float targetRadius;
                     varying vec2 vUv;
                     void main() {
                         vUv = uv;
-                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                        vec4 worldPos = modelMatrix * vec4(position, 1.0);
+                        vec3 projected = normalize(worldPos.xyz) * targetRadius;
+                        gl_Position = projectionMatrix * viewMatrix * vec4(projected, 1.0);
                     }
                 `,
                 fragmentShader: `
@@ -134,19 +140,25 @@ AFRAME.registerComponent('constellation-illustration', {
                 blending: THREE.NormalBlending
             });
             const mesh = new THREE.Mesh(geometry, material);
-            mesh.renderOrder = 20;
+            mesh.renderOrder = 10; // Bottom Layer
             this.el.object3D.add(mesh);
 
-            // Set position (radius 398)
-            const pos = bounds.center.clone().normalize().multiplyScalar(398);
+            // Set position
+            const pos = bounds.center.clone().normalize().multiplyScalar(illustRadius);
             this.el.object3D.position.copy(pos);
 
-            // Orientation: If we have an explicit rotation (stamped), use it.
+            // Orientation & Position: If we have explicit data (stamped), use it.
             // Otherwise (live preview or default), use orientToAnchors.
-            if (this.data.rotation && (this.data.rotation.x !== 0 || this.data.rotation.y !== 0 || this.data.rotation.z !== 0)) {
+            const hasRotation = this.data.rotation && (this.data.rotation.x !== 0 || this.data.rotation.y !== 0 || this.data.rotation.z !== 0);
+            const hasPosition = this.data.position && (this.data.position.x !== 0 || this.data.position.y !== 0 || this.data.position.z !== 0);
+
+            if (hasRotation || hasPosition) {
                 mesh.rotation.x = this.data.rotation.x;
                 mesh.rotation.y = this.data.rotation.y;
                 mesh.rotation.z = this.data.rotation.z;
+                mesh.position.x = this.data.position.x;
+                mesh.position.y = this.data.position.y;
+                mesh.position.z = this.data.position.z;
             } else {
                 this.renderer.orientToAnchors(mesh, constellation);
             }

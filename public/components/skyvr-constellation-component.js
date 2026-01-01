@@ -122,7 +122,9 @@ AFRAME.registerComponent('constellation-renderer', {
             opacity: this.data.lineOpacity,
             transparent: true,
             fog: false,
-            linewidth: this.data.lineWidth
+            linewidth: this.data.lineWidth,
+            depthWrite: false,
+            depthTest: true
         });
 
         let totalLines = 0;
@@ -142,6 +144,7 @@ AFRAME.registerComponent('constellation-renderer', {
                         const geometry = new THREE.BufferGeometry().setFromPoints([pos1, pos2]);
                         const line = new THREE.Line(geometry, lineMaterial);
                         line.name = `constellation-line-${constellation.id}`;
+                        line.renderOrder = 30; // Above stars (20) and illustrations (10)
 
                         this.el.object3D.add(line);
                         this.constellationLines.push(line);
@@ -225,30 +228,33 @@ AFRAME.registerComponent('constellation-renderer', {
 
     // Create or update preview illustration
     updatePreview: function (constellation) {
-        // Redraw preview
         if (constellation && constellation.image) {
             this.removePreview();
 
-            const bounds = this.getConstellationBounds(constellation);
+            const jitter = this.getZOffset(constellation.id);
+            const illustRadius = 395 + jitter;
+            const bounds = this.getConstellationBounds(constellation, illustRadius);
             const previewSet = new THREE.Group();
             previewSet.name = 'preview-group';
 
-            // Illustration
+            const illustrationGeo = new THREE.PlaneGeometry(bounds.width, bounds.height, 16, 16);
             const texture = this.textureCache.get(constellation.id);
-            const illustrationGeo = new THREE.PlaneGeometry(bounds.width * 1.2, bounds.height * 1.2, 16, 16);
-            this.spherizeGeometry(illustrationGeo, 398);
 
             if (texture) {
                 const material = new THREE.ShaderMaterial({
                     uniforms: {
                         map: { value: texture },
-                        opacity: { value: 0.1 }
+                        opacity: { value: 0.1 },
+                        targetRadius: { value: illustRadius }
                     },
                     vertexShader: `
+                        uniform float targetRadius;
                         varying vec2 vUv;
                         void main() {
                             vUv = uv;
-                            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                            vec4 worldPos = modelMatrix * vec4(position, 1.0);
+                            vec3 projected = normalize(worldPos.xyz) * targetRadius;
+                            gl_Position = projectionMatrix * viewMatrix * vec4(projected, 1.0);
                         }
                     `,
                     fragmentShader: `
@@ -269,29 +275,27 @@ AFRAME.registerComponent('constellation-renderer', {
                     blending: THREE.NormalBlending
                 });
                 const mesh = new THREE.Mesh(illustrationGeo, material);
-                mesh.renderOrder = 20;
+                mesh.renderOrder = 10;
 
-                // Initial positioning (pushed back to 398)
-                const illustPos = bounds.center.clone().normalize().multiplyScalar(398);
+                // Initial positioning (Parent entity center)
+                const illustPos = bounds.center.clone().normalize().multiplyScalar(illustRadius);
                 previewSet.position.copy(illustPos);
                 previewSet.add(mesh);
-
-                // IMPORTANT: Add to scene BEFORE orienting so world matrices are valid
                 this.el.object3D.add(previewSet);
                 this.previewIllustration = previewSet;
 
-                // Correct orientation using anchors
+                // Orientation logic handles rotation and fine-tuning via translateX/Y
                 this.orientToAnchors(mesh, constellation);
             } else {
                 // Fallback placeholder
                 this.addPlaceholderToGroup(previewSet, illustrationGeo, 0.4);
-                previewSet.position.copy(bounds.center.clone().normalize().multiplyScalar(398));
+                previewSet.position.copy(bounds.center.clone().normalize().multiplyScalar(illustRadius));
                 previewSet.lookAt(0, 0, 0);
                 this.el.object3D.add(previewSet);
                 this.previewIllustration = previewSet;
             }
         } else {
-            this.removePreview(); // Remove preview if no constellation or image
+            this.removePreview();
         }
     },
 
@@ -347,12 +351,14 @@ AFRAME.registerComponent('constellation-renderer', {
         const constellation = this.currentPointedConstellation;
         const name = constellation.common_name?.english || constellation.id;
 
-        // Capture rotation from preview
+        // Capture rotation and position from preview
         let meshRotation = { x: 0, y: 0, z: 0 };
+        let meshPosition = { x: 0, y: 0, z: 0 };
         if (this.previewIllustration) {
             this.previewIllustration.traverse(node => {
-                if (node.isMesh && node.material && node.material.type === 'ShaderMaterial') {
+                if (node.isObject3D && node.material && node.material.type === 'ShaderMaterial') {
                     meshRotation = { x: node.rotation.x, y: node.rotation.y, z: node.rotation.z };
+                    meshPosition = { x: node.position.x, y: node.position.y, z: node.position.z };
                 }
             });
         }
@@ -366,7 +372,8 @@ AFRAME.registerComponent('constellation-renderer', {
                 entity.setAttribute('constellation-illustration', {
                     constellationId: constellation.id,
                     opacity: 0.2,
-                    rotation: meshRotation
+                    rotation: meshRotation,
+                    position: meshPosition
                 });
 
                 // Add to the renderer element
@@ -384,16 +391,16 @@ AFRAME.registerComponent('constellation-renderer', {
         }
     },
 
-    placeLocalIllustration: function (constellation, explicitRotation = null) {
+    placeLocalIllustration: function (constellation, explicitRotation = null, explicitPosition = null) {
         let rotationToUse = explicitRotation;
+        let positionToUse = explicitPosition;
 
-        // If no explicit rotation provided, and we are NOT showing all (i.e., we are stamping),
-        // we can try to grab it from the preview if it matches.
-        // But for showAll, we want each to calculate its own.
+        // If no explicit data provided, try to grab from preview
         if (!rotationToUse && this.previewIllustration && this.currentPointedConstellation?.id === constellation.id) {
             this.previewIllustration.traverse(node => {
-                if (node.isMesh && node.material && node.material.type === 'ShaderMaterial') {
+                if (node.isObject3D && node.material && node.material.type === 'ShaderMaterial') {
                     rotationToUse = { x: node.rotation.x, y: node.rotation.y, z: node.rotation.z };
+                    positionToUse = { x: node.position.x, y: node.position.y, z: node.position.z };
                 }
             });
         }
@@ -402,7 +409,8 @@ AFRAME.registerComponent('constellation-renderer', {
         entity.setAttribute('constellation-illustration', {
             constellationId: constellation.id,
             opacity: 0.2,
-            rotation: rotationToUse || { x: 0, y: 0, z: 0 }
+            rotation: rotationToUse || { x: 0, y: 0, z: 0 },
+            position: positionToUse || { x: 0, y: 0, z: 0 }
         });
         this.el.appendChild(entity);
         this.placedIllustrations.push(entity);
@@ -460,12 +468,21 @@ AFRAME.registerComponent('constellation-renderer', {
         });
     },
 
-    getConstellationBounds: function (constellation) {
+    // Helper for depth stacking to avoid z-fighting
+    getZOffset: function (constellationId) {
+        let hash = 0;
+        for (let i = 0; i < constellationId.length; i++) {
+            hash = constellationId.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        return (Math.abs(hash) % 1000) / 1000 * 0.5; // Small 0.5m jitter
+    },
+
+    getConstellationBounds: function (constellation, targetRadius = 395) {
         if (!constellation.lines) {
             return {
-                center: new THREE.Vector3(0, this.data.radius, 0),
-                width: 100,
-                height: 100
+                center: new THREE.Vector3(0, targetRadius, 0),
+                width: 120,
+                height: 120
             };
         }
 
@@ -477,48 +494,59 @@ AFRAME.registerComponent('constellation-renderer', {
             });
         });
 
-        if (positions.length === 0) {
-            return {
-                center: new THREE.Vector3(0, this.data.radius, 0),
-                width: 100,
-                height: 100
-            };
+        const center = new THREE.Vector3();
+        let finalWidth = 0;
+        let finalHeight = 0;
+
+        // Use anchor midpoint as the positioning center
+        if (constellation.image && constellation.image.anchors && constellation.image.anchors.length >= 2) {
+            const anchors = constellation.image.anchors;
+            const p1 = this.starPositions.get(anchors[0].hip);
+            const p2 = this.starPositions.get(anchors[1].hip);
+
+            if (p1 && p2) {
+                // Pin parent to the midpoint of the anchors
+                center.copy(p1).add(p2).multiplyScalar(0.5);
+
+                const p1_scaled = p1.clone().normalize().multiplyScalar(targetRadius);
+                const p2_scaled = p2.clone().normalize().multiplyScalar(targetRadius);
+                const worldDist = p1_scaled.distanceTo(p2_scaled);
+                const dxPx = anchors[1].pos[0] - anchors[0].pos[0];
+                const dyPx = anchors[1].pos[1] - anchors[0].pos[1];
+                const pixelDist = Math.sqrt(dxPx * dxPx + dyPx * dyPx);
+
+                if (pixelDist > 0) {
+                    const scale = worldDist / pixelDist;
+                    finalWidth = constellation.image.size[0] * scale * 1.05;
+                    finalHeight = constellation.image.size[1] * scale * 1.05;
+                }
+            }
         }
 
-        // Calculate center precisely as the average of star positions
-        const center = new THREE.Vector3();
-        positions.forEach(p => center.add(p));
-        center.divideScalar(positions.length);
+        if (center.length() === 0) {
+            positions.forEach(p => center.add(p));
+            center.divideScalar(positions.length || 1);
+        }
 
-        // Map to sphere surface (radius 398 for illustrations)
-        center.normalize().multiplyScalar(398);
-
-        // Calculate bounding box in local tangent space for accurate width/height
-        const box = new THREE.Box3().setFromPoints(positions);
-        const size = new THREE.Vector3();
-        box.getSize(size);
-        const maxDim = size.length();
+        if (!finalWidth || !finalHeight) {
+            const box = new THREE.Box3().setFromPoints(positions);
+            const size = new THREE.Vector3();
+            box.getSize(size);
+            const maxDim = size.length();
+            finalWidth = Math.max(maxDim * 1.1, 100);
+            finalHeight = finalWidth;
+        }
 
         return {
-            center: center,
-            width: Math.max(maxDim * 0.9, 80),
-            height: Math.max(maxDim * 0.9, 80)
+            center: center.normalize().multiplyScalar(targetRadius),
+            width: finalWidth,
+            height: finalHeight
         };
     },
 
+    // Spherize logic moved to Vertex Shader for perfect projection
     spherizeGeometry: function (geometry, radius) {
-        const pos = geometry.attributes.position;
-        const v = new THREE.Vector3();
-        for (let i = 0; i < pos.count; i++) {
-            v.fromBufferAttribute(pos, i);
-            const worldPos = v.clone();
-            worldPos.z += radius;
-            worldPos.normalize().multiplyScalar(radius);
-
-            // Curved TOWARDS observer (Concave)
-            pos.setXYZ(i, worldPos.x, worldPos.y, radius - worldPos.z);
-        }
-        pos.needsUpdate = true;
+        // No-op: handled by GPU now
     },
 
     orientToAnchors: function (object3D, constellation) {
@@ -526,6 +554,10 @@ AFRAME.registerComponent('constellation-renderer', {
             object3D.lookAt(0, 0, 0);
             return;
         }
+
+        // Reset position/rotation for clean calculation
+        object3D.position.set(0, 0, 0);
+        object3D.rotation.set(0, 0, 0);
 
         const anchors = constellation.image.anchors;
         const star1Id = anchors[0].hip;
@@ -563,7 +595,6 @@ AFRAME.registerComponent('constellation-renderer', {
         const targetAngle = Math.atan2(localV3D.y, localV3D.x);
 
         // Image angle in pixel space
-        // Note: Pixel Y increases DOWN, Three.js Y increases UP
         const imgDX = p2_img[0] - p1_img[0];
         const imgDY = p1_img[1] - p2_img[1]; // Flipped for Cartesian
         const imgAngle = Math.atan2(imgDY, imgDX);
@@ -571,6 +602,23 @@ AFRAME.registerComponent('constellation-renderer', {
         // Rotate object around its local Z (Forward axis pointing at observer)
         const roll = targetAngle - imgAngle;
         object3D.rotateZ(roll);
+
+        // 3. APPLY POSITION OFFSET
+        // Shift the mesh so that the anchor midpoint matches the star midpoint
+        const worldDist = p1_3d.distanceTo(p2_3d);
+        const pixelDist = Math.sqrt(imgDX * imgDX + (p1_img[1] - p2_img[1]) * (p1_img[1] - p2_img[1]));
+
+        if (pixelDist > 0) {
+            const scale = worldDist / pixelDist;
+            const imgSize = constellation.image.size;
+            const mx = (anchors[0].pos[0] + anchors[1].pos[0]) / 2;
+            const my = (anchors[0].pos[1] + anchors[1].pos[1]) / 2;
+            const dx = (imgSize[0] / 2) - mx;
+            const dy = (imgSize[1] / 2) - my;
+
+            object3D.translateX(dx * scale);
+            object3D.translateY(-dy * scale);
+        }
     },
 
     update: function (oldData) {

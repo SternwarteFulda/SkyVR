@@ -131,7 +131,7 @@ AFRAME.registerComponent('starfield', {
         shader = haloShaderMaterial;
       }
       const stars = new THREE.Points(starsGeometry, shader);
-      stars.renderOrder = 30; // Between illustrations (20) and lines (40)
+      stars.renderOrder = 20; // Between illustrations (10) and lines (30)
       return stars;
     }
     function spectralClassToColor(spectralClass) {
@@ -202,7 +202,7 @@ AFRAME.registerComponent('starfield', {
       bumpMap: moonBump,
       fog: false,
       transparent: true,
-      depthWrite: true,
+      depthWrite: false, // Don't block background illustrations
       depthTest: true,
       blending: THREE.CustomBlending,
       blendSrc: THREE.OneFactor,
@@ -210,6 +210,7 @@ AFRAME.registerComponent('starfield', {
       blendEquation: THREE.AddEquation,
     });
     this.moon = new THREE.Mesh(moonGeometry, moonMaterial);
+    this.moon.renderOrder = 20; // Same as stars
     this.moon.castShadow = false;
     el.object3D.add(this.moon);
 
@@ -296,6 +297,7 @@ AFRAME.registerComponent('starfield', {
       shader = haloShaderMaterial;
     }
     const points = new THREE.Points(planetsGeometry, shader);
+    points.renderOrder = 20;
     return points;
   },
   updatePlanetsPositions: function () {
