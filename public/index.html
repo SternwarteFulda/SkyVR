@@ -125,6 +125,14 @@
           components: ['sky-state']
         });
       }
+      if (!NAF.schemas.hasTemplate('#constellation-illustration-template')) {
+        NAF.schemas.add({
+          template: '#constellation-illustration-template',
+          components: [
+            'constellation-illustration'
+          ]
+        });
+      }
       if (!NAF.schemas.hasTemplate('#drawing-stroke-template')) {
         NAF.schemas.add({
           template: '#drawing-stroke-template',
@@ -137,14 +145,6 @@
               component: 'drawing-stroke',
               property: 'color'
             }
-          ]
-        });
-      }
-      if (!NAF.schemas.hasTemplate('#constellation-illustration-template')) {
-        NAF.schemas.add({
-          template: '#constellation-illustration-template',
-          components: [
-            'constellation-illustration'
           ]
         });
       }
@@ -480,9 +480,15 @@
       </a-entity>
       <!-- Infobar placed in front of user, visible when looking down -->
       <a-entity id="infobar" skyvr-infobar position="0 0.8 -0.6" rotation="-40 0 0"></a-entity>
+      <script>
+        // Set low renderOrder for milkyway sphere
+        document.getElementById('milkyway').addEventListener('loaded', function () {
+          this.object3D.renderOrder = 10;
+        });
+      </script>
       <a-entity id="right-controller" networked="template:#right-controller-template;attachTemplateToLocal:false;"
-        meta-touch-controls="hand: right" laser-controls
-        raycaster="objects: [data-raycastable]; far: 500; lineOpacity: 0.5;" drawing constellation-pointer>
+        meta-touch-controls="hand: right" laser-controls haptics
+        raycaster="objects: [data-raycastable]; far: 600; lineOpacity: 0.5;" drawing constellation-pointer>
         <a-entity light="type: point; intensity: 0.2; distance: 0.5; decay: 1" position="0 0.05 0"></a-entity>
         <!-- Coordinate system for the right controller -->
         <a-entity>
@@ -736,7 +742,7 @@
           <!-- Custom Shader for Stars -->
           <a-entity id="stars-point-cloud" position="0 0 0" rotation="-23.43619 0 0" starfield></a-entity>
 
-          <a-sphere id="milkyway" radius="397" rotation="6.45 29.85 90.06" scale="-1.0 1.0 1.0"
+          <a-sphere id="milkyway" radius="399" rotation="6.45 29.85 90.06" scale="-1.0 1.0 1.0"
             material="shader: flat; src: url(assets/gaia.png); side: back; fog: false; transparent: true; opacity: 0.0; blending: additive; depthWrite: false;">
           </a-sphere>
 
@@ -908,7 +914,8 @@
           haloShaderMaterial.uniforms.skyBrightness.value = skyBrightness;
         }
         if (milkyway) {
-          milkyway.setAttribute('opacity', mapRange(skyBrightness, 0.0, 0.2, 0.25, 0.0)); //milky way max. brightness 25%, fading 5x faster than the stars
+          const mwOpacity = mapRange(skyBrightness, 0.0, 0.2, 0.25, 0.0);
+          milkyway.setAttribute('material', 'opacity', mwOpacity);
         }
       }
 
@@ -1209,74 +1216,65 @@
         isRightControllerGripDown = false;
       });
 
-      rightController.addEventListener('bbuttondown', () => {
-        const currentMode = window.currentMode || 'draw';
-
-        if (currentMode === 'draw') {
-          rightController.components.drawing.startDrawing();
-        } else if (currentMode === 'constellation') {
-          // Place constellation illustration
-          const constellationLines = document.getElementById('constellation-lines');
-          if (constellationLines && constellationLines.components['constellation-renderer']) {
-            constellationLines.components['constellation-renderer'].placeIllustration();
-            // Haptic pulse for feedback
-            if (rightController.components['haptics']) {
-              rightController.components['haptics'].pulse(0.3, 100);
-            }
-          }
-        }
-      });
-      rightController.addEventListener('bbuttonup', () => {
-        const currentMode = window.currentMode || 'draw';
-
-        if (currentMode === 'draw') {
-          rightController.components.drawing.stopDrawing();
-        }
-      });
-      rightController.addEventListener('abuttondown', (event) => {
+      const onAButtonDown = () => {
         aButtonIsPhysicallyDown = true;
-        aButtonDownTimestamp = performance.now(); // Use performance.now()
-        holdActionTriggered = false; // Reset for new press sequence
-        // frameCount = 0; 
+        aButtonDownTimestamp = performance.now();
+        holdActionTriggered = false;
 
-        // const drawingComponent = rightController.components.drawing;
-        // if (drawingComponent && drawingComponent.lineMaterial) {
-        //   drawingComponent.lineMaterial.color.set('blue'); 
-        // }
+        if (aHoldIntervalId) clearInterval(aHoldIntervalId);
+        aHoldIntervalId = setInterval(checkAHoldWithInterval, 16);
+      };
 
-        if (aHoldIntervalId) { // Ensure any old interval is cancelled
-          clearInterval(aHoldIntervalId);
-        }
-        aHoldIntervalId = setInterval(checkAHoldWithInterval, 16); // Approx 60fps
-      });
-
-      rightController.addEventListener('abuttonup', (event) => {
+      const onAButtonUp = () => {
         const wasPhysicallyDown = aButtonIsPhysicallyDown;
-        aButtonIsPhysicallyDown = false; // Update state: button is now up
-
+        aButtonIsPhysicallyDown = false;
         if (aHoldIntervalId) {
           clearInterval(aHoldIntervalId);
           aHoldIntervalId = null;
         }
 
-        // Process tap if the button was down AND hold was not triggered during its press cycle
         if (wasPhysicallyDown && !holdActionTriggered) {
+          console.log('A button: Short press (tap) detected');
           const currentMode = window.currentMode || 'draw';
-
           if (currentMode === 'draw') {
-            const drawingComponent = rightController.components.drawing;
-            if (drawingComponent) {
-              drawingComponent.clearLastSegment();
-            }
+            if (rightController.components.drawing) rightController.components.drawing.clearLastSegment();
           } else if (currentMode === 'constellation') {
-            // Remove last illustration
-            const constellationLines = document.getElementById('constellation-lines');
-            if (constellationLines && constellationLines.components['constellation-renderer']) {
-              constellationLines.components['constellation-renderer'].removeLastIllustration();
+            const renderer = document.getElementById('constellation-lines').components['constellation-renderer'];
+            if (renderer) renderer.removeLastIllustration();
+            if (rightController.components['haptics']) rightController.components['haptics'].pulse(0.2, 50);
+          }
+        }
+      };
+
+      // Dedicated A and B button listeners as requested
+      rightController.addEventListener('abuttondown', onAButtonDown);
+      rightController.addEventListener('abuttonup', onAButtonUp);
+
+      rightController.addEventListener('bbuttondown', () => {
+        const currentMode = window.currentMode || 'draw';
+        if (currentMode === 'draw') {
+          console.log('B button down: Starting drawing');
+          rightController.components.drawing.startDrawing();
+        }
+      });
+
+      rightController.addEventListener('bbuttonup', () => {
+        const currentMode = window.currentMode || 'draw';
+        console.log('B button up (releasing). Mode:', currentMode);
+
+        if (currentMode === 'draw') {
+          rightController.components.drawing.stopDrawing();
+        } else if (currentMode === 'constellation') {
+          console.log('B button up: Placing constellation illustration');
+          const constellationLines = document.getElementById('constellation-lines');
+          if (constellationLines && constellationLines.components['constellation-renderer']) {
+            constellationLines.components['constellation-renderer'].placeIllustration();
+            // Haptics on stamp
+            if (rightController.components['haptics']) {
+              rightController.components['haptics'].pulse(0.3, 100);
             }
           }
         }
-        // holdActionTriggered is reset in abuttondown for the next full press sequence
       });
 
       function checkAHoldWithInterval() {

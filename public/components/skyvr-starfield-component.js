@@ -131,6 +131,7 @@ AFRAME.registerComponent('starfield', {
         shader = haloShaderMaterial;
       }
       const stars = new THREE.Points(starsGeometry, shader);
+      stars.renderOrder = 30; // Between illustrations (20) and lines (40)
       return stars;
     }
     function spectralClassToColor(spectralClass) {

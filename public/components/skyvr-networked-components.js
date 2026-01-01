@@ -63,7 +63,8 @@ AFRAME.registerComponent('drawing-stroke', {
 AFRAME.registerComponent('constellation-illustration', {
     schema: {
         constellationId: { type: 'string' },
-        opacity: { type: 'number', default: 0.7 }
+        opacity: { type: 'number', default: 0.4 },
+        rotation: { type: 'vec3', default: { x: 0, y: 0, z: 0 } }
     },
 
     init: function () {
@@ -99,25 +100,56 @@ AFRAME.registerComponent('constellation-illustration', {
         const bounds = this.renderer.getConstellationBounds(constellation);
         const imagePath = constellation.image ? `/assets/constellations/${constellation.image.file}` : null;
 
-        const geometry = new THREE.PlaneGeometry(bounds.width * 1.2, bounds.height * 1.2);
+        const geometry = new THREE.PlaneGeometry(bounds.width * 1.2, bounds.height * 1.2, 16, 16);
+        this.renderer.spherizeGeometry(geometry, 398);
 
         const addMesh = (texture) => {
-            const material = new THREE.MeshBasicMaterial({
-                map: texture,
+            const material = new THREE.ShaderMaterial({
+                uniforms: {
+                    map: { value: texture },
+                    opacity: { value: this.data.opacity }
+                },
+                vertexShader: `
+                    varying vec2 vUv;
+                    void main() {
+                        vUv = uv;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    uniform sampler2D map;
+                    uniform float opacity;
+                    varying vec2 vUv;
+                    void main() {
+                        vec4 tex = texture2D(map, vUv);
+                        float brightness = max(tex.r, max(tex.g, tex.b));
+                        if (brightness < 0.05) discard;
+                        gl_FragColor = vec4(tex.rgb, tex.a * opacity);
+                    }
+                `,
                 transparent: true,
-                opacity: this.data.opacity,
                 side: THREE.DoubleSide,
-                fog: false,
+                depthTest: true,
                 depthWrite: false,
-                alphaTest: 0.01
+                blending: THREE.NormalBlending
             });
             const mesh = new THREE.Mesh(geometry, material);
-            mesh.renderOrder = 10;
+            mesh.renderOrder = 20;
             this.el.object3D.add(mesh);
 
-            // Set position and rotation (look at center)
-            this.el.object3D.position.copy(bounds.center);
-            this.el.object3D.lookAt(0, 0, 0);
+            // Set position (radius 398)
+            const pos = bounds.center.clone().normalize().multiplyScalar(398);
+            this.el.object3D.position.copy(pos);
+
+            // Orientation: If we have an explicit rotation (stamped), use it.
+            // Otherwise (live preview or default), use orientToAnchors.
+            if (this.data.rotation && (this.data.rotation.x !== 0 || this.data.rotation.y !== 0 || this.data.rotation.z !== 0)) {
+                mesh.rotation.x = this.data.rotation.x;
+                mesh.rotation.y = this.data.rotation.y;
+                mesh.rotation.z = this.data.rotation.z;
+            } else {
+                this.renderer.orientToAnchors(mesh, constellation);
+            }
         };
 
         if (imagePath) {
