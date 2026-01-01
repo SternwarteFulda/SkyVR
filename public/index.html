@@ -458,8 +458,9 @@
       <!-- Infobar placed in front of user, visible when looking down -->
       <a-entity id="infobar" skyvr-infobar position="0 0.8 -0.6" rotation="-40 0 0"></a-entity>
       <a-entity id="right-controller" networked="template:#right-controller-template;attachTemplateToLocal:false;"
-        material="shader: flat" meta-touch-controls="hand: right" laser-controls
+        meta-touch-controls="hand: right" laser-controls
         raycaster="objects: [data-raycastable]; far: 5; lineOpacity: 0.5;" drawing>
+        <a-entity light="type: point; intensity: 0.2; distance: 0.5; decay: 1" position="0 0.05 0"></a-entity>
         <!-- Coordinate system for the right controller -->
         <a-entity>
           <!-- X-Axis (Red) -->
@@ -513,6 +514,7 @@
         </a-entity>
       </a-entity>
       <a-entity id="left-controller" meta-touch-controls="hand: left" position="0 0 0">
+        <a-entity light="type: point; intensity: 0.2; distance: 0.5; decay: 1" position="0 0.05 0"></a-entity>
         <!-- Controller Hints -->
         <a-entity id="hint-x" class="controller-hint" position="-0.04 0.05 0.02" rotation="-120 0 0">
           <a-rounded width="0.1" height="0.025" radius="0.005" color="#111" opacity="0.9"
