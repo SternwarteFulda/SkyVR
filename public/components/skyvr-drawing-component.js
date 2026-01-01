@@ -3,7 +3,7 @@ AFRAME.registerComponent('drawing', {
         color: { default: 'yellow' },
         width: { default: 2.5 },
         //offset: {type: 'vec3', default: {x: 0, y: 0, z: 0}}
-        offset: { type: 'vec3', default: { x: -31.5, y: -146.5, z: -200 } }
+        offset: { type: 'vec3', default: { x: -31.0, y: -149.0, z: -200 } }
     },
     init: function () {
         this.lineMaterial = new THREE.LineBasicMaterial({
