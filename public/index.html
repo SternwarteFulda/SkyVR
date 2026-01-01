@@ -145,7 +145,7 @@
 
     function sanitizePlayerName(value) {
       if (!value) return null;
-      return value.toLowerCase().replace(/[^a-z0-9-]/g, '').substring(0, 20);
+      return value.replace(/[^a-zA-Z0-9- ]/g, '').substring(0, 20);
     }
 
     // Parse URL parameters for room, name, and color
@@ -185,9 +185,8 @@
       if (hasInvalidParams) {
         const errorMsg = 'Invalid URL Parameters:\n\n' +
           errorMessages.join('\n') +
-          '\n\nOnly lowercase letters (a-z), numbers (0-9), and hyphens (-) are allowed.\n' +
-          'Room names: max 16 characters\n' +
-          'Player names: max 20 characters\n\n' +
+          '\n\nRoom names: lowercase letters (a-z), numbers (0-9), and hyphens (-), max 16 chars.\n' +
+          'Player names: letters (A-Z, a-z), numbers (0-9), hyphens (-), and spaces, max 20 chars.\n\n' +
           'You will be redirected to the lobby.';
         alert(errorMsg);
         window.location.href = 'lobby.html';

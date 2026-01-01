@@ -304,7 +304,7 @@
 
         function sanitizePlayerName(value) {
             if (!value) return null;
-            return value.toLowerCase().replace(/[^a-z0-9-]/g, '').substring(0, 20);
+            return value.replace(/[^a-zA-Z0-9- ]/g, '').substring(0, 20);
         }
 
         // Get raw URL parameters
@@ -339,9 +339,8 @@
         if (warningMessages.length > 0) {
             const warningMsg = 'URL Parameter Warnings:\n\n' +
                 warningMessages.join('\n') +
-                '\n\nOnly lowercase letters (a-z), numbers (0-9), and hyphens (-) are allowed.\n' +
-                'Room names: max 16 characters\n' +
-                'Player names: max 20 characters';
+                '\n\nRoom names: lowercase letters (a-z), numbers (0-9), and hyphens (-), max 16 chars.\n' +
+                'Player names: letters (A-Z, a-z), numbers (0-9), hyphens (-), and spaces, max 20 chars.';
             alert(warningMsg);
         }
 
@@ -370,8 +369,8 @@
         const nameInput = document.getElementById('username');
         nameInput.addEventListener('input', function (e) {
             let value = e.target.value;
-            // Convert to lowercase and remove invalid characters (only allow a-z, 0-9, and -)
-            value = value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+            // Remove invalid characters (only allow a-z, A-Z, 0-9, -, and space)
+            value = value.replace(/[^a-zA-Z0-9- ]/g, '');
             // Restrict to 20 characters
             if (value.length > 20) {
                 value = value.substring(0, 20);
