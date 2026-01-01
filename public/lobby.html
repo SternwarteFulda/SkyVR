@@ -267,7 +267,7 @@
 
         <div class="input-group">
             <label for="room-id">Room Channel</label>
-            <input type="text" id="room-id" placeholder="e.g. 1984" value="1234">
+            <input type="text" id="room-id" placeholder="e.g. 1984 or sky-vr-01" value="">
         </div>
 
         <div class="input-group">
@@ -296,12 +296,88 @@
         const colorInput = document.getElementById('selected-color');
         const urlParams = new URLSearchParams(window.location.search);
 
-        const roomInit = urlParams.get('room') || localStorage.getItem('skyvr_room');
-        const nameInit = urlParams.get('name') || localStorage.getItem('skyvr_name');
+        // Sanitization function for room and name parameters
+        function sanitizeRoomName(value) {
+            if (!value) return null;
+            return value.toLowerCase().replace(/[^a-z0-9-]/g, '').substring(0, 16);
+        }
+
+        function sanitizePlayerName(value) {
+            if (!value) return null;
+            return value.toLowerCase().replace(/[^a-z0-9-]/g, '').substring(0, 20);
+        }
+
+        // Get raw URL parameters
+        const roomParamRaw = urlParams.get('room');
+        const nameParamRaw = urlParams.get('name');
+
+        // Sanitize URL parameters
+        const roomInit = sanitizeRoomName(roomParamRaw) || localStorage.getItem('skyvr_room');
+        const nameInit = sanitizePlayerName(nameParamRaw) || localStorage.getItem('skyvr_name');
         const colorInitRaw = urlParams.get('color') || localStorage.getItem('skyvr_color');
         const colorInit = colorInitRaw ? decodeURIComponent(colorInitRaw) : null;
 
-        if (roomInit) document.getElementById('room-id').value = roomInit;
+        // Check if URL parameters were modified by sanitization and show warning
+        let warningMessages = [];
+
+        if (roomParamRaw && sanitizeRoomName(roomParamRaw) !== roomParamRaw) {
+            warningMessages.push('Room name contained invalid characters and was corrected.');
+        }
+
+        if (nameParamRaw && sanitizePlayerName(nameParamRaw) !== nameParamRaw) {
+            warningMessages.push('Player name contained invalid characters and was corrected.');
+        }
+
+        if (roomParamRaw && roomParamRaw.length > 16) {
+            warningMessages.push('Room name was too long and was shortened.');
+        }
+
+        if (nameParamRaw && nameParamRaw.length > 20) {
+            warningMessages.push('Player name was too long and was shortened.');
+        }
+
+        if (warningMessages.length > 0) {
+            const warningMsg = 'URL Parameter Warnings:\n\n' +
+                warningMessages.join('\n') +
+                '\n\nOnly lowercase letters (a-z), numbers (0-9), and hyphens (-) are allowed.\n' +
+                'Room names: max 16 characters\n' +
+                'Player names: max 20 characters';
+            alert(warningMsg);
+        }
+
+        // Generate random 4-digit room number if no room has been set before
+        if (roomInit) {
+            document.getElementById('room-id').value = roomInit;
+        } else {
+            const randomRoomNumber = Math.floor(1000 + Math.random() * 9000).toString();
+            document.getElementById('room-id').value = randomRoomNumber;
+        }
+
+        // Validate and sanitize room input
+        const roomInput = document.getElementById('room-id');
+        roomInput.addEventListener('input', function (e) {
+            let value = e.target.value;
+            // Convert to lowercase and remove invalid characters (only allow a-z, 0-9, and -)
+            value = value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+            // Restrict to 16 characters
+            if (value.length > 16) {
+                value = value.substring(0, 16);
+            }
+            e.target.value = value;
+        });
+
+        // Validate and sanitize name input
+        const nameInput = document.getElementById('username');
+        nameInput.addEventListener('input', function (e) {
+            let value = e.target.value;
+            // Convert to lowercase and remove invalid characters (only allow a-z, 0-9, and -)
+            value = value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+            // Restrict to 20 characters
+            if (value.length > 20) {
+                value = value.substring(0, 20);
+            }
+            e.target.value = value;
+        });
 
         colors.forEach((color, index) => {
             const isSelected = colorInit ? (color.toLowerCase() === colorInit.toLowerCase()) : (index === 0);
@@ -331,9 +407,25 @@
         }
 
         function joinSession() {
-            const room = document.getElementById('room-id').value || '1234';
-            const name = document.getElementById('username').value || 'Anonymous';
+            let room = document.getElementById('room-id').value || '';
+            let name = document.getElementById('username').value || '';
             const color = colorInput.value;
+
+            // Sanitize room name (ensure it follows validation rules)
+            room = sanitizeRoomName(room);
+
+            // Generate random 4-digit number if room is empty after sanitization
+            if (!room) {
+                room = Math.floor(1000 + Math.random() * 9000).toString();
+            }
+
+            // Sanitize player name (ensure it follows validation rules)
+            name = sanitizePlayerName(name);
+
+            // Use fallback if name is empty after sanitization
+            if (!name) {
+                name = 'observer-' + Math.floor(Math.random() * 9999);
+            }
 
             // Persist to localStorage
             localStorage.setItem('skyvr_room', room);

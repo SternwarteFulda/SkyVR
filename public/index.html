@@ -137,11 +137,62 @@
       return components;
     };
 
+    // Sanitization functions for security
+    function sanitizeRoomName(value) {
+      if (!value) return null;
+      return value.toLowerCase().replace(/[^a-z0-9-]/g, '').substring(0, 16);
+    }
+
+    function sanitizePlayerName(value) {
+      if (!value) return null;
+      return value.toLowerCase().replace(/[^a-z0-9-]/g, '').substring(0, 20);
+    }
+
     // Parse URL parameters for room, name, and color
     const urlParams = new URLSearchParams(window.location.search);
-    const roomParam = urlParams.get('room');
-    const nameParam = urlParams.get('name');
+    const roomParamRaw = urlParams.get('room');
+    const nameParamRaw = urlParams.get('name');
+    const roomParam = sanitizeRoomName(roomParamRaw);
+    const nameParam = sanitizePlayerName(nameParamRaw);
     const colorParam = urlParams.get('color');
+
+    // Check if URL parameters were modified by sanitization
+    if (!window.location.search.includes('no-redirect')) {
+      let hasInvalidParams = false;
+      let errorMessages = [];
+
+      if (roomParamRaw && roomParam !== roomParamRaw) {
+        errorMessages.push('Room name contains invalid characters.');
+        hasInvalidParams = true;
+      }
+
+      if (nameParamRaw && nameParam !== nameParamRaw) {
+        errorMessages.push('Player name contains invalid characters.');
+        hasInvalidParams = true;
+      }
+
+      // Check length restrictions
+      if (roomParamRaw && roomParamRaw.length > 16) {
+        errorMessages.push('Room name exceeds 16 character limit.');
+        hasInvalidParams = true;
+      }
+
+      if (nameParamRaw && nameParamRaw.length > 20) {
+        errorMessages.push('Player name exceeds 20 character limit.');
+        hasInvalidParams = true;
+      }
+
+      if (hasInvalidParams) {
+        const errorMsg = 'Invalid URL Parameters:\n\n' +
+          errorMessages.join('\n') +
+          '\n\nOnly lowercase letters (a-z), numbers (0-9), and hyphens (-) are allowed.\n' +
+          'Room names: max 16 characters\n' +
+          'Player names: max 20 characters\n\n' +
+          'You will be redirected to the lobby.';
+        alert(errorMsg);
+        window.location.href = 'lobby.html';
+      }
+    }
 
     window.getLobbyParams = function () {
       const camera = document.getElementById('camera');
