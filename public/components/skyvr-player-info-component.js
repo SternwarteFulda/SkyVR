@@ -5,8 +5,8 @@ window.ntExample = {
 };
 
 AFRAME.registerComponent('player-info', {
-// notice that color and name are both listed in the schema; NAF will only keep
-// properties declared in the schema in sync.
+    // notice that color and name are both listed in the schema; NAF will only keep
+    // properties declared in the schema in sync.
     schema: {
         name: { type: 'string', default: 'user-' + Math.round(Math.random() * 10000) },
         color: {
@@ -21,16 +21,6 @@ AFRAME.registerComponent('player-info', {
 
         this.ownedByLocalUser = this.el.id === 'camera';
         console.log('this.el.id', this.el.id);
-
-        if (this.ownedByLocalUser) {
-            // populate the html overlay with the correct name on init
-            this.nametagInput = document.getElementById('username-overlay');
-            this.nametagInput.value = this.data.name;
-
-            // add the initial color to the html overlay color picker button
-            document.querySelector('#color-changer').style.backgroundColor = this.data.color;
-            document.querySelector('#color-changer').style.color = this.data.color;
-        }
     },
 
     // here as an example, not used in current demo. Could build a user list, expanding on this.

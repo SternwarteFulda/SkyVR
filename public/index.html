@@ -176,17 +176,6 @@
         if (colorParam) {
           const color = colorParam.startsWith('#') ? colorParam : '#' + colorParam;
           cameraEl.setAttribute('player-info', 'color', color);
-
-          // Also update the UI overlays if they exist
-          const colorChanger = document.querySelector('#color-changer');
-          if (colorChanger) {
-            colorChanger.style.backgroundColor = color;
-            colorChanger.style.color = color;
-          }
-          const usernameOverlay = document.getElementById('username-overlay');
-          if (usernameOverlay && nameParam) {
-            usernameOverlay.value = nameParam;
-          }
         }
       }
     });
@@ -287,19 +276,7 @@
     </div>
   </div>
 
-  <!--  This <button> and <input> will overlay on top of the A-Frame canvas--this style is all you need.
-        Note the onclick and oninput attributes; on every call, they will run .setAttribute() for the player-info
-        component's data. NAF will keep that property in sync, since 'name' and 'color' are declared in the schema
-        of the 'player-info' component
-  -->
-  <button id="color-changer" style="z-index: 100; bottom: 64px; left: 24px; position: fixed" onclick="let newColor = window.ntExample.randomColor();
-            document.getElementById('camera').setAttribute('player-info', 'color', newColor); 
-            document.querySelector('#color-changer').style.backgroundColor = newColor;
-            document.querySelector('#color-changer').style.color = newColor;">
-    ■
-  </button>
-  <input id="username-overlay" style="z-index: 100; bottom: 64px; left: 48px; position: fixed"
-    oninput="document.getElementById('camera').setAttribute('player-info', 'name', this.value)" />
+
   <a-scene loading-screen="enabled: false" high-res renderer="
 
       antialias: true;
