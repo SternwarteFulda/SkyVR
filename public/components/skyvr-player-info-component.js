@@ -18,6 +18,7 @@ AFRAME.registerComponent('player-info', {
     init: function () {
         this.head = this.el.querySelector('.head');
         this.nametag = this.el.querySelector('.nametag');
+        this.eyelids = this.el.querySelectorAll('.eyelid');
 
         this.ownedByLocalUser = this.el.id === 'camera';
         console.log('this.el.id', this.el.id);
@@ -37,6 +38,11 @@ AFRAME.registerComponent('player-info', {
 
     update: function () {
         if (this.head) this.head.setAttribute('material', 'color', this.data.color);
+        if (this.eyelids) {
+            this.eyelids.forEach(eyelid => {
+                eyelid.setAttribute('material', 'color', this.data.color);
+            });
+        }
         if (this.nametag) this.nametag.setAttribute('value', this.data.name);
     }
 });
