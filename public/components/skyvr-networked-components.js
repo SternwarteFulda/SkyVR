@@ -70,6 +70,8 @@ AFRAME.registerComponent('constellation-illustration', {
 
     init: function () {
         this.renderer = null;
+        this.rendererReady = false;
+        this.mesh = null;
         this.el.classList.add('networked-illustration');
 
         // Ensure networked illustrations are in the constellation-lines entity to maintain tilt alignment
@@ -79,21 +81,46 @@ AFRAME.registerComponent('constellation-illustration', {
         }
 
         // Wait for constellation renderer to get data
-        this.waitForRenderer = setInterval(() => {
+        const checkRenderer = () => {
             const rendererEl = document.getElementById('constellation-lines');
             if (rendererEl && rendererEl.components['constellation-renderer']) {
                 const comp = rendererEl.components['constellation-renderer'];
                 if (comp.loadingComplete) {
                     this.renderer = comp;
+                    this.rendererReady = true;
                     this.setupIllustration();
-                    clearInterval(this.waitForRenderer);
+                    return; // Stop checking
                 }
             }
-        }, 500);
+            setTimeout(checkRenderer, 500);
+        };
+        checkRenderer();
+    },
+
+    update: function (oldData) {
+        // Trigger setup if we have an ID and (it's new OR rotation/position/ID changed)
+        if (this.data.constellationId) {
+            const idChanged = this.data.constellationId !== oldData.constellationId;
+            const rotChanged = !oldData.rotation || this.data.rotation.x !== oldData.rotation.x || this.data.rotation.y !== oldData.rotation.y || this.data.rotation.z !== oldData.rotation.z;
+            const posChanged = !oldData.position || this.data.position.x !== oldData.position.x || this.data.position.y !== oldData.position.y || this.data.position.z !== oldData.position.z;
+
+            if (idChanged || rotChanged || posChanged) {
+                this.setupIllustration();
+            }
+        }
     },
 
     setupIllustration: function () {
-        if (!this.renderer || !this.data.constellationId) return;
+        // Only proceed if everything is ready
+        if (!this.rendererReady || !this.data.constellationId) return;
+
+        // Clear existing mesh if we are rebuilding
+        if (this.mesh) {
+            this.el.object3D.remove(this.mesh);
+            if (this.mesh.geometry) this.mesh.geometry.dispose();
+            if (this.mesh.material) this.mesh.material.dispose();
+            this.mesh = null;
+        }
 
         const constellation = this.renderer.constellationData.constellations.find(c => c.id === this.data.constellationId);
         if (!constellation) return;
@@ -106,6 +133,9 @@ AFRAME.registerComponent('constellation-illustration', {
         const geometry = new THREE.PlaneGeometry(bounds.width, bounds.height, 16, 16);
 
         const addMesh = (texture) => {
+            // Guard against async race conditions (if component removed/changed while loading)
+            if (!this.el.parentNode) return;
+
             const material = new THREE.ShaderMaterial({
                 uniforms: {
                     map: { value: texture },
@@ -139,11 +169,13 @@ AFRAME.registerComponent('constellation-illustration', {
                 depthWrite: false,
                 blending: THREE.NormalBlending
             });
+
             const mesh = new THREE.Mesh(geometry, material);
             mesh.renderOrder = 10; // Bottom Layer
             this.el.object3D.add(mesh);
+            this.mesh = mesh; // Track it
 
-            // Set position
+            // Set position of the CONTAINER entity (which has no position sync)
             const pos = bounds.center.clone().normalize().multiplyScalar(illustRadius);
             this.el.object3D.position.copy(pos);
 
@@ -182,7 +214,11 @@ AFRAME.registerComponent('constellation-illustration', {
 
 
     remove: function () {
-        if (this.waitForRenderer) clearInterval(this.waitForRenderer);
-        // Disposal handled by A-Frame/Three.js usually, but good to be careful
+        // Clean up
+        if (this.mesh) {
+            this.el.object3D.remove(this.mesh);
+            if (this.mesh.geometry) this.mesh.geometry.dispose();
+            if (this.mesh.material) this.mesh.material.dispose();
+        }
     }
 });

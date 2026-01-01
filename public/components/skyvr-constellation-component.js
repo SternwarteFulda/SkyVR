@@ -339,55 +339,100 @@ AFRAME.registerComponent('constellation-renderer', {
         });
     },
 
-    // Place the current preview as a permanent illustration
-    placeIllustration: function () {
-        console.log('placeIllustration called. Current pointed:', this.currentPointedConstellation?.id);
+    // State-based sync: Reconcile visible illustrations with the active list
+    syncConstellations: function (activeIds) {
+        if (!Array.isArray(activeIds)) return;
 
+        // 1. Remove illustrations NOT in the new list
+        for (let i = this.placedIllustrations.length - 1; i >= 0; i--) {
+            const ent = this.placedIllustrations[i];
+            // If it's a networked entity, it might have the component; if local, it definitely does.
+            const attr = ent.getAttribute('constellation-illustration');
+            const id = attr ? attr.constellationId : null;
+
+            if (id && !activeIds.includes(id)) {
+                this.removeIllustrationEntity(ent);
+                this.placedIllustrations.splice(i, 1);
+            }
+        }
+
+        // 2. Add illustrations that are NEW
+        const currentIds = this.placedIllustrations.map(e => {
+            const attr = e.getAttribute('constellation-illustration');
+            return attr ? attr.constellationId : null;
+        });
+
+        activeIds.forEach(id => {
+            if (id && !currentIds.includes(id)) {
+                const constellation = this.constellationData.constellations.find(c => c.id === id);
+                if (constellation) {
+                    this.placeLocalIllustration(constellation);
+                }
+            }
+        });
+    },
+
+    removeIllustrationEntity: function (entity) {
+        if (entity.parentNode) {
+            entity.parentNode.removeChild(entity);
+        } else if (entity.isObject3D) {
+            this.el.object3D.remove(entity);
+            this.disposeHierarchy(entity);
+        }
+    },
+
+    // Place illustration by updating Global State
+    // Place illustration by updating Global State
+    placeIllustration: function () {
         if (!this.currentPointedConstellation) {
-            console.warn('Cannot place illustration: No constellation currently pointed at.');
+            console.warn('placeIllustration: No pointed constellation');
             return;
         }
+        const id = this.currentPointedConstellation.id;
+        console.log('Attempting to stamp constellation:', id);
 
-        const constellation = this.currentPointedConstellation;
-        const name = constellation.common_name?.english || constellation.id;
+        const master = document.getElementById('sky-master');
+        if (master) {
+            const isConnected = typeof NAF !== 'undefined' && NAF.connection.isConnected();
 
-        // Capture rotation and position from preview
-        let meshRotation = { x: 0, y: 0, z: 0 };
-        let meshPosition = { x: 0, y: 0, z: 0 };
-        if (this.previewIllustration) {
-            this.previewIllustration.traverse(node => {
-                if (node.isObject3D && node.material && node.material.type === 'ShaderMaterial') {
-                    meshRotation = { x: node.rotation.x, y: node.rotation.y, z: node.rotation.z };
-                    meshPosition = { x: node.position.x, y: node.position.y, z: node.position.z };
+            if (isConnected) {
+                // Try to take ownership if we don't have it
+                if (!NAF.utils.isMine(master) && !NAF.utils.takeOwnership(master)) {
+                    console.warn('Failed to take ownership of sky-master. Cannot sync stamp.');
+                    return;
                 }
-            });
-        }
 
-        if (typeof NAF !== 'undefined' && NAF.connection && NAF.connection.adapter && NAF.connection.adapter.getConnectStatus() === NAF.adapters.IS_CONNECTED) {
-            console.log(`Instantiating networked illustration for ${name}...`);
-            try {
-                const entity = NAF.utils.instantiateEntity('#constellation-illustration-template');
-                if (!entity) throw new Error('NAF.utils.instantiateEntity returned null');
+                // We own it (or are local), proceed to update state
+                const skyState = master.getAttribute('sky-state');
+                let currentList = [];
+                try {
+                    if (skyState && skyState.activeConstellations) {
+                        // Handle both string (from schema-string) and potentially pre-parsed scenarios
+                        const raw = skyState.activeConstellations;
+                        currentList = typeof raw === 'string' ? JSON.parse(raw) : raw;
+                    }
+                } catch (e) {
+                    console.warn('Error parsing activeConstellations:', e);
+                    currentList = [];
+                }
 
-                entity.setAttribute('constellation-illustration', {
-                    constellationId: constellation.id,
-                    opacity: 0.2,
-                    rotation: meshRotation,
-                    position: meshPosition
-                });
+                if (!Array.isArray(currentList)) currentList = [];
 
-                // Add to the renderer element
-                this.el.appendChild(entity);
-                this.placedIllustrations.push(entity);
-                console.log(`Successfully placed networked illustration for ${name}`);
-            } catch (err) {
-                console.error('Error instantiating networked constellation:', err);
-                // Fallback to local if networked instantiation fails
-                this.placeLocalIllustration(constellation);
+                if (!currentList.includes(id)) {
+                    currentList.push(id);
+                    const newString = JSON.stringify(currentList);
+                    master.setAttribute('sky-state', 'activeConstellations', newString);
+                    console.log('Updated global state activeConstellations:', newString);
+                } else {
+                    console.log('Constellation already active:', id);
+                }
+            } else {
+                console.warn('NAF not connected. Fallback to local placement.');
+                this.placeLocalIllustration(this.currentPointedConstellation);
             }
         } else {
-            console.warn('NAF not connected, placing local illustration');
-            this.placeLocalIllustration(constellation);
+            console.error('sky-master entity not found!');
+            this.placeLocalIllustration(this.currentPointedConstellation);
         }
     },
 
@@ -417,55 +462,122 @@ AFRAME.registerComponent('constellation-renderer', {
         console.log(`Successfully placed local illustration for ${constellation.id}`);
     },
 
-    // Remove the last placed illustration
+    // Remove the last placed illustration by updating Global State
     removeLastIllustration: function () {
-        if (this.placedIllustrations.length === 0) return;
+        const master = document.getElementById('sky-master');
+        if (master) {
+            const isConnected = typeof NAF !== 'undefined' && NAF.connection.isConnected();
+            if (isConnected) {
+                // Try to take ownership if we don't have it
+                if (!NAF.utils.isMine(master) && !NAF.utils.takeOwnership(master)) {
+                    console.warn('Failed to take ownership of sky-master. Cannot sync remove.');
+                    return;
+                }
 
-        const illustrationMatch = this.placedIllustrations.pop();
-        // Check if the illustration is an A-Frame entity (has parentNode) or a raw THREE.Object3D
-        if (illustrationMatch.parentNode) {
-            illustrationMatch.parentNode.removeChild(illustrationMatch);
-        } else if (illustrationMatch.isObject3D) { // Assuming it's a THREE.Object3D if not an A-Frame entity
-            this.el.object3D.remove(illustrationMatch);
-            this.disposeHierarchy(illustrationMatch);
-        } else {
-            console.warn('Attempted to remove an illustration that is neither an A-Frame entity nor a THREE.Object3D:', illustrationMatch);
-        }
+                const skyState = master.getAttribute('sky-state');
+                let currentList = [];
+                try {
+                    if (skyState && skyState.activeConstellations) {
+                        const raw = skyState.activeConstellations;
+                        currentList = typeof raw === 'string' ? JSON.parse(raw) : raw;
+                    }
+                } catch (e) {
+                    console.warn('Error parsing activeConstellations for removal', e);
+                    currentList = [];
+                }
 
-        console.log(`Removed last illustration (${this.placedIllustrations.length} remaining)`);
-    },
-
-    // Remove all placed illustrations
-    clearAllIllustrations: function () {
-        this.placedIllustrations.forEach(illustration => {
-            // Check if the illustration is an A-Frame entity (has parentNode) or a raw THREE.Object3D
-            if (illustration.parentNode) {
-                illustration.parentNode.removeChild(illustration);
-            } else if (illustration.isObject3D) { // Assuming it's a THREE.Object3D if not an A-Frame entity
-                this.el.object3D.remove(illustration);
-                this.disposeHierarchy(illustration);
+                if (Array.isArray(currentList) && currentList.length > 0) {
+                    const removed = currentList.pop();
+                    master.setAttribute('sky-state', 'activeConstellations', JSON.stringify(currentList));
+                    console.log('Removed constellation from global state:', removed);
+                } else {
+                    console.log('No constellations to remove in global state');
+                }
             } else {
-                console.warn('Attempted to clear an illustration that is neither an A-Frame entity nor a THREE.Object3D:', illustration);
+                console.warn('NAF not connected. Fallback local removal.');
+                if (this.placedIllustrations.length > 0) {
+                    const illustrationMatch = this.placedIllustrations.pop();
+                    this.removeIllustrationEntity(illustrationMatch);
+                }
             }
-        });
-        this.placedIllustrations = [];
-        console.log('Cleared all illustrations');
+        } else {
+            // Fallback local removal
+            if (this.placedIllustrations.length > 0) {
+                const illustrationMatch = this.placedIllustrations.pop();
+                this.removeIllustrationEntity(illustrationMatch);
+            }
+        }
     },
 
-    // Show illustrations for all constellations
+    // Clear all illustrations by updating Global State
+    clearAllIllustrations: function () {
+        const master = document.getElementById('sky-master');
+        if (master) {
+            const isConnected = typeof NAF !== 'undefined' && NAF.connection.isConnected();
+            if (isConnected) {
+                if (!NAF.utils.isMine(master) && !NAF.utils.takeOwnership(master)) {
+                    console.warn('Failed to take ownership of sky-master. Cannot sync clear.');
+                    return;
+                }
+                // Simply set to empty array
+                master.setAttribute('sky-state', 'activeConstellations', '[]');
+                console.log('Cleared all constellations from global state');
+            } else {
+                this.localClearAll();
+            }
+        } else {
+            this.localClearAll();
+        }
+    },
+
+    // Show illustrations for all constellations by updating Global State
     showAllIllustrations: function () {
         if (!this.loadingComplete || !this.constellationData) return;
 
-        console.log('Showing all constellation illustrations...');
-        // First clear existing ones to avoid duplicates if needed, 
-        // or just add missing ones. Let's clear first for a clean state.
-        this.clearAllIllustrations();
+        const master = document.getElementById('sky-master');
+        if (master) {
+            const isConnected = typeof NAF !== 'undefined' && NAF.connection.isConnected();
+            if (isConnected) {
+                if (!NAF.utils.isMine(master) && !NAF.utils.takeOwnership(master)) {
+                    console.warn('Failed to take ownership of sky-master. Cannot sync show all.');
+                    return;
+                }
 
+                const allIds = [];
+                this.constellationData.constellations.forEach(constellation => {
+                    if (constellation.image) {
+                        allIds.push(constellation.id);
+                    }
+                });
+
+                master.setAttribute('sky-state', 'activeConstellations', JSON.stringify(allIds));
+                console.log('Set global state to show all constellations');
+            } else {
+                this.localShowAll();
+            }
+        } else {
+            this.localShowAll();
+        }
+    },
+
+    // Internal helper for local clearing
+    localClearAll: function () {
+        this.placedIllustrations.forEach(illustration => {
+            this.removeIllustrationEntity(illustration);
+        });
+        this.placedIllustrations = [];
+        console.log('Locally cleared all illustrations');
+    },
+
+    // Internal helper for local showing
+    localShowAll: function () {
+        this.localClearAll();
         this.constellationData.constellations.forEach(constellation => {
             if (constellation.image) {
                 this.placeLocalIllustration(constellation);
             }
         });
+        console.log('Locally showing all illustrations');
     },
 
     // Helper for depth stacking to avoid z-fighting

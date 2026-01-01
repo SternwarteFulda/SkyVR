@@ -18,7 +18,8 @@
         showEquator: { type: 'boolean', default: false },
         showEcliptic: { type: 'boolean', default: false },
         showCardinalPoints: { type: 'boolean', default: true },
-        showCelestialPoles: { type: 'boolean', default: false }
+        showCelestialPoles: { type: 'boolean', default: false },
+        activeConstellations: { type: 'string', default: '[]' }
       },
       update: function (oldData) {
         if (typeof luxon === 'undefined') return;
@@ -54,6 +55,23 @@
 
         if (typeof updateScene === 'function') {
           updateScene();
+        }
+
+        if (this.data.activeConstellations !== oldData.activeConstellations) {
+          try {
+            const activeList = JSON.parse(this.data.activeConstellations);
+            const rendererEl = document.getElementById('constellation-lines');
+            if (rendererEl && rendererEl.components['constellation-renderer']) {
+              const comp = rendererEl.components['constellation-renderer'];
+              if (typeof comp.syncConstellations === 'function') {
+                comp.syncConstellations(activeList);
+              } else {
+                console.warn('syncConstellations method missing on constellation-renderer');
+              }
+            }
+          } catch (e) {
+            console.error('Failed to parse activeConstellations sync data', e);
+          }
         }
       }
     });
@@ -129,7 +147,22 @@
         NAF.schemas.add({
           template: '#constellation-illustration-template',
           components: [
-            'constellation-illustration'
+            {
+              component: 'constellation-illustration',
+              property: 'constellationId'
+            },
+            {
+              component: 'constellation-illustration',
+              property: 'rotation'
+            },
+            {
+              component: 'constellation-illustration',
+              property: 'position'
+            },
+            {
+              component: 'constellation-illustration',
+              property: 'opacity'
+            }
           ]
         });
       }
@@ -457,9 +490,9 @@
       <script src="components/skyvr-rig-follower-component.js"></script>
       <script src="components/skyvr-infobar-component.js"></script>
       <script src="components/skyvr-tooltip-component.js"></script>
-      <script src="components/skyvr-constellation-component.js"></script>
+      <script src="components/skyvr-constellation-component.js?v=2"></script>
       <script src="components/skyvr-constellation-pointer-component.js"></script>
-      <script src="components/skyvr-networked-components.js"></script>
+      <script src="components/skyvr-networked-components.js?v=2"></script>
     </a-assets>
 
     <a-entity id="sky-master" networked="template:#sky-template;persistent:true;networkId:sky-master"
@@ -480,16 +513,6 @@
       </a-entity>
       <!-- Infobar placed in front of user, visible when looking down -->
       <a-entity id="infobar" skyvr-infobar position="0 0.8 -0.6" rotation="-40 0 0"></a-entity>
-      <script>
-        // Set low renderOrder for milkyway sphere
-        document.getElementById('milkyway').addEventListener('loaded', function () {
-          this.object3D.renderOrder = 5;
-          const mesh = this.getObject3D('mesh');
-          if (mesh && mesh.material) {
-            mesh.material.depthWrite = false;
-          }
-        });
-      </script>
       <a-entity id="right-controller" networked="template:#right-controller-template;attachTemplateToLocal:false;"
         meta-touch-controls="hand: right" laser-controls haptics
         raycaster="objects: [data-raycastable]; far: 600; lineOpacity: 0.5;" drawing constellation-pointer>
@@ -1493,6 +1516,18 @@
           window.micEnabled = !window.micEnabled;
           NAF.connection.adapter.enableMicrophone(window.micEnabled);
           micBtnEle.textContent = window.micEnabled ? 'Mute Mic' : 'Unmute Mic';
+        }
+      });
+    }
+
+    // Set low renderOrder for milkyway sphere
+    const milkywayEl = document.getElementById('milkyway');
+    if (milkywayEl) {
+      milkywayEl.addEventListener('loaded', function () {
+        this.object3D.renderOrder = 5;
+        const mesh = this.getObject3D('mesh');
+        if (mesh && mesh.material) {
+          mesh.material.depthWrite = false;
         }
       });
     }
