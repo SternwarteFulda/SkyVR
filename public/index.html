@@ -1197,12 +1197,16 @@
 
       const rightController = document.getElementById("right-controller");
 
-      // 'A' button state variables
+      // Button state variables
       let aButtonDownTimestamp = 0;
       let aButtonIsPhysicallyDown = false;
+      let bButtonDownTimestamp = 0;
+      let bButtonIsPhysicallyDown = false;
       const HOLD_DURATION_THRESHOLD = 1000; // 1 second for hold
-      let holdActionTriggered = false;
-      let aHoldIntervalId = null; // Changed from aHoldCheckAnimationId
+      let aHoldActionTriggered = false;
+      let bHoldActionTriggered = false;
+      let aHoldIntervalId = null;
+      let bHoldIntervalId = null;
       // let frameCount = 0; // No longer using frameCount
 
       rightController.addEventListener("gripdown", function (event) {
@@ -1219,10 +1223,25 @@
       const onAButtonDown = () => {
         aButtonIsPhysicallyDown = true;
         aButtonDownTimestamp = performance.now();
-        holdActionTriggered = false;
+        aHoldActionTriggered = false;
 
         if (aHoldIntervalId) clearInterval(aHoldIntervalId);
         aHoldIntervalId = setInterval(checkAHoldWithInterval, 16);
+      };
+
+      const onBButtonDown = () => {
+        bButtonIsPhysicallyDown = true;
+        bButtonDownTimestamp = performance.now();
+        bHoldActionTriggered = false;
+
+        const currentMode = window.currentMode || 'draw';
+        if (currentMode === 'draw') {
+          console.log('B button down: Starting drawing');
+          rightController.components.drawing.startDrawing();
+        }
+
+        if (bHoldIntervalId) clearInterval(bHoldIntervalId);
+        bHoldIntervalId = setInterval(checkBHoldWithInterval, 16);
       };
 
       const onAButtonUp = () => {
@@ -1233,7 +1252,7 @@
           aHoldIntervalId = null;
         }
 
-        if (wasPhysicallyDown && !holdActionTriggered) {
+        if (wasPhysicallyDown && !aHoldActionTriggered) {
           console.log('A button: Short press (tap) detected');
           const currentMode = window.currentMode || 'draw';
           if (currentMode === 'draw') {
@@ -1246,39 +1265,46 @@
         }
       };
 
-      // Dedicated A and B button listeners as requested
-      rightController.addEventListener('abuttondown', onAButtonDown);
-      rightController.addEventListener('abuttonup', onAButtonUp);
-
-      rightController.addEventListener('bbuttondown', () => {
-        const currentMode = window.currentMode || 'draw';
-        if (currentMode === 'draw') {
-          console.log('B button down: Starting drawing');
-          rightController.components.drawing.startDrawing();
+      const onBButtonUp = () => {
+        const wasPhysicallyDown = bButtonIsPhysicallyDown;
+        bButtonIsPhysicallyDown = false;
+        if (bHoldIntervalId) {
+          clearInterval(bHoldIntervalId);
+          bHoldIntervalId = null;
         }
-      });
 
-      rightController.addEventListener('bbuttonup', () => {
         const currentMode = window.currentMode || 'draw';
         console.log('B button up (releasing). Mode:', currentMode);
 
-        if (currentMode === 'draw') {
-          rightController.components.drawing.stopDrawing();
-        } else if (currentMode === 'constellation') {
-          console.log('B button up: Placing constellation illustration');
-          const constellationLines = document.getElementById('constellation-lines');
-          if (constellationLines && constellationLines.components['constellation-renderer']) {
-            constellationLines.components['constellation-renderer'].placeIllustration();
-            // Haptics on stamp
-            if (rightController.components['haptics']) {
-              rightController.components['haptics'].pulse(0.3, 100);
+        if (!bHoldActionTriggered) {
+          if (currentMode === 'draw') {
+            rightController.components.drawing.stopDrawing();
+          } else if (currentMode === 'constellation') {
+            console.log('B button up: Placing constellation illustration');
+            const constellationLines = document.getElementById('constellation-lines');
+            if (constellationLines && constellationLines.components['constellation-renderer']) {
+              const renderer = constellationLines.components['constellation-renderer'];
+              renderer.placeIllustration();
+              // Haptics on stamp
+              if (rightController.components['haptics']) {
+                rightController.components['haptics'].pulse(0.3, 100);
+              }
             }
           }
+        } else {
+          // If hold was triggered, we still might need to clean up drawing if we were in draw mode
+          if (currentMode === 'draw') rightController.components.drawing.stopDrawing();
         }
-      });
+      };
+
+      // Dedicated A and B button listeners as requested
+      rightController.addEventListener('abuttondown', onAButtonDown);
+      rightController.addEventListener('abuttonup', onAButtonUp);
+      rightController.addEventListener('bbuttondown', onBButtonDown);
+      rightController.addEventListener('bbuttonup', onBButtonUp);
 
       function checkAHoldWithInterval() {
-        if (!aButtonIsPhysicallyDown || holdActionTriggered) {
+        if (!aButtonIsPhysicallyDown || aHoldActionTriggered) {
           if (aHoldIntervalId) {
             clearInterval(aHoldIntervalId);
             aHoldIntervalId = null;
@@ -1297,23 +1323,57 @@
               comp.clearDrawing();
             }
           } else if (currentMode === 'constellation') {
-            // Clear all illustrations
             const constellationLines = document.getElementById('constellation-lines');
             if (constellationLines && constellationLines.components['constellation-renderer']) {
-              constellationLines.components['constellation-renderer'].clearAllIllustrations();
+              const renderer = constellationLines.components['constellation-renderer'];
+              renderer.clearAllIllustrations();
             }
           }
 
-          holdActionTriggered = true;
+          aHoldActionTriggered = true;
 
-          // Interval is already cleared in the first check of this function if holdActionTriggered becomes true
-          // or by aButtonIsPhysicallyDown becoming false. Explicit clear here is also fine.
           if (aHoldIntervalId) {
             clearInterval(aHoldIntervalId);
             aHoldIntervalId = null;
           }
         }
-        // No recursive call needed, setInterval handles the looping
+      }
+
+      function checkBHoldWithInterval() {
+        if (!bButtonIsPhysicallyDown || bHoldActionTriggered) {
+          if (bHoldIntervalId) {
+            clearInterval(bHoldIntervalId);
+            bHoldIntervalId = null;
+          }
+          return;
+        }
+
+        const currentHoldDuration = performance.now() - bButtonDownTimestamp;
+
+        if (currentHoldDuration >= HOLD_DURATION_THRESHOLD) {
+          const currentMode = window.currentMode || 'draw';
+
+          if (currentMode === 'constellation') {
+            const constellationLines = document.getElementById('constellation-lines');
+            if (constellationLines && constellationLines.components['constellation-renderer']) {
+              const renderer = constellationLines.components['constellation-renderer'];
+              // Always clear and then show all
+              renderer.clearAllIllustrations();
+              renderer.showAllIllustrations();
+              // Haptics on show-all
+              if (rightController.components['haptics']) {
+                rightController.components['haptics'].pulse(0.6, 250);
+              }
+            }
+          }
+
+          bHoldActionTriggered = true;
+
+          if (bHoldIntervalId) {
+            clearInterval(bHoldIntervalId);
+            bHoldIntervalId = null;
+          }
+        }
       }
 
       rightController.addEventListener("thumbstickmoved", function (event) {

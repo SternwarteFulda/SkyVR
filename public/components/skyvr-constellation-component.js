@@ -7,7 +7,7 @@ AFRAME.registerComponent('constellation-renderer', {
         lineWidth: { type: 'number', default: 2 },
         radius: { type: 'number', default: 394 },
         showLines: { type: 'boolean', default: false },
-        illustrationOpacity: { type: 'number', default: 0.4 }
+        illustrationOpacity: { type: 'number', default: 0.2 }
     },
 
     init: function () {
@@ -278,7 +278,7 @@ AFRAME.registerComponent('constellation-renderer', {
                 const material = new THREE.ShaderMaterial({
                     uniforms: {
                         map: { value: texture },
-                        opacity: { value: 0.2 }
+                        opacity: { value: 0.1 }
                     },
                     vertexShader: `
                         varying vec2 vUv;
@@ -312,11 +312,12 @@ AFRAME.registerComponent('constellation-renderer', {
                 previewSet.position.copy(illustPos);
                 previewSet.add(mesh);
 
-                // Correct orientation using anchors
-                this.orientToAnchors(mesh, constellation);
-
+                // IMPORTANT: Add to scene BEFORE orienting so world matrices are valid
                 this.el.object3D.add(previewSet);
                 this.previewIllustration = previewSet;
+
+                // Correct orientation using anchors
+                this.orientToAnchors(mesh, constellation);
             } else {
                 // Fallback placeholder
                 this.addPlaceholderToGroup(previewSet, illustrationGeo, 0.4);
@@ -400,7 +401,7 @@ AFRAME.registerComponent('constellation-renderer', {
 
                 entity.setAttribute('constellation-illustration', {
                     constellationId: constellation.id,
-                    opacity: 0.4,
+                    opacity: 0.2,
                     rotation: meshRotation
                 });
 
@@ -419,13 +420,16 @@ AFRAME.registerComponent('constellation-renderer', {
         }
     },
 
-    placeLocalIllustration: function (constellation) {
-        // Capture rotation from preview
-        let meshRotation = { x: 0, y: 0, z: 0 };
-        if (this.previewIllustration) {
+    placeLocalIllustration: function (constellation, explicitRotation = null) {
+        let rotationToUse = explicitRotation;
+
+        // If no explicit rotation provided, and we are NOT showing all (i.e., we are stamping),
+        // we can try to grab it from the preview if it matches.
+        // But for showAll, we want each to calculate its own.
+        if (!rotationToUse && this.previewIllustration && this.currentPointedConstellation?.id === constellation.id) {
             this.previewIllustration.traverse(node => {
                 if (node.isMesh && node.material && node.material.type === 'ShaderMaterial') {
-                    meshRotation = { x: node.rotation.x, y: node.rotation.y, z: node.rotation.z };
+                    rotationToUse = { x: node.rotation.x, y: node.rotation.y, z: node.rotation.z };
                 }
             });
         }
@@ -433,8 +437,8 @@ AFRAME.registerComponent('constellation-renderer', {
         const entity = document.createElement('a-entity');
         entity.setAttribute('constellation-illustration', {
             constellationId: constellation.id,
-            opacity: 0.4,
-            rotation: meshRotation
+            opacity: 0.2,
+            rotation: rotationToUse || { x: 0, y: 0, z: 0 }
         });
         this.el.appendChild(entity);
         this.placedIllustrations.push(entity);
@@ -474,6 +478,22 @@ AFRAME.registerComponent('constellation-renderer', {
         });
         this.placedIllustrations = [];
         console.log('Cleared all illustrations');
+    },
+
+    // Show illustrations for all constellations
+    showAllIllustrations: function () {
+        if (!this.loadingComplete || !this.constellationData) return;
+
+        console.log('Showing all constellation illustrations...');
+        // First clear existing ones to avoid duplicates if needed, 
+        // or just add missing ones. Let's clear first for a clean state.
+        this.clearAllIllustrations();
+
+        this.constellationData.constellations.forEach(constellation => {
+            if (constellation.image) {
+                this.placeLocalIllustration(constellation);
+            }
+        });
     },
 
     getConstellationBounds: function (constellation) {
@@ -549,23 +569,28 @@ AFRAME.registerComponent('constellation-renderer', {
         const p1_img = anchors[0].pos; // [x, y] pixels
         const p2_img = anchors[1].pos;
 
-        const p1_3d = this.starPositions.get(star1Id);
-        const p2_3d = this.starPositions.get(star2Id);
+        const p1_renderer = this.starPositions.get(star1Id);
+        const p2_renderer = this.starPositions.get(star2Id);
 
-        if (!p1_3d || !p2_3d) {
+        if (!p1_renderer || !p2_renderer) {
             object3D.lookAt(0, 0, 0);
             return;
         }
 
-        // 1. Look at center
+        // Ensure matrices are up to date for space conversions
+        this.el.object3D.updateWorldMatrix(true, false);
+        object3D.updateWorldMatrix(true, true);
+
+        // Convert star positions from renderer-local to world space
+        const p1_3d = p1_renderer.clone().applyMatrix4(this.el.object3D.matrixWorld);
+        const p2_3d = p2_renderer.clone().applyMatrix4(this.el.object3D.matrixWorld);
+
+        // 1. Look at center (world 0,0,0)
         object3D.lookAt(0, 0, 0);
         object3D.updateWorldMatrix(true, false);
 
         // 2. Calculate roll
-        // Vector between stars in 3D
-        const v3d = new THREE.Vector3().subVectors(p2_3d, p1_3d);
-
-        // Transform star positions to object's local space
+        // Transform world star positions to object's local space
         const localP1 = object3D.worldToLocal(p1_3d.clone());
         const localP2 = object3D.worldToLocal(p2_3d.clone());
         const localV3D = new THREE.Vector3().subVectors(localP2, localP1);
@@ -579,7 +604,7 @@ AFRAME.registerComponent('constellation-renderer', {
         const imgDY = p1_img[1] - p2_img[1]; // Flipped for Cartesian
         const imgAngle = Math.atan2(imgDY, imgDX);
 
-        // Rotate object around its local Z (Forward axis)
+        // Rotate object around its local Z (Forward axis pointing at observer)
         const roll = targetAngle - imgAngle;
         object3D.rotateZ(roll);
     },
