@@ -16,16 +16,16 @@ AFRAME.registerComponent('switch', {
         // Set initial position
         el.setAttribute('position', data.position);
 
-        const initialSliderPos = data.toggled ? '0.005 0 0.00002' : '-0.005 0 0.00002';
+        const initialSliderPos = data.toggled ? '0.0075 0 0.00002' : '-0.0075 0 0.00002';
         const initialBaseColor = data.toggled ? this.activeColor : this.inactiveColor;
 
         // Create switch base
         const switchBase = document.createElement('a-rounded');
         switchBase.setAttribute('class', 'switch-base');
         switchBase.setAttribute('position', '0 0 0.00001');
-        switchBase.setAttribute('width', '0.025');
-        switchBase.setAttribute('height', '0.015');
-        switchBase.setAttribute('radius', '0.0075');
+        switchBase.setAttribute('width', '0.0375');
+        switchBase.setAttribute('height', '0.0225');
+        switchBase.setAttribute('radius', '0.01125');
         switchBase.setAttribute('material', `shader: flat; color: ${initialBaseColor}`);
         el.appendChild(switchBase);
 
@@ -33,7 +33,7 @@ AFRAME.registerComponent('switch', {
         const switchSlider = document.createElement('a-circle');
         switchSlider.setAttribute('class', 'switch-slider');
         switchSlider.setAttribute('position', initialSliderPos);
-        switchSlider.setAttribute('radius', '0.005');
+        switchSlider.setAttribute('radius', '0.0075');
         switchSlider.setAttribute('material', 'shader: flat; color: white');
         el.appendChild(switchSlider);
 
@@ -41,8 +41,8 @@ AFRAME.registerComponent('switch', {
         const switchClickarea = document.createElement('a-plane');
         switchClickarea.setAttribute('class', 'switch-clickarea');
         switchClickarea.setAttribute('position', '0 0 0.00003');
-        switchClickarea.setAttribute('width', '0.03');
-        switchClickarea.setAttribute('height', '0.02');
+        switchClickarea.setAttribute('width', '0.045');
+        switchClickarea.setAttribute('height', '0.03');
         switchClickarea.setAttribute('material', 'shader: flat; transparent: true; opacity: 0');
         switchClickarea.setAttribute('data-raycastable', '');
         el.appendChild(switchClickarea);
@@ -89,10 +89,10 @@ AFRAME.registerComponent('switch', {
         data.toggled = !data.toggled;
 
         if (data.toggled) {
-            switchSlider.setAttribute('position', '0.005 0 0.00002');
+            switchSlider.setAttribute('position', '0.0075 0 0.00002');
             switchBase.setAttribute('material', `color: ${this.activeColor}`);
         } else {
-            switchSlider.setAttribute('position', '-0.005 0 0.00002');
+            switchSlider.setAttribute('position', '-0.0075 0 0.00002');
             switchBase.setAttribute('material', `color: ${this.inactiveColor}`);
         }
 
