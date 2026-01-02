@@ -3,11 +3,13 @@
   "version": "0.0.1",
   "description": "Multi-user virtual reality under the sky",
   "scripts": {
-    "start": "node ./server/easyrtc-server.js"
+    "start": "node ./server/easyrtc-server.js",
+    "postinstall": "bash scripts/patch-aframe-environment.sh"
   },
   "author": "mar_s",
   "dependencies": {
     "aframe": "1.7.1",
+    "aframe-environment-component": "^1.5.0",
     "aframe-extras": "7.6.1",
     "dotenv": "^16.4.7",
     "networked-aframe": "0.14.0",

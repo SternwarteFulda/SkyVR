@@ -1,4 +1,4 @@
-const CACHE_NAME = 'skyvr-cache-v34';
+const CACHE_NAME = 'skyvr-cache-v59';
 
 const ASSETS_TO_CACHE = [
     '/',
@@ -14,7 +14,7 @@ const ASSETS_TO_CACHE = [
     '/js/custom-fogless-text.js',
     '/components/skyvr-player-info-component.js',
     '/components/skyvr-drawing-component.js',
-    '/components/aframe-environment-component.js',
+    '/js/aframe-environment-component.js',
     '/js/aframe-extras.primitives.min.js',
     '/components/spawn-in-spots.component.js',
     '/components/skyvr-high-res-component.js',

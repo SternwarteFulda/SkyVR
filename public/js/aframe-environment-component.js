@@ -50,13 +50,6 @@
 	  throw new Error('Component attempted to register before AFRAME was available.');
 	}
 
-	/**
-	 * enviroGetSettings() - console function for printing out the current environment settings
-	 */
-	function enviroGetSettings () {
-	  document.querySelector('[environment]').components['environment'].logPreset();
-	}
-
 	AFRAME.registerComponent('environment', {
 	  schema: {
 	    active: {default: false},
@@ -74,12 +67,15 @@
 
 	    flatShading: {default: false},
 	    playArea: {type: 'float', default: 1, min: 0.5, max: 10},
+	    stageSize: {type: 'number', default: 200, min: 1, max: 20000},
 
 	    ground: {default: 'hills', oneOf:['none', 'flat', 'hills', 'canyon', 'spikes', 'noise']},
 	    groundYScale: {type: 'float', default: 3, min: 0, max: 50},
 	    groundTexture: {default: 'none', oneOf:['none', 'checkerboard', 'squares', 'walkernoise']},
 	    groundColor:  {type: 'color', default: '#553e35'},
 	    groundColor2: {type: 'color', default: '#694439'},
+	    groundDensity: {type: 'number', default: 64, min: 8, max: 1024},
+	    groundFrequency: {type: 'number', default: 10, min: 0.1, max: 1000},
 
 	    dressing: {default: 'none', oneOf:['none', 'cubes', 'pyramids', 'cylinders', 'hexagons', 'stones', 'trees', 'mushrooms', 'towers', 'apparatus', 'arches', 'torii']},
 	    dressingAmount: {type: 'int', default: 10, min: 0, max: 1000},
@@ -124,7 +120,7 @@
 	    this.rendererSystem = this.el.sceneEl.systems.renderer;
 
 	    // stage ground diameter (and sky radius)
-	    this.STAGE_SIZE = 400;
+	    this.STAGE_SIZE = this.data.stageSize;
 
 	    // data for dressing meshes
 	    this.assets = {
@@ -237,12 +233,12 @@
 	    this.hemilight.setAttribute('light', {
 	      type: 'hemisphere',
 	      color: '#CEE4F0',
-	      intensity: 0.4
+	      intensity: 1.256
 	    });
 	    this.sunlight = document.createElement('a-entity');
 	    this.sunlight.classList.add('environment');
 	    this.sunlight.setAttribute('position', this.data.lightPosition);
-	    this.sunlight.setAttribute('light', {intensity: 0.6});
+	    this.sunlight.setAttribute('light', {intensity: 1.884});
 
 	    // add everything to the scene
 	    this.el.appendChild(this.hemilight);
@@ -304,22 +300,18 @@
 	      this.environmentData = this.data;
 	    } else {
 	      oldData = AFRAME.utils.clone(this.environmentData);
-
-		  let parsedAttributes = JSON.parse(JSON.stringify(this.el.components.environment.attrValue));
-
-		  Object.keys(parsedAttributes).map(function(key, index) {
-			const val = parsedAttributes[key];
-			if (typeof val == 'string' && val.split(' ').length == 3) {
-			  const coords = val.split(' ');
-			  parsedAttributes[key] = {x: coords[0], y: coords[1], z: coords[2]};
-			}
-		  });
-
 	      this.environmentData = {};
 	      Object.assign(this.environmentData, this.data);
 	      Object.assign(this.environmentData, this.presets[this.data.preset]);
-	      // Object.assign(this.environmentData, this.el.components.environment.attrValue);
-		  Object.assign(this.environmentData, parsedAttributes);
+              var parsedAttributes = JSON.parse(JSON.stringify(this.el.components.environment.attrValue));
+              Object.keys(parsedAttributes).forEach(function(key) {
+                var val = parsedAttributes[key];
+                if (typeof val == 'string' && val.split(' ').length == 3) {
+                  var coords = val.split(' ');
+                  parsedAttributes[key] = {x: coords[0], y: coords[1], z: coords[2]};
+                }
+              });
+              Object.assign(this.environmentData, parsedAttributes);
 	      console.log(this.environmentData);
 	    }
 
@@ -341,16 +333,16 @@
 	        );
 	        this.hemilight.setAttribute('light', {
 	          'color': '#' + skycol.getHexString(),
-	          'intensity': 0.6
+	          'intensity': 1.884
 	        });
-	        this.sunlight.setAttribute('light', {'intensity': 0.6});
+	        this.sunlight.setAttribute('light', {'intensity': 1.884});
 	      }
 	      else {
 	        this.hemilight.setAttribute('light', {
 	          'color': '#CEE4F0',
-	          'intensity': 0.1 + sunPos.y * 0.5
+	          'intensity': 0.314 + sunPos.y * 1.57
 	        });
-	        this.sunlight.setAttribute('light', {'intensity': 0.1 + sunPos.y * 0.5});
+	        this.sunlight.setAttribute('light', {'intensity': 0.314 + sunPos.y * 1.57});
 	      }
 
 	      this.sunlight.setAttribute('light', {
@@ -362,6 +354,12 @@
 	      });
 	    }
 
+	    var updateStageSize = this.environmentData.stageSize !== oldData.stageSize;
+
+	    if (updateStageSize) {
+	      this.STAGE_SIZE = this.data.stageSize;
+	      this.sky.setAttribute('radius', this.STAGE_SIZE);
+	    }
 	    // update sky colors
 	    if (skyType !== oldData.skyType ||
 	      this.environmentData.skyColor != oldData.skyColor ||
@@ -388,7 +386,7 @@
 	    // set atmosphere sun position and stars
 	    if (skyType == 'atmosphere') {
 	      this.sky.setAttribute('material', {'sunPosition': sunPos});
-	    //  this.setStars((1 - Math.max(0, (sunPos.y + 0.08) * 8)) * 2000 );
+	      // this.setStars((1 - Math.max(0, (sunPos.y + 0.08) * 8)) * 2000 );
 	    }
 
 	    // set fog color
@@ -413,7 +411,10 @@
 	      this.environmentData.seed != oldData.seed ||
 	      this.environmentData.ground != oldData.ground ||
 	      this.environmentData.playArea != oldData.playArea ||
-	      this.environmentData.flatShading != oldData.flatShading;
+	      this.environmentData.flatShading != oldData.flatShading ||
+	      this.environmentData.groundDensity != oldData.groundDensity ||
+	      this.environmentData.groundFrequency != oldData.groundFrequency ||
+	      updateStageSize;
 
 	    // check if any parameter of the ground was changed, and update it
 	    if (updateGroundGeometry ||
@@ -441,7 +442,8 @@
 	        this.environmentData.dressingVariance.x != oldData.dressingVariance.x ||
 	        this.environmentData.dressingVariance.y != oldData.dressingVariance.y ||
 	        this.environmentData.dressingVariance.z != oldData.dressingVariance.z ||
-	        this.environmentData.dressingUniformScale != oldData.dressingUniformScale
+	        this.environmentData.dressingUniformScale != oldData.dressingUniformScale ||
+	        updateStageSize
 	      ) {
 	      this.updateDressing();
 	    }
@@ -483,12 +485,7 @@
 	    }
 	    this.el.removeChild(this.dressing);
 	    this.el.removeChild(this.sky);
-	    if (this.stars) {
-	      var mesh = this.stars.getObject3D('mesh');
-	      mesh.material.dispose();
-	      mesh.geometry.dispose();
-	      this.el.removeChild(this.stars);
-	    }
+	    this.removeStars();
 	  },
 
 	  // logs current parameters to console, for saving to a preset
@@ -566,7 +563,7 @@
 	  // updates ground attributes, and geometry if required
 	  updateGround: function (updateGeometry) {
 
-	    var resolution = 64; // number of divisions of the ground mesh
+	    var resolution = this.environmentData.groundDensity; // number of divisions of the ground mesh
 
 	    if (updateGeometry) {
 	      var visibleground = this.environmentData.ground != 'none';
@@ -581,7 +578,7 @@
 	      var perlin = new PerlinNoise(this.environmentData.seed);
 	      var verts = this.groundGeometry.attributes.position.array;
 	      var numVerts = verts.length;
-	      var frequency = 10;
+	      var frequency = this.environmentData.groundFrequency;
 	      var inc = frequency / resolution;
 	      var x = 0;
 	      var y = 0;
@@ -629,7 +626,7 @@
 
 	        // calculate next x,y ground coordinates
 	        x += inc;
-	        if (x >= 10) {
+	        if (x >= frequency) {
 	          x = 0;
 	          y += inc;
 	        }
@@ -879,7 +876,6 @@
 	    var geoset = [];
 	    var self = this;
 	    function applyNoise(geo, noise) {
-	      var n = new THREE.Vector3();
 	      var verts = geo.attributes.position.array;
 	      var numVerts = verts.length;
 	      for (var i = 0; i < numVerts; i+=3) {
@@ -998,7 +994,7 @@
 	        distance = this.random(r + 1) * 15;
 	      }
 	      else {
-	        distance = parseFloat(this.environmentData.playArea) + Math.max(dv.x, dv.z) + 10 * this.random(r + 1) + this.random(r + 2) * this.STAGE_SIZE / 3;
+	        distance = 10 + Math.max(dv.x, dv.z) + 10 * this.random(r + 1) + this.random(r + 2) * this.STAGE_SIZE / 3;
 	      }
 
 	      var direction = this.random(r + 3) * Math.PI * 2;
@@ -1069,16 +1065,32 @@
 	    this.stars.setObject3D('mesh', new THREE.Points(geometry, material));
 	  },
 
+	  // removes and disposes the BufferGeometry of the stars
+	  removeStars: function() {
+	    if (!this.stars) return;
+
+	    var mesh = this.stars.getObject3D('mesh');
+	    mesh.material.dispose();
+	    mesh.geometry.dispose();
+
+	    this.el.removeChild(this.stars);
+	    this.stars = null;
+	  },
+
 	  // Sets the number of stars visible. Calls createStars() to initialize if needed.
 	  setStars: function (numStars) {
-	    if (!this.stars){
-	      this.stars = document.createElement('a-entity');
-	      this.stars.id= 'stars';
-	      this.createStars();
-	      this.el.appendChild(this.stars);
-	    }
 	    numStars = Math.floor(Math.min(2000, Math.max(0, numStars)));
-	    this.stars.getObject3D('mesh').geometry.setDrawRange(0, numStars);
+	    if (numStars === 0) {
+	      this.removeStars();
+	    } else {
+	      if (!this.stars) {
+	        this.stars = document.createElement('a-entity');
+	        this.stars.id = 'stars';
+	        this.createStars();
+	        this.el.appendChild(this.stars);
+	      }
+	      this.stars.getObject3D('mesh').geometry.setDrawRange(0, numStars);
+	    }
 	  }
 	});
 
@@ -1087,13 +1099,13 @@
 	  schema: {
 	    exposureBias: { type: 'number', default: 1.0, min: 0, max: 10, is: 'uniform' },
 	    turbidity: { type: 'number', default: 2, min: 0, max: 20, is: 'uniform' },
-	    reileigh: { type: 'number', default: 1.5, min: 0, max: 4, is: 'uniform' },
+	    reileigh: { type: 'number', default: 1, min: 0, max: 4, is: 'uniform' },
 	    mieCoefficient: { type: 'number', default: 0.005, min: 0, max: 0.1, is: 'uniform' },
 	    mieDirectionalG: { type: 'number', default: 0.8, min: 0, max: 1, is: 'uniform' },
 	    sunPosition: { type: 'vec3', default: {x: 0, y: 0, z: -1}, is: 'uniform' },
-	    color: {type: 'color', default: '#fff'} // placeholder to remove warning
+	    color: {type: 'color', default: '#fff'} //placeholder to remove warning
 	  },
-	
+
 	  vertexShader: [
 	    'varying vec3 vWorldPosition;',
 	    'void main() {',
@@ -1107,7 +1119,6 @@
 	    '#include <common>',
 	    '#include <dithering_pars_fragment>',
 	    'uniform sampler2D skySampler;',
-
 	    'uniform vec3 sunPosition;',
 	    'varying vec3 vWorldPosition;',
 
@@ -1146,8 +1157,6 @@
 	    'const float EE = 1000.0;',
 	    'const float sunAngularDiameterCos = 0.999956676946448443553574619906976478926848692873900859324;',
 	    // 66 arc seconds -> degrees, and the cosine of that
-	    //'const float sunAngularDiameterCos = 0.99999998796573158811915194060216;',
-	    // 32 arc seconds -> degrees, and the cosine of that
 
 	    // earth shadow hack'
 	    'const float cutoffAngle = pi/1.68;',
