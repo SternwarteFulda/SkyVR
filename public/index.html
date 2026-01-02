@@ -4,10 +4,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <script src="https://aframe.io/releases/1.7.1/aframe.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.8.1/socket.io.min.js"></script>
+  <script src="/js/aframe.min.js"></script>
+  <script src="/js/socket.io.min.js"></script>
   <script src="/easyrtc/easyrtc.js"></script>
-  <script src="https://unpkg.com/networked-aframe@^0.14.0/dist/networked-aframe.min.js"></script>
+  <script src="/js/networked-aframe.min.js"></script>
   <script>
     AFRAME.registerComponent('sky-state', {
       schema: {
@@ -243,9 +243,9 @@
 
     window.getLobbyParams = function () {
       const camera = document.getElementById('camera');
-      const room = roomParam || '1234';
-      let name = nameParam || 'Anonymous';
-      let color = colorParam || '#ff4444';
+      const room = roomParam || '';
+      let name = nameParam || '';
+      let color = colorParam || '';
 
       if (camera && camera.components['player-info']) {
         const data = camera.components['player-info'].data;
@@ -253,12 +253,15 @@
         color = data.color || color;
       }
 
-      return `?room=${room}&name=${encodeURIComponent(name)}&color=${encodeURIComponent(color)}`;
+      let params = `?room=${room}`;
+      if (name) params += `&name=${encodeURIComponent(name)}`;
+      if (color) params += `&color=${encodeURIComponent(color)}`;
+      return params;
     };
 
     // If no room is specified, redirect to lobby
     if (!roomParam && !window.location.search.includes('no-redirect')) {
-      window.location.href = 'lobby.html';
+      window.location.href = 'lobby.html' + window.getLobbyParams();
     }
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -296,7 +299,7 @@
   <script src="components/skyvr-player-info-component.js"></script>
   <script src="components/skyvr-drawing-component.js"></script>
   <link rel="stylesheet" type="text/css" href="/css/style.css" />
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" type="text/css" href="/css/fonts.css" />
   <script>
     window.loadingStatus = {
       assets: false,
@@ -406,7 +409,6 @@
       dressingOnPlayArea: 0;
       gridColor: #39d2f2;
       shadow: false" networked-scene="
-      room: basic-audio;
       debug: true;
       adapter: easyrtc;
       audio: true;
@@ -478,7 +480,7 @@
       <img id="icon-constellation" src="assets/icons/constellation.svg">
 
       <script src="components/aframe-environment-component.js"></script>
-      <script src="components/aframe-extras.primitives.min.js"></script>
+      <script src="/js/aframe-extras.primitives.min.js"></script>
       <script src="components/spawn-in-spots.component.js"></script>
       <script src="components/skyvr-high-res-component.js"></script>
       <script src="components/skyvr-starfield-component.js"></script>

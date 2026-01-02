@@ -7,7 +7,10 @@
   },
   "author": "mar_s",
   "dependencies": {
-    "networked-aframe": "^0.14.0",
-    "dotenv": "^16.4.7"
+    "aframe": "1.7.1",
+    "aframe-extras": "7.6.1",
+    "dotenv": "^16.4.7",
+    "networked-aframe": "0.14.0",
+    "socket.io-client": "^4.8.3"
   }
 }

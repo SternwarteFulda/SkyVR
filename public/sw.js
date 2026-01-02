@@ -1,17 +1,21 @@
-const CACHE_NAME = 'skyvr-cache-v28';
+const CACHE_NAME = 'skyvr-cache-v34';
 
 const ASSETS_TO_CACHE = [
     '/',
     '/index.html',
     '/lobby.html',
     '/css/style.css',
+    '/css/fonts.css',
+    '/fonts/outfit-300.ttf',
+    '/fonts/outfit-400.ttf',
+    '/fonts/outfit-600.ttf',
     '/js/astronomy.browser.min.js',
     '/js/luxon.min.js',
     '/js/custom-fogless-text.js',
     '/components/skyvr-player-info-component.js',
     '/components/skyvr-drawing-component.js',
     '/components/aframe-environment-component.js',
-    '/components/aframe-extras.primitives.min.js',
+    '/js/aframe-extras.primitives.min.js',
     '/components/spawn-in-spots.component.js',
     '/components/skyvr-high-res-component.js',
     '/components/skyvr-starfield-component.js',
@@ -31,7 +35,7 @@ const ASSETS_TO_CACHE = [
     '/assets/icons/mic-off.svg',
     '/assets/icons/draw.svg',
     '/assets/icons/stamp.svg',
-    '/assets/icons/sticky.svg',
+    '/assets/icons/stick.svg',
     '/assets/icons/constellation.svg',
 
     '/assets/arrow.svg',
@@ -41,10 +45,10 @@ const ASSETS_TO_CACHE = [
     '/assets/ldem_3_8bit.jpg',
     '/assets/lroc_color_poles_1k.jpg',
     '/assets/star.png',
-    'https://aframe.io/releases/1.7.1/aframe.min.js',
-    'https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.8.1/socket.io.min.js',
-    'https://unpkg.com/networked-aframe@^0.14.0/dist/networked-aframe.min.js',
-    'https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap',
+    '/assets/grid.png',
+    '/js/aframe.min.js',
+    '/js/networked-aframe.min.js',
+    '/js/socket.io.min.js',
     '/data/hyglike_from_athyg_v31.csv',
     '/data/ConstellationLines.csv'
 ];
