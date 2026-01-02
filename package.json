@@ -9,7 +9,7 @@
   "author": "mar_s",
   "dependencies": {
     "aframe": "1.7.1",
-    "aframe-environment-component": "^1.5.0",
+    "aframe-environment-component": "1.5.0",
     "aframe-extras": "7.6.1",
     "dotenv": "^16.4.7",
     "networked-aframe": "0.14.0",
