@@ -7,7 +7,7 @@ AFRAME.registerComponent('constellation-renderer', {
         lineWidth: { type: 'number', default: 2 },
         radius: { type: 'number', default: 394 },
         showLines: { type: 'boolean', default: false },
-        illustrationOpacity: { type: 'number', default: 0.2 }
+        illustrationOpacity: { type: 'number', default: 0.1 }
     },
 
     init: function () {
@@ -244,7 +244,7 @@ AFRAME.registerComponent('constellation-renderer', {
                 const material = new THREE.ShaderMaterial({
                     uniforms: {
                         map: { value: texture },
-                        opacity: { value: 0.1 },
+                        opacity: { value: 0.05 },
                         targetRadius: { value: illustRadius }
                     },
                     vertexShader: `
@@ -453,7 +453,7 @@ AFRAME.registerComponent('constellation-renderer', {
         const entity = document.createElement('a-entity');
         entity.setAttribute('constellation-illustration', {
             constellationId: constellation.id,
-            opacity: 0.2,
+            opacity: 0.1,
             rotation: rotationToUse || { x: 0, y: 0, z: 0 },
             position: positionToUse || { x: 0, y: 0, z: 0 }
         });
