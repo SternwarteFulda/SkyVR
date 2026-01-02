@@ -4,7 +4,7 @@
 echo "Applying SkyVR patches to aframe-environment-component..."
 
 SOURCE_FILE="node_modules/aframe-environment-component/dist/aframe-environment-component.js"
-DEST_FILE="public/js/aframe-environment-component.js"
+DEST_FILE="public/components/aframe-environment-component.js"
 
 if [ ! -f "$SOURCE_FILE" ]; then
     echo "Error: Source file not found: $SOURCE_FILE"
