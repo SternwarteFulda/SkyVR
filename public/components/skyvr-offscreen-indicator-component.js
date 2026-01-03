@@ -81,9 +81,26 @@ AFRAME.registerComponent('offscreen-indicator', {
             // Rotate indicator to point towards the direction
             this.indicator.object3D.rotation.z = angle - Math.PI / 2;
 
-            // Sync color with player-info
+            // Pulse effect using time
+            const time = this.el.sceneEl.time / 1000;
+            const pulse = 1 + Math.sin(time * 6) * 0.05; // Reduced scale pulse
+            const opacityPulse = 0.8 + Math.sin(time * 6) * 0.08; // Subtler opacity pulse
+
+            this.indicator.object3D.scale.set(pulse, pulse, pulse);
+
+            // Sync color and pulse opacity
             if (this.playerInfo && this.model) {
-                this.model.setAttribute('material', 'color', this.playerInfo.data.color);
+                const color = this.playerInfo.data.color;
+                this.model.setAttribute('material', {
+                    color: color,
+                    opacity: opacityPulse
+                });
+                if (this.glow) {
+                    this.glow.setAttribute('material', {
+                        color: color,
+                        opacity: opacityPulse * 0.3
+                    });
+                }
             }
         } else {
             this.indicator.setAttribute('visible', false);
@@ -94,8 +111,8 @@ AFRAME.registerComponent('offscreen-indicator', {
         this.indicator = document.createElement('a-entity');
         this.indicator.setAttribute('visible', false);
 
+        // Core Solid Arrow
         this.model = document.createElement('a-triangle');
-        // Scaled and centered: height is 22.5, pivot at center
         this.model.setAttribute('vertex-c', '0 11.25 0');
         this.model.setAttribute('vertex-a', '-7.5 -11.25 0');
         this.model.setAttribute('vertex-b', '7.5 -11.25 0');
@@ -109,9 +126,29 @@ AFRAME.registerComponent('offscreen-indicator', {
             opacity: 0.9,
             depthTest: false,
             depthWrite: false,
-            fog: false // CRITICAL: Ensure it's not dimmed by atmosphere/fog
+            fog: false,
+            blending: 'additive'
         });
 
+        // Outer Glow Arrow
+        this.glow = document.createElement('a-triangle');
+        this.glow.setAttribute('vertex-c', '0 14 0');
+        this.glow.setAttribute('vertex-a', '-10 -13 0');
+        this.glow.setAttribute('vertex-b', '10 -13 0');
+        this.glow.setAttribute('position', '0 0 -0.1'); // Slightly behind
+
+        this.glow.setAttribute('material', {
+            color: color,
+            shader: 'flat',
+            transparent: true,
+            opacity: 0.3,
+            depthTest: false,
+            depthWrite: false,
+            fog: false,
+            blending: 'additive'
+        });
+
+        this.indicator.appendChild(this.glow);
         this.indicator.appendChild(this.model);
         this.camera.appendChild(this.indicator);
     },
