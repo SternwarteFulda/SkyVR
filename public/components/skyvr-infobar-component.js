@@ -11,60 +11,70 @@ AFRAME.registerComponent('skyvr-infobar', {
             constellation: '#icon-constellation'
         };
 
+        // Layout Configuration
+        this.CONFIG = {
+            totalWidth: 0.75,
+            totalHeight: 0.05,
+            bgOpacity: 0.85,
+            bgColor: '#050510',
+            borderColor: '#8a2be2',
+            micOnColor: '#ff0000',
+            iconSize: 0.035,
+            modeSpacing: 0.065
+        };
+
         // Create container
         this.container = document.createElement('a-entity');
         this.el.appendChild(this.container);
 
-        // 1. Background Plane
-        this.bgEl = document.createElement('a-plane');
-        this.bgEl.setAttribute('width', 0.65);
-        this.bgEl.setAttribute('height', 0.05);
-        this.bgEl.setAttribute('color', '#050510');
-        this.bgEl.setAttribute('opacity', 0.85);
+        // 1. Background (Rounded Glassmorphism style)
+        this.bgEl = document.createElement('a-rounded');
+        this.bgEl.setAttribute('width', this.CONFIG.totalWidth);
+        this.bgEl.setAttribute('height', this.CONFIG.totalHeight);
+        this.bgEl.setAttribute('radius', 0.012);
+        this.bgEl.setAttribute('color', this.CONFIG.bgColor);
+        this.bgEl.setAttribute('opacity', this.CONFIG.bgOpacity);
+        // Positioned to be centered
         this.bgEl.setAttribute('position', '0 0 -0.01');
-        this.bgEl.setAttribute('material', { shader: 'flat', transparent: true });
         this.container.appendChild(this.bgEl);
 
-        // 2. Glowing Border
+        // 2. Glowing Accent Border (Top Edge)
         this.borderEl = document.createElement('a-plane');
-        this.borderEl.setAttribute('width', 0.65);
+        this.borderEl.setAttribute('width', this.CONFIG.totalWidth);
         this.borderEl.setAttribute('height', 0.003);
-        this.borderEl.setAttribute('color', '#8a2be2');
-        this.borderEl.setAttribute('position', '0 0.025 0');
+        this.borderEl.setAttribute('color', this.CONFIG.borderColor);
+        this.borderEl.setAttribute('position', `0 ${this.CONFIG.totalHeight / 2} 0`);
         this.borderEl.setAttribute('material', 'shader: flat');
         this.container.appendChild(this.borderEl);
 
-        // 3. Room Section (Icon + Text)
+        // --- Sections ---
+
+        // Room Section (Left)
+        // Icon at -0.35, Text starting at -0.32
         this.roomGroup = document.createElement('a-entity');
         this.roomGroup.setAttribute('position', '-0.33 0 0');
         this.container.appendChild(this.roomGroup);
 
-        this.roomIcon = this.createIcon(this.ICONS.room, 0.035);
-        this.roomIcon.setAttribute('position', '-0.03 0 0');
-        this.roomIcon.setAttribute('data-raycastable', '');
-        this.roomGroup.appendChild(this.roomIcon);
-
+        this.roomIcon = this.createIcon(this.ICONS.room, this.CONFIG.iconSize);
+        this.roomIcon.setAttribute('position', '0 0 0');
         this.roomIcon.addEventListener('click', () => {
             const params = typeof window.getLobbyParams === 'function' ? window.getLobbyParams() : window.location.search;
             window.location.href = 'lobby.html' + params;
         });
+        this.roomGroup.appendChild(this.roomIcon);
 
         this.roomText = document.createElement('a-text');
         this.roomText.setAttribute('value', '----');
         this.roomText.setAttribute('color', 'white');
         this.roomText.setAttribute('width', 0.4);
         this.roomText.setAttribute('align', 'left');
-        this.roomText.setAttribute('position', '0 0 0');
+        this.roomText.setAttribute('position', '0.03 0 0');
         this.roomText.setAttribute('font', 'mozillavr');
         this.roomGroup.appendChild(this.roomText);
 
-        // 4. Mic Section (Icon only, click to toggle)
-        this.micIcon = this.createIcon(this.ICONS.micOff, 0.035);
-        this.micIcon.setAttribute('position', '-0.12 0 0.001');
-        this.micIcon.setAttribute('data-raycastable', '');
-        this.micIcon.classList.add('clickable');
-        this.container.appendChild(this.micIcon);
-
+        // Mic Section (Center)
+        this.micIcon = this.createIcon(this.ICONS.micOff, this.CONFIG.iconSize);
+        this.micIcon.setAttribute('position', '0 0 0.001');
         this.micIcon.addEventListener('click', () => {
             window.micEnabled = !window.micEnabled;
             if (typeof NAF !== 'undefined' && NAF.connection && NAF.connection.adapter) {
@@ -73,25 +83,27 @@ AFRAME.registerComponent('skyvr-infobar', {
             const micBtnEle = document.getElementById('mic-btn');
             if (micBtnEle) micBtnEle.textContent = window.micEnabled ? 'Mute Mic' : 'Unmute Mic';
         });
+        this.container.appendChild(this.micIcon);
 
-        // 5. Mode Group (Interactable Buttons)
-        this.modeGroup = document.createElement('a-entity');
-        this.modeGroup.setAttribute('position', '0.08 0 0');
-        this.container.appendChild(this.modeGroup);
-
+        // Mode Group (Right)
         this.modeButtons = {};
         this.modesList = ['draw', 'stamp', 'sticky', 'constellation'];
+
+        // Mode container starts after the center
+        this.modeGroup = document.createElement('a-entity');
+        this.modeGroup.setAttribute('position', '0.14 0 0');
+        this.container.appendChild(this.modeGroup);
+
         const modes = [
-            { id: 'draw', icon: this.ICONS.draw, pos: 0.05 },
-            { id: 'stamp', icon: this.ICONS.stamp, pos: 0.10 },
-            { id: 'sticky', icon: this.ICONS.sticky, pos: 0.15 },
-            { id: 'constellation', icon: this.ICONS.constellation, pos: 0.20 }
+            { id: 'draw', icon: this.ICONS.draw },
+            { id: 'stamp', icon: this.ICONS.stamp },
+            { id: 'sticky', icon: this.ICONS.sticky },
+            { id: 'constellation', icon: this.ICONS.constellation }
         ];
 
-        modes.forEach(m => {
-            const btn = this.createIcon(m.icon, 0.035);
-            btn.setAttribute('position', `${m.pos} 0 0.001`);
-            btn.setAttribute('data-raycastable', '');
+        modes.forEach((m, index) => {
+            const btn = this.createIcon(m.icon, this.CONFIG.iconSize);
+            btn.setAttribute('position', `${index * this.CONFIG.modeSpacing} 0 0.001`);
             btn.addEventListener('click', () => {
                 window.currentMode = m.id;
             });
@@ -99,13 +111,15 @@ AFRAME.registerComponent('skyvr-infobar', {
             this.modeButtons[m.id] = btn;
         });
 
-        // Add controller listener for Y button
-        window.addEventListener('ybuttondown', (e) => {
+        // Event listener for controller Y button
+        this.onYButtonDown = () => {
             const currentIndex = this.modesList.indexOf(window.currentMode || 'draw');
             const nextIndex = (currentIndex + 1) % this.modesList.length;
             window.currentMode = this.modesList[nextIndex];
-        });
+        };
+        window.addEventListener('ybuttondown', this.onYButtonDown);
 
+        // State tracking
         this.lastMic = null;
         this.lastRoom = null;
         this.lastMode = null;
@@ -115,11 +129,16 @@ AFRAME.registerComponent('skyvr-infobar', {
         window.currentMode = 'draw';
     },
 
+    remove: function () {
+        window.removeEventListener('ybuttondown', this.onYButtonDown);
+    },
+
     createIcon: function (src, size) {
         const icon = document.createElement('a-plane');
         icon.setAttribute('width', size);
         icon.setAttribute('height', size);
         icon.classList.add('clickable');
+        icon.setAttribute('data-raycastable', '');
         icon.setAttribute('material', {
             src: src,
             transparent: true,
@@ -186,7 +205,6 @@ AFRAME.registerComponent('skyvr-infobar', {
             Object.keys(this.modeButtons).forEach(id => {
                 const btn = this.modeButtons[id];
                 const isActive = id === currentMode;
-                btn.setAttribute('material', 'color', isActive ? '#ffffff' : '#ffffff');
                 btn.setAttribute('material', 'opacity', isActive ? 1.0 : 0.3);
             });
 
@@ -198,7 +216,7 @@ AFRAME.registerComponent('skyvr-infobar', {
                 let width = 0.15;
                 if (currentMode === 'draw') { label = "Draw (B)"; width = 0.1; }
                 else if (currentMode === 'stamp') { label = "Stamp (B)"; width = 0.12; }
-                else if (currentMode === 'sticky') { label = "Add Stick Figure (B)"; width = 0.22; }
+                else if (currentMode === 'sticky') { label = "Add stick figure (B)"; width = 0.22; }
                 else if (currentMode === 'constellation') { label = "Add Illustration (B)"; width = 0.22; }
 
                 bText.setAttribute('value', label);
@@ -208,3 +226,4 @@ AFRAME.registerComponent('skyvr-infobar', {
         }
     }
 });
+
