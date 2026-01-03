@@ -61,15 +61,13 @@ AFRAME.registerComponent('spawn-in-spots', {
 
     doSpawn: function () {
         if (this.hasSpawned) return;
-        this.hasSpawned = true;
 
         const spots = this.generateSpots();
-        // Recalculate occupancy now that we are sure avatars are loaded
-        const occupiedIndices = this.getOccupiedSpotIndices(spots);
+        const occupied = this.getOccupiedSpotIndices(spots);
         const freeIndices = [];
 
         for (let i = 0; i < this.data.maxSpots; i++) {
-            if (!occupiedIndices.has(i)) {
+            if (!occupied.has(i)) {
                 freeIndices.push(i);
             }
         }
@@ -93,7 +91,6 @@ AFRAME.registerComponent('spawn-in-spots', {
         el.setAttribute('position', spot.position);
 
         // Set Rotation (Face center)
-        // We use atan2(x, z) to get the angle to look at (0,0,0) from (x, z) in A-Frame's coord system
         const angleRad = Math.atan2(spot.position.x, spot.position.z);
         const angleDeg = THREE.MathUtils.radToDeg(angleRad);
 
@@ -103,17 +100,25 @@ AFRAME.registerComponent('spawn-in-spots', {
             z: 0
         });
 
-        console.log(`Spawned at index ${chosenIndex} (Radius: ${this.data.radius}, Angle: ${angleDeg.toFixed(1)})`);
+        console.log(`Spawned at index ${chosenIndex} (Position: ${JSON.stringify(spot.position)})`);
 
-        // Mark as spawned to trigger visibility and teleporter effect
+        // Mark as spawned and STORE THE SPOT ID
         const camera = document.getElementById('camera');
         const rightController = document.getElementById('right-controller');
         const leftController = document.getElementById('left-controller');
-        if (camera) camera.setAttribute('player-info', 'spawned', true);
+
+        if (camera) {
+            camera.setAttribute('player-info', {
+                spawned: true,
+                spotId: chosenIndex
+            });
+        }
         if (rightController) rightController.setAttribute('player-info', 'spawned', true);
         if (leftController) leftController.setAttribute('player-info', 'spawned', true);
 
-        // IMPORTANT: Reset rig-follower if present, otherwise it might interpret the teleport as a huge step
+        this.hasSpawned = true;
+
+        // IMPORTANT: Reset rig-follower if present
         if (el.components['rig-follower'] && typeof el.components['rig-follower'].reset === 'function') {
             el.components['rig-follower'].reset();
         }
@@ -125,12 +130,13 @@ AFRAME.registerComponent('spawn-in-spots', {
         const count = this.data.maxSpots;
 
         for (let i = 0; i < count; i++) {
+            // Distribute evenly around a circle
             const angleRad = (i / count) * Math.PI * 2;
             const x = Math.cos(angleRad) * radius;
             const z = Math.sin(angleRad) * radius;
             spots.push({
                 index: i,
-                position: new THREE.Vector3(x, 0, z) // Y is 0
+                position: new THREE.Vector3(x, 0, z)
             });
         }
         return spots;
@@ -138,18 +144,29 @@ AFRAME.registerComponent('spawn-in-spots', {
 
     getOccupiedSpotIndices: function (spots) {
         const occupied = new Set();
-        // Look for other avatars
-        const others = document.querySelectorAll('.avatar-rig');
 
+        // 1. Check by explicit spotId (Most reliable)
+        const players = document.querySelectorAll('[player-info]');
+        players.forEach(p => {
+            const info = p.components['player-info'];
+            if (info && info.data.spotId !== -1) {
+                occupied.add(info.data.spotId);
+            }
+        });
+
+        // 2. Fallback: Check by physical distance (For players transitioning/unsynced)
+        const others = document.querySelectorAll('.avatar-rig');
         others.forEach(other => {
             const pos = new THREE.Vector3();
             other.object3D.getWorldPosition(pos);
             pos.y = 0;
 
+            // Ignore players at the origin (they haven't synced their real position yet)
+            if (pos.lengthSq() < 0.01) return;
+
             let closestIndex = -1;
             let minDist = Infinity;
 
-            // Find closest spot to this player
             spots.forEach(spot => {
                 const dist = pos.distanceToSquared(spot.position);
                 if (dist < minDist) {
@@ -158,8 +175,8 @@ AFRAME.registerComponent('spawn-in-spots', {
                 }
             });
 
-            // If the closest spot is within 1.5m, mark it occupied
-            if (minDist < (1.5 * 1.5)) {
+            // If a player is physically near a spot, mark it occupied even if spotId is missing
+            if (minDist < (2.0 * 2.0)) { // 2m distance fallback
                 occupied.add(closestIndex);
             }
         });

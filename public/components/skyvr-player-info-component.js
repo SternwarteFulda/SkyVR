@@ -13,7 +13,8 @@ AFRAME.registerComponent('player-info', {
             type: 'color', // btw: color is just a string under the hood in A-Frame
             default: window.ntExample.randomColor()
         },
-        spawned: { type: 'boolean', default: false }
+        spawned: { type: 'boolean', default: false },
+        spotId: { type: 'int', default: -1 }
     },
 
     init: function () {
@@ -65,32 +66,45 @@ AFRAME.registerComponent('player-info', {
 
         // Handle Spawn Visibility & Effect
         if (this.data.spawned && !this.lastSpawned) {
-            // CRITICAL CHECK for pre-existing players:
-            // Initial NAF sync often triggers this update within a few hundred ms of init().
-            const timeSinceInit = performance.now() - this.initTime;
-            // INCREASED THRESHOLD: Some connections take longer to sync state
-            const isInitialSync = timeSinceInit < 2000 && !this.ownedByLocalUser;
+            this.lastSpawned = true; // Mark as handled immediately to prevent multiple loops
 
-            if (isInitialSync) {
-                // Pre-existing player detected. Show immediately, NO beam.
-                this.el.setAttribute('visible', true);
-                this.setAvatarOpacity(1);
-            } else {
-                // This is a real join event happening while we are already in the room
-                this.setAvatarOpacity(0);
-                this.el.setAttribute('visible', true);
-                this.playTeleportEffect('in');
-            }
+            const checkPositionAndShow = () => {
+                const currentPos = new THREE.Vector3();
+                const targetEl = this.el.id === 'camera' ? (this.el.parentElement || this.el) : this.el;
+                targetEl.object3D.getWorldPosition(currentPos);
 
-            this.lastSpawned = true;
-
-            // Signal local spawn
-            if (this.el.id === 'camera') {
-                window.localPlayerSpawned = true;
-                if (typeof window.onLocalPlayerSpawned === 'function') {
-                    window.onLocalPlayerSpawned();
+                // If they are a remote player and still at the origin, wait before showing.
+                const horizontalDistSq = (currentPos.x * currentPos.x) + (currentPos.z * currentPos.z);
+                if (!this.ownedByLocalUser && horizontalDistSq < 0.25) {
+                    setTimeout(checkPositionAndShow, 100);
+                    return;
                 }
-            }
+
+                // CRITICAL CHECK for pre-existing players:
+                const timeSinceInit = performance.now() - this.initTime;
+                const isInitialSync = timeSinceInit < 2000 && !this.ownedByLocalUser;
+
+                if (isInitialSync) {
+                    // Pre-existing player detected. Show immediately, NO beam.
+                    this.el.setAttribute('visible', true);
+                    this.setAvatarOpacity(1);
+                } else {
+                    // New join event or reload: Use the teleport effect
+                    this.setAvatarOpacity(0);
+                    this.el.setAttribute('visible', true);
+                    this.playTeleportEffect('in');
+                }
+
+                // Signal local spawn
+                if (this.ownedByLocalUser && this.el.id === 'camera') {
+                    window.localPlayerSpawned = true;
+                    if (typeof window.onLocalPlayerSpawned === 'function') {
+                        window.onLocalPlayerSpawned();
+                    }
+                }
+            };
+
+            checkPositionAndShow();
         } else if (!this.data.spawned) {
             this.el.setAttribute('visible', false);
             this.lastSpawned = false;
@@ -126,13 +140,56 @@ AFRAME.registerComponent('player-info', {
         const color = this.data.color;
         const scene = el.sceneEl;
 
-        // Capture position immediately
-        const finalWorldPos = new THREE.Vector3();
-        const finalWorldQuat = new THREE.Quaternion();
-        el.object3D.getWorldPosition(finalWorldPos);
-        el.object3D.getWorldQuaternion(finalWorldQuat);
-
+        let runAttempts = 0;
         const runEffect = () => {
+            runAttempts++;
+
+            // POSITION FIX: Use the parent rig's world position if available, 
+            // so the teleport beam starts from the ground (y=0) instead of the head.
+            const currentPos = new THREE.Vector3();
+            const currentQuat = new THREE.Quaternion();
+
+            // player-info is on the camera; its parent is the rig.
+            const targetEl = el.id === 'camera' ? (el.parentElement || el) : el;
+            targetEl.object3D.getWorldPosition(currentPos);
+            el.object3D.getWorldQuaternion(currentQuat);
+
+            // DESTINATION DETECTION: For remote players joining ('in'), 
+            // wait until they reach their intended spot.
+            if (mode === 'in' && !this.ownedByLocalUser) {
+                // If we don't have a spotId yet, wait for sync (up to 3 seconds)
+                if (this.data.spotId === -1) {
+                    if (runAttempts < 60) {
+                        setTimeout(runEffect, 50);
+                        return;
+                    }
+                } else {
+                    // Calculate intended spot position (Radius 4m, 16 spots)
+                    const radius = 4;
+                    const count = 16;
+                    const angleRad = (this.data.spotId / count) * Math.PI * 2;
+                    const targetPos = new THREE.Vector3(Math.cos(angleRad) * radius, 0, Math.sin(angleRad) * radius);
+
+                    // Wait until the sliding avatar is close to the target (within 0.5m)
+                    // or until too much time has passed (safety fallback)
+                    const distToTargetSq = currentPos.distanceToSquared(targetPos);
+                    if (distToTargetSq > 0.25 && runAttempts < 80) {
+                        setTimeout(runEffect, 50);
+                        return;
+                    }
+
+                    // Anchor the effect EXACTLY to the spot for perfect centering
+                    currentPos.copy(targetPos);
+                }
+            } else if (mode === 'in' && this.ownedByLocalUser) {
+                // For local player, just check if we have moved away from origin (safety)
+                const horizontalDistSq = (currentPos.x * currentPos.x) + (currentPos.z * currentPos.z);
+                if (horizontalDistSq < 0.25) {
+                    setTimeout(runEffect, 50);
+                    return;
+                }
+            }
+
             // BEAM VISIBILITY CHECK:
             // Only show 'in' beams if this is a remote player.
             if (mode === 'in' && this.ownedByLocalUser) {
@@ -146,28 +203,17 @@ AFRAME.registerComponent('player-info', {
                 return;
             }
 
-            // Recalculate position for "in" after the delay
-            const currentPos = new THREE.Vector3();
-            const currentQuat = new THREE.Quaternion();
-            if (mode === 'in') {
-                el.object3D.getWorldPosition(currentPos);
-                el.object3D.getWorldQuaternion(currentQuat);
-            } else {
-                currentPos.copy(finalWorldPos);
-                currentQuat.copy(finalWorldQuat);
-            }
-
             // Create a temporary container for the effect
             const effectContainer = document.createElement('a-entity');
             effectContainer.setAttribute('data-no-sync', '');
-            effectContainer.setAttribute('position', currentPos);
-            // BEAM ORIENTATION: Keep effectContainer upright
+            // Pass position as an object for A-Frame compatibility
+            effectContainer.setAttribute('position', { x: currentPos.x, y: currentPos.y, z: currentPos.z });
             scene.appendChild(effectContainer);
 
             // Add a temporary light burst
             const light = document.createElement('a-entity');
             light.setAttribute('light', {
-                type: 'point', intensity: 1.5, distance: 4, color: '#fff', decay: 2
+                type: 'point', intensity: 1.5, distance: 4, color: '#fff', decay: 2, castShadow: false
             });
             light.setAttribute('position', '0 1 0');
             light.setAttribute('animation', {
@@ -185,22 +231,18 @@ AFRAME.registerComponent('player-info', {
                     });
                 });
             } else {
-                // Create phantom avatar
-                // FIX: Include .eyelid explicitly in the clone query
+                // Create phantom avatar for 'out' effect
                 const visuals = el.querySelectorAll('.head, .face, .nametag, .eyelid');
                 visuals.forEach(v => {
                     const clone = v.cloneNode(true);
-
-                    // Rotate the clone to match the avatar's actual orientation
                     clone.object3D.quaternion.copy(currentQuat);
 
-                    // Apply color to head and eyelids
                     if (clone.classList.contains('head') || clone.classList.contains('eyelid')) {
-                        // Use setAttribute to ensure it overrides defaults
                         clone.setAttribute('material', {
                             color: color,
                             transparent: true,
-                            opacity: 1
+                            opacity: 1,
+                            depthWrite: false
                         });
                     }
                     if (clone.tagName.toLowerCase() === 'a-text') {
@@ -209,20 +251,13 @@ AFRAME.registerComponent('player-info', {
 
                     effectContainer.appendChild(clone);
 
-                    // Add fade out animation
-                    // If it's the 'face' container, animate children. Otherwise, animate the clone itself.
                     const animateParts = clone.classList.contains('face') ? clone.querySelectorAll('.eye, .pupil, .eyelid') : [clone];
                     animateParts.forEach(part => {
                         const isText = part.tagName.toLowerCase() === 'a-text';
                         const property = isText ? 'opacity' : 'material.opacity';
 
-                        // Ensure eyelids/head have color and transparency if they are the part being animated
-                        if (!isText && (part.classList.contains('head') || part.classList.contains('eyelid'))) {
-                            part.setAttribute('material', {
-                                color: color,
-                                transparent: true,
-                                opacity: 1
-                            });
+                        if (!isText) {
+                            part.setAttribute('material', 'depthWrite', false);
                         }
 
                         part.setAttribute('animation__fadeout', {
@@ -232,7 +267,7 @@ AFRAME.registerComponent('player-info', {
                 });
             }
 
-            // Energy needles
+            // Energy needles (Beams)
             for (let i = 0; i < 16; i++) {
                 const beam = document.createElement('a-cylinder');
                 const angle = Math.random() * Math.PI * 2;
@@ -243,9 +278,14 @@ AFRAME.registerComponent('player-info', {
                 beam.setAttribute('radius', 0.002 + Math.random() * 0.004);
                 beam.setAttribute('height', 0.1);
                 beam.setAttribute('position', { x: x, y: 0.1, z: z });
+                beam.setAttribute('shadow', 'cast: false; receive: false'); // FIX: Disable shadows
                 beam.setAttribute('material', {
-                    shader: 'flat', color: i % 4 === 0 ? '#ffffff' : color,
-                    transparent: true, opacity: 0, blending: 'additive'
+                    shader: 'flat',
+                    color: i % 4 === 0 ? '#ffffff' : color,
+                    transparent: true,
+                    opacity: 0,
+                    blending: 'additive',
+                    depthWrite: false // FIX: Prevents "shadow-like" depth artifacts
                 });
 
                 const dur = 1000 + Math.random() * 1000;
@@ -276,9 +316,11 @@ AFRAME.registerComponent('player-info', {
 
                 sparkle.setAttribute('position', { x: x, y: Math.random() * 0.5, z: z });
                 sparkle.setAttribute('radius', 0.008 + Math.random() * 0.015);
+                sparkle.setAttribute('shadow', 'cast: false; receive: false');
                 sparkle.setAttribute('material', {
                     shader: 'flat', color: i % 3 === 0 ? '#ffffff' : (i % 3 === 1 ? color : '#ffeeaa'),
-                    transparent: true, opacity: 0, blending: 'additive'
+                    transparent: true, opacity: 0, blending: 'additive',
+                    depthWrite: false
                 });
 
                 const duration = 1500 + Math.random() * 1000;
@@ -299,18 +341,15 @@ AFRAME.registerComponent('player-info', {
                 effectContainer.appendChild(sparkle);
             }
 
-            // Clean up
+            // Clean up: Remove from DOM much faster (3s instead of 5s)
             setTimeout(() => {
                 if (effectContainer.parentNode) {
                     scene.removeChild(effectContainer);
                 }
-            }, 5000);
+            }, 3000);
         };
 
-        if (mode === 'in') {
-            setTimeout(runEffect, 150);
-        } else {
-            runEffect();
-        }
+        // Start checking for valid position
+        runEffect();
     }
 });
