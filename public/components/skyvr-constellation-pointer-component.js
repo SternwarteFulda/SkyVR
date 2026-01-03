@@ -69,7 +69,6 @@ AFRAME.registerComponent('constellation-pointer', {
         // Update preview if constellation changed
         if (pointedConstellation !== this.currentConstellation) {
             this.currentConstellation = pointedConstellation;
-            this.constellationRenderer.currentPointedConstellation = pointedConstellation;
 
             if (pointedConstellation) {
                 this.constellationRenderer.updatePreview(pointedConstellation);

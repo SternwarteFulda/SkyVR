@@ -18,6 +18,9 @@ AFRAME.registerComponent('constellation-renderer', {
         this.placedIllustrations = [];
         this.currentPointedConstellation = null;
         this.textureCache = new Map();
+        this.previewOpacity = 0;
+        this.fadingOutPreviews = [];
+        this.pendingSyncData = null;
 
         // Load data sequentially because constellation processing depends on star data
         this.loadStarData()
@@ -27,7 +30,21 @@ AFRAME.registerComponent('constellation-renderer', {
                 if (this.data.showLines) {
                     this.renderConstellationLines();
                 }
+                if (this.pendingSyncData) {
+                    console.log('Applying pending constellation sync after load');
+                    this.syncConstellations(this.pendingSyncData);
+                    this.pendingSyncData = null;
+                } else {
+                    const sharedData = this.getSharedActiveData();
+                    if (sharedData && sharedData.length > 0) {
+                        console.log('Applying initial shared constellations:', sharedData);
+                        this.syncConstellations(sharedData);
+                    }
+                }
                 console.log('Constellation system ready and data loaded. Total stars:', this.starPositions.size);
+
+                // Start a periodic check in case we missed a sync during loading
+                this.checkInterval = setInterval(() => this.checkSharedState(), 5000);
             })
             .catch(err => {
                 console.error('Error loading constellation data:', err);
@@ -228,9 +245,22 @@ AFRAME.registerComponent('constellation-renderer', {
 
     // Create or update preview illustration
     updatePreview: function (constellation) {
-        if (constellation && constellation.image) {
-            this.removePreview();
+        // Only skip if we already have a preview of THIS constellation
+        if (this.previewIllustration && this.previewIllustration.userData.id === constellation?.id) return;
 
+        // Old preview becomes a fading-out preview
+        if (this.previewIllustration) {
+            this.fadingOutPreviews.push({
+                obj: this.previewIllustration,
+                opacity: this.previewOpacity
+            });
+            this.previewIllustration = null;
+        }
+
+        this.currentPointedConstellation = constellation;
+        this.previewOpacity = 0;
+
+        if (constellation && constellation.image) {
             const jitter = this.getZOffset(constellation.id);
             const illustRadius = 395 + jitter;
             const bounds = this.getConstellationBounds(constellation, illustRadius);
@@ -244,7 +274,7 @@ AFRAME.registerComponent('constellation-renderer', {
                 const material = new THREE.ShaderMaterial({
                     uniforms: {
                         map: { value: texture },
-                        opacity: { value: 0.05 },
+                        opacity: { value: 0 },
                         targetRadius: { value: illustRadius }
                     },
                     vertexShader: `
@@ -281,6 +311,7 @@ AFRAME.registerComponent('constellation-renderer', {
                 const illustPos = bounds.center.clone().normalize().multiplyScalar(illustRadius);
                 previewSet.position.copy(illustPos);
                 previewSet.add(mesh);
+                previewSet.userData.id = constellation.id;
                 this.el.object3D.add(previewSet);
                 this.previewIllustration = previewSet;
 
@@ -291,11 +322,10 @@ AFRAME.registerComponent('constellation-renderer', {
                 this.addPlaceholderToGroup(previewSet, illustrationGeo, 0.4);
                 previewSet.position.copy(bounds.center.clone().normalize().multiplyScalar(illustRadius));
                 previewSet.lookAt(0, 0, 0);
+                previewSet.userData.id = constellation.id;
                 this.el.object3D.add(previewSet);
                 this.previewIllustration = previewSet;
             }
-        } else {
-            this.removePreview();
         }
     },
 
@@ -316,10 +346,13 @@ AFRAME.registerComponent('constellation-renderer', {
 
     removePreview: function () {
         if (this.previewIllustration) {
-            this.el.object3D.remove(this.previewIllustration);
-            this.disposeHierarchy(this.previewIllustration);
+            this.fadingOutPreviews.push({
+                obj: this.previewIllustration,
+                opacity: this.previewOpacity
+            });
             this.previewIllustration = null;
         }
+        this.currentPointedConstellation = null;
     },
 
     disposeHierarchy: function (obj) {
@@ -340,15 +373,29 @@ AFRAME.registerComponent('constellation-renderer', {
     },
 
     // State-based sync: Reconcile visible illustrations with the active list
-    syncConstellations: function (activeIds) {
-        if (!Array.isArray(activeIds)) return;
+    syncConstellations: function (activeItems) {
+        if (!this.loadingComplete) {
+            console.log('constellation-renderer: Data still loading, deferring sync');
+            this.pendingSyncData = activeItems;
+            return;
+        }
+
+        if (!Array.isArray(activeItems)) {
+            console.warn('syncConstellations: Expected array, got', activeItems);
+            return;
+        }
+
+        const activeData = activeItems.map(item => {
+            if (typeof item === 'string') return { id: item, rot: null, pos: null };
+            return item; // Keep objects for backward compatibility during transitions
+        });
+        const activeIds = activeData.map(d => d.id);
 
         // 1. Remove illustrations NOT in the new list
         for (let i = this.placedIllustrations.length - 1; i >= 0; i--) {
             const ent = this.placedIllustrations[i];
-            // If it's a networked entity, it might have the component; if local, it definitely does.
             const attr = ent.getAttribute('constellation-illustration');
-            const id = attr ? attr.constellationId : null;
+            const id = (typeof attr === 'object' && attr !== null) ? attr.constellationId : ent.dataset.constellationId;
 
             if (id && !activeIds.includes(id)) {
                 this.removeIllustrationEntity(ent);
@@ -356,24 +403,40 @@ AFRAME.registerComponent('constellation-renderer', {
             }
         }
 
-        // 2. Add illustrations that are NEW
-        const currentIds = this.placedIllustrations.map(e => {
-            const attr = e.getAttribute('constellation-illustration');
-            return attr ? attr.constellationId : null;
-        });
+        // 2. Add or update illustrations
+        activeData.forEach(data => {
+            if (!data.id) return;
 
-        activeIds.forEach(id => {
-            if (id && !currentIds.includes(id)) {
-                const constellation = this.constellationData.constellations.find(c => c.id === id);
+            // Check if already exists
+            const existing = this.placedIllustrations.find(e => {
+                const attr = e.getAttribute('constellation-illustration');
+                return (typeof attr === 'object' && attr !== null && attr.constellationId === data.id) || e.dataset.constellationId === data.id;
+            });
+
+            if (!existing) {
+                const constellation = this.constellationData.constellations.find(c => c.id === data.id);
                 if (constellation) {
-                    this.placeLocalIllustration(constellation);
+                    console.log('constellation-renderer: Spawning local illustration for', data.id);
+                    const entity = document.createElement('a-entity');
+                    entity.dataset.constellationId = data.id;
+                    entity.setAttribute('constellation-illustration', {
+                        constellationId: data.id,
+                        opacity: 0.4
+                    });
+                    this.el.appendChild(entity);
+                    this.placedIllustrations.push(entity);
+                } else {
+                    console.warn('constellation-renderer: Could not find definition for', data.id);
                 }
             }
         });
+        console.log(`constellation-renderer: Sync complete. Active local illustrations: ${this.placedIllustrations.length}`);
     },
 
     removeIllustrationEntity: function (entity) {
-        if (entity.parentNode) {
+        if (entity.components && entity.components['constellation-illustration']) {
+            entity.components['constellation-illustration'].fadeOutAndRemove();
+        } else if (entity.parentNode) {
             entity.parentNode.removeChild(entity);
         } else if (entity.isObject3D) {
             this.el.object3D.remove(entity);
@@ -381,203 +444,187 @@ AFRAME.registerComponent('constellation-renderer', {
         }
     },
 
-    // Place illustration by updating Global State
-    // Place illustration by updating Global State
+    // Place illustration by updating the shared state
     placeIllustration: function () {
+        if (!this.loadingComplete) return;
+
         if (!this.currentPointedConstellation) {
             console.warn('placeIllustration: No pointed constellation');
             return;
         }
+
         const id = this.currentPointedConstellation.id;
         console.log('Attempting to stamp constellation:', id);
 
-        const master = document.getElementById('sky-master');
-        if (master) {
-            const isConnected = typeof NAF !== 'undefined' && NAF.connection.isConnected();
+        // Get current shared state, default to empty array if still INIT
+        let activeData = this.getSharedActiveData() || [];
+        console.log('placeIllustration: current shared state has', activeData.length, 'items');
 
-            if (isConnected) {
-                // Try to take ownership if we don't have it
-                if (!NAF.utils.isMine(master) && !NAF.utils.takeOwnership(master)) {
-                    console.warn('Failed to take ownership of sky-master. Cannot sync stamp.');
-                    return;
+        // RESURRECTION LOGIC:
+        // If shared state is empty, but we have local illustrations, the network state might have been clobbered.
+        // We should merge our local state to restore it.
+        if (activeData.length === 0 && this.placedIllustrations.length > 0) {
+            console.warn('placeIllustration: Shared state empty but local exists. Attempting resurrection.');
+            this.placedIllustrations.forEach(ent => {
+                const attr = ent.getAttribute('constellation-illustration');
+                const localId = (typeof attr === 'object' && attr !== null) ? attr.constellationId : ent.dataset.constellationId;
+                if (localId && !activeData.includes(localId)) {
+                    activeData.push(localId);
                 }
-
-                // We own it (or are local), proceed to update state
-                const skyState = master.getAttribute('sky-state');
-                let currentList = [];
-                try {
-                    if (skyState && skyState.activeConstellations) {
-                        // Handle both string (from schema-string) and potentially pre-parsed scenarios
-                        const raw = skyState.activeConstellations;
-                        currentList = typeof raw === 'string' ? JSON.parse(raw) : raw;
-                    }
-                } catch (e) {
-                    console.warn('Error parsing activeConstellations:', e);
-                    currentList = [];
-                }
-
-                if (!Array.isArray(currentList)) currentList = [];
-
-                if (!currentList.includes(id)) {
-                    currentList.push(id);
-                    const newString = JSON.stringify(currentList);
-                    master.setAttribute('sky-state', 'activeConstellations', newString);
-                    console.log('Updated global state activeConstellations:', newString);
-                } else {
-                    console.log('Constellation already active:', id);
-                }
-            } else {
-                console.warn('NAF not connected. Fallback to local placement.');
-                this.placeLocalIllustration(this.currentPointedConstellation);
-            }
-        } else {
-            console.error('sky-master entity not found!');
-            this.placeLocalIllustration(this.currentPointedConstellation);
+            });
+            console.log('placeIllustration: Resurrected', activeData.length, 'items from local state.');
         }
+
+        // Check if already active (one per ID for now)
+        const isDuplicate = activeData.some(d => (typeof d === 'string' ? d === id : d.id === id));
+        if (isDuplicate) {
+            console.log('placeIllustration: Constellation already active:', id);
+            return;
+        }
+
+        // Add to list as a simple ID string. Transforms are redundant since
+        // the renderer calculates them from star data automatically.
+        activeData.push(id);
+
+        // Update shared state
+        this.updateSharedState(activeData);
+        console.log('Updated shared state with new illustration:', id);
     },
 
-    placeLocalIllustration: function (constellation, explicitRotation = null, explicitPosition = null) {
-        let rotationToUse = explicitRotation;
-        let positionToUse = explicitPosition;
+    // Remove the last placed illustration by updating shared state
+    removeLastIllustration: function () {
+        let activeData = this.getSharedActiveData() || [];
 
-        // If no explicit data provided, try to grab from preview
-        if (!rotationToUse && this.previewIllustration && this.currentPointedConstellation?.id === constellation.id) {
-            this.previewIllustration.traverse(node => {
-                if (node.isObject3D && node.material && node.material.type === 'ShaderMaterial') {
-                    rotationToUse = { x: node.rotation.x, y: node.rotation.y, z: node.rotation.z };
-                    positionToUse = { x: node.position.x, y: node.position.y, z: node.position.z };
+        // RESURRECTION: If network says empty but we have local items, use our local state
+        if (activeData.length === 0 && this.placedIllustrations.length > 0) {
+            console.warn('removeLastIllustration: Shared empty/local mismatch. Reconstructing from local.');
+            this.placedIllustrations.forEach(ent => {
+                const attr = ent.getAttribute('constellation-illustration');
+                const localId = (typeof attr === 'object' && attr !== null) ? attr.constellationId : ent.dataset.constellationId;
+                if (localId && !activeData.includes(localId)) {
+                    activeData.push(localId);
                 }
             });
         }
 
-        const entity = document.createElement('a-entity');
-        entity.setAttribute('constellation-illustration', {
-            constellationId: constellation.id,
-            opacity: 0.1,
-            rotation: rotationToUse || { x: 0, y: 0, z: 0 },
-            position: positionToUse || { x: 0, y: 0, z: 0 }
-        });
-        this.el.appendChild(entity);
-        this.placedIllustrations.push(entity);
-        console.log(`Successfully placed local illustration for ${constellation.id}`);
-    },
-
-    // Remove the last placed illustration by updating Global State
-    removeLastIllustration: function () {
-        const master = document.getElementById('sky-master');
-        if (master) {
-            const isConnected = typeof NAF !== 'undefined' && NAF.connection.isConnected();
-            if (isConnected) {
-                // Try to take ownership if we don't have it
-                if (!NAF.utils.isMine(master) && !NAF.utils.takeOwnership(master)) {
-                    console.warn('Failed to take ownership of sky-master. Cannot sync remove.');
-                    return;
-                }
-
-                const skyState = master.getAttribute('sky-state');
-                let currentList = [];
-                try {
-                    if (skyState && skyState.activeConstellations) {
-                        const raw = skyState.activeConstellations;
-                        currentList = typeof raw === 'string' ? JSON.parse(raw) : raw;
-                    }
-                } catch (e) {
-                    console.warn('Error parsing activeConstellations for removal', e);
-                    currentList = [];
-                }
-
-                if (Array.isArray(currentList) && currentList.length > 0) {
-                    const removed = currentList.pop();
-                    master.setAttribute('sky-state', 'activeConstellations', JSON.stringify(currentList));
-                    console.log('Removed constellation from global state:', removed);
-                } else {
-                    console.log('No constellations to remove in global state');
-                }
-            } else {
-                console.warn('NAF not connected. Fallback local removal.');
-                if (this.placedIllustrations.length > 0) {
-                    const illustrationMatch = this.placedIllustrations.pop();
-                    this.removeIllustrationEntity(illustrationMatch);
-                }
-            }
-        } else {
-            // Fallback local removal
-            if (this.placedIllustrations.length > 0) {
-                const illustrationMatch = this.placedIllustrations.pop();
-                this.removeIllustrationEntity(illustrationMatch);
-            }
+        if (activeData.length > 0) {
+            const removed = activeData.pop();
+            this.updateSharedState(activeData);
+            console.log('Removed last illustration from shared state:', removed);
         }
     },
 
-    // Clear all illustrations by updating Global State
+    // Clear all illustrations in shared state
     clearAllIllustrations: function () {
-        const master = document.getElementById('sky-master');
-        if (master) {
-            const isConnected = typeof NAF !== 'undefined' && NAF.connection.isConnected();
-            if (isConnected) {
-                if (!NAF.utils.isMine(master) && !NAF.utils.takeOwnership(master)) {
-                    console.warn('Failed to take ownership of sky-master. Cannot sync clear.');
-                    return;
-                }
-                // Simply set to empty array
-                master.setAttribute('sky-state', 'activeConstellations', '[]');
-                console.log('Cleared all constellations from global state');
-            } else {
-                this.localClearAll();
-            }
-        } else {
-            this.localClearAll();
-        }
+        this.updateSharedState([]);
+        console.log('Cleared all illustrations in shared state');
     },
 
-    // Show illustrations for all constellations by updating Global State
+    // Show illustrations for all constellations in shared state
     showAllIllustrations: function () {
         if (!this.loadingComplete || !this.constellationData) return;
 
-        const master = document.getElementById('sky-master');
-        if (master) {
-            const isConnected = typeof NAF !== 'undefined' && NAF.connection.isConnected();
-            if (isConnected) {
-                if (!NAF.utils.isMine(master) && !NAF.utils.takeOwnership(master)) {
-                    console.warn('Failed to take ownership of sky-master. Cannot sync show all.');
-                    return;
+        let activeData = this.getSharedActiveData() || [];
+
+        // RESURRECTION: Reconstruct if needed
+        if (activeData.length === 0 && this.placedIllustrations.length > 0) {
+            console.log('showAllIllustrations: Reconstructing baseline from local state.');
+            this.placedIllustrations.forEach(ent => {
+                const attr = ent.getAttribute('constellation-illustration');
+                const localId = (typeof attr === 'object' && attr !== null) ? attr.constellationId : ent.dataset.constellationId;
+                if (localId && !activeData.includes(localId)) {
+                    activeData.push(localId);
                 }
+            });
+        }
 
-                const allIds = [];
-                this.constellationData.constellations.forEach(constellation => {
-                    if (constellation.image) {
-                        allIds.push(constellation.id);
-                    }
-                });
+        const currentIds = activeData.map(d => typeof d === 'string' ? d : d.id);
 
-                master.setAttribute('sky-state', 'activeConstellations', JSON.stringify(allIds));
-                console.log('Set global state to show all constellations');
-            } else {
-                this.localShowAll();
+        this.constellationData.constellations.forEach(constellation => {
+            if (constellation.image && !currentIds.includes(constellation.id)) {
+                activeData.push(constellation.id); // Simple ID for non-stamped
             }
-        } else {
-            this.localShowAll();
+        });
+
+        this.updateSharedState(activeData);
+        console.log('Added all constellations to shared state');
+    },
+
+    // Helper to get parsed active data, handling the INIT sentinel
+    getSharedActiveData: function () {
+        const skyMaster = document.getElementById('sky-master');
+        if (!skyMaster) return [];
+
+        const state = skyMaster.getAttribute('sky-state');
+        const raw = state?.activeConstellations;
+        console.log('constellation-renderer: getSharedActiveData raw:', raw);
+        if (!raw || raw === 'INIT') return null;
+
+        try {
+            return JSON.parse(raw);
+        } catch (e) {
+            console.error('constellation-renderer: Error parsing shared activeConstellations:', e, raw);
+            return [];
+        }
+    },
+    // Periodic check to ensure local state matches shared state
+    checkSharedState: function () {
+        if (!this.loadingComplete || typeof NAF === 'undefined' || !NAF.connection.isConnected()) return;
+
+        const sharedData = this.getSharedActiveData();
+
+        // RESURRECTION: If shared state is null (INIT) but we have valid local illustrations, 
+        // it means the state was wiped (likely by a new master). We must fix it.
+        if (sharedData === null) {
+            if (this.placedIllustrations.length > 0) {
+                console.warn("checkSharedState: Shared state is INIT but local is NOT. Triggering resurrection sync.");
+                const localIds = this.placedIllustrations.map(e => {
+                    const attr = e.getAttribute('constellation-illustration');
+                    return (typeof attr === 'object' && attr !== null) ? attr.constellationId : e.dataset.constellationId;
+                });
+                // Only valid IDs
+                const validIds = localIds.filter(id => id);
+                if (validIds.length > 0) {
+                    this.updateSharedState(validIds);
+                }
+            }
+            return;
+        }
+
+        const localIds = this.placedIllustrations.map(e => {
+            const attr = e.getAttribute('constellation-illustration');
+            return (typeof attr === 'object' && attr !== null) ? attr.constellationId : e.dataset.constellationId;
+        });
+
+        const sharedIds = sharedData.map(d => typeof d === 'string' ? d : d.id);
+
+        // If there is a mismatch, trigger a sync
+        if (localIds.length !== sharedIds.length || localIds.some(id => !sharedIds.includes(id))) {
+            console.log('constellation-renderer: Periodic check found mismatch, syncing...');
+            this.syncConstellations(sharedData);
         }
     },
 
-    // Internal helper for local clearing
-    localClearAll: function () {
-        this.placedIllustrations.forEach(illustration => {
-            this.removeIllustrationEntity(illustration);
-        });
-        this.placedIllustrations = [];
-        console.log('Locally cleared all illustrations');
-    },
 
-    // Internal helper for local showing
-    localShowAll: function () {
-        this.localClearAll();
-        this.constellationData.constellations.forEach(constellation => {
-            if (constellation.image) {
-                this.placeLocalIllustration(constellation);
+    // Helper to take ownership and update NAF state
+    updateSharedState: function (activeData) {
+        const skyMaster = document.getElementById('sky-master');
+        if (!skyMaster) return;
+
+        if (typeof NAF !== 'undefined' && NAF.connection.isConnected()) {
+            if (!NAF.utils.isMine(skyMaster)) {
+                console.log('updateSharedState: Taking ownership of sky-master');
+                NAF.utils.takeOwnership(skyMaster);
             }
+        }
+
+        // Use an object setAttribute to be consistent with syncSky in index.html
+        // This ensures the property change is recognized by A-Frame and NAF correctly.
+        const currentData = skyMaster.getAttribute('sky-state') || {};
+        skyMaster.setAttribute('sky-state', {
+            ...currentData,
+            activeConstellations: JSON.stringify(activeData)
         });
-        console.log('Locally showing all illustrations');
     },
 
     // Helper for depth stacking to avoid z-fighting
@@ -741,6 +788,48 @@ AFRAME.registerComponent('constellation-renderer', {
                 } else {
                     this.clearConstellationLines();
                 }
+            }
+        }
+    },
+
+    tick: function (t, dt) {
+        if (!dt) return;
+        const lerpFactor = 1 - Math.pow(0.001, dt / 1000); // 100ms halflife roughly
+
+        // Handle Active Preview Fade
+        if (this.previewIllustration) {
+            const target = 0.15; // Increased from 0.05 for visibility
+            this.previewOpacity += (target - this.previewOpacity) * lerpFactor;
+            this.previewIllustration.traverse(node => {
+                if (node.material) {
+                    if (node.material.uniforms && node.material.uniforms.opacity) {
+                        node.material.uniforms.opacity.value = this.previewOpacity;
+                    } else if (node.material.transparent) {
+                        node.material.opacity = this.previewOpacity * (0.4 / target);
+                    }
+                }
+            });
+        }
+
+        // Handle Fading Out Previews
+        for (let i = this.fadingOutPreviews.length - 1; i >= 0; i--) {
+            const item = this.fadingOutPreviews[i];
+            item.opacity += (0 - item.opacity) * lerpFactor;
+
+            item.obj.traverse(node => {
+                if (node.material) {
+                    if (node.material.uniforms && node.material.uniforms.opacity) {
+                        node.material.uniforms.opacity.value = item.opacity;
+                    } else if (node.material.transparent) {
+                        node.material.opacity = item.opacity * (0.4 / 0.15);
+                    }
+                }
+            });
+
+            if (item.opacity < 0.001) {
+                this.el.object3D.remove(item.obj);
+                this.disposeHierarchy(item.obj);
+                this.fadingOutPreviews.splice(i, 1);
             }
         }
     },

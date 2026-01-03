@@ -9,7 +9,15 @@ AFRAME.registerComponent('drawing-stroke', {
         // Ensure networked strokes are in the precession container for correct celestial alignment
         const container = document.getElementById('precession-container');
         if (container && this.el.parentNode !== container) {
-            container.appendChild(this.el);
+            if (!NAF.utils.isMine(this.el)) {
+                setTimeout(() => {
+                    if (container && this.el.parentNode !== container) {
+                        container.appendChild(this.el);
+                    }
+                }, 50);
+            } else {
+                container.appendChild(this.el);
+            }
         }
 
         this.lineMaterial = new THREE.LineBasicMaterial({
@@ -66,51 +74,101 @@ AFRAME.registerComponent('drawing-stroke', {
 AFRAME.registerComponent('constellation-illustration', {
     schema: {
         constellationId: { type: 'string' },
-        opacity: { type: 'number', default: 0.4 },
-        rotation: { type: 'vec3', default: { x: 0, y: 0, z: 0 } },
-        position: { type: 'vec3', default: { x: 0, y: 0, z: 0 } }
+        opacity: { type: 'number', default: 0.4 }
     },
 
     init: function () {
         this.renderer = null;
         this.rendererReady = false;
         this.mesh = null;
+        this.currentOpacity = 0;
+        this.targetOpacity = this.data.opacity;
+        this.isRemoving = false;
         this.el.classList.add('networked-illustration');
 
         // Ensure networked illustrations are in the constellation-lines entity to maintain tilt alignment
+        // We do this cautiously to not disrupt NAF's internal tracking
         const container = document.getElementById('constellation-lines');
         if (container && this.el.parentNode !== container) {
-            container.appendChild(this.el);
+            // Use a slight delay if it's a remote entity to ensure NAF is done with initial placement
+            if (!NAF.utils.isMine(this.el)) {
+                setTimeout(() => {
+                    if (container && this.el.parentNode !== container) {
+                        container.appendChild(this.el);
+                    }
+                }, 50);
+            } else {
+                container.appendChild(this.el);
+            }
         }
 
-        // Wait for constellation renderer to get data
         const checkRenderer = () => {
+            if (this.data.constellationId) {
+                this.el.setAttribute('data-constellation-id', this.data.constellationId);
+            }
             const rendererEl = document.getElementById('constellation-lines');
             if (rendererEl && rendererEl.components['constellation-renderer']) {
                 const comp = rendererEl.components['constellation-renderer'];
                 if (comp.loadingComplete) {
                     this.renderer = comp;
                     this.rendererReady = true;
+                    console.log(`constellation-illustration: Renderer ready for ${this.data.constellationId}`);
                     this.setupIllustration();
                     return; // Stop checking
                 }
             }
-            setTimeout(checkRenderer, 500);
+            if (!this.checkCount) this.checkCount = 0;
+            this.checkCount++;
+            if (this.checkCount % 10 === 0) console.log(`constellation-illustration: Waiting for renderer for ${this.data.constellationId}...`);
+            setTimeout(checkRenderer, 200);
         };
         checkRenderer();
     },
 
     update: function (oldData) {
-        // Trigger setup if we have an ID and (it's new OR rotation/position/ID changed)
         if (this.data.constellationId) {
-            const idChanged = this.data.constellationId !== oldData.constellationId;
-            const rotChanged = !oldData.rotation || this.data.rotation.x !== oldData.rotation.x || this.data.rotation.y !== oldData.rotation.y || this.data.rotation.z !== oldData.rotation.z;
-            const posChanged = !oldData.position || this.data.position.x !== oldData.position.x || this.data.position.y !== oldData.position.y || this.data.position.z !== oldData.position.z;
-
-            if (idChanged || rotChanged || posChanged) {
-                this.setupIllustration();
+            this.el.setAttribute('data-constellation-id', this.data.constellationId);
+            if (this.data.constellationId !== oldData.constellationId) {
+                console.log(`constellation-illustration: ID synced to ${this.data.constellationId}`);
             }
         }
+
+        // Trigger setup if we have an ID and it's new
+        if (this.data.constellationId) {
+            const idChanged = this.data.constellationId !== oldData.constellationId;
+
+            if (idChanged) {
+                this.setupIllustration();
+            }
+            if (!this.mesh && this.data.constellationId && this.rendererReady) {
+                this.setupIllustration();
+            }
+            if (this.data.opacity !== oldData.opacity) {
+                this.targetOpacity = this.data.opacity;
+            }
+        }
+    },
+
+    tick: function (t, dt) {
+        if (!dt || !this.mesh) return;
+        const lerpFactor = 1 - Math.pow(0.001, dt / 1000); // Fast fade
+
+        this.currentOpacity += (this.targetOpacity - this.currentOpacity) * lerpFactor;
+
+        if (this.mesh.material && this.mesh.material.uniforms && this.mesh.material.uniforms.opacity) {
+            this.mesh.material.uniforms.opacity.value = this.currentOpacity;
+        }
+
+        if (this.isRemoving && this.currentOpacity < 0.01) {
+            if (this.el.parentNode) {
+                this.el.parentNode.removeChild(this.el);
+            }
+        }
+    },
+
+    fadeOutAndRemove: function () {
+        this.targetOpacity = 0;
+        this.isRemoving = true;
     },
 
     setupIllustration: function () {
@@ -142,7 +200,7 @@ AFRAME.registerComponent('constellation-illustration', {
             const material = new THREE.ShaderMaterial({
                 uniforms: {
                     map: { value: texture },
-                    opacity: { value: this.data.opacity },
+                    opacity: { value: 0 },
                     targetRadius: { value: illustRadius }
                 },
                 vertexShader: `
@@ -182,21 +240,9 @@ AFRAME.registerComponent('constellation-illustration', {
             const pos = bounds.center.clone().normalize().multiplyScalar(illustRadius);
             this.el.object3D.position.copy(pos);
 
-            // Orientation & Position: If we have explicit data (stamped), use it.
-            // Otherwise (live preview or default), use orientToAnchors.
-            const hasRotation = this.data.rotation && (this.data.rotation.x !== 0 || this.data.rotation.y !== 0 || this.data.rotation.z !== 0);
-            const hasPosition = this.data.position && (this.data.position.x !== 0 || this.data.position.y !== 0 || this.data.position.z !== 0);
-
-            if (hasRotation || hasPosition) {
-                mesh.rotation.x = this.data.rotation.x;
-                mesh.rotation.y = this.data.rotation.y;
-                mesh.rotation.z = this.data.rotation.z;
-                mesh.position.x = this.data.position.x;
-                mesh.position.y = this.data.position.y;
-                mesh.position.z = this.data.position.z;
-            } else {
-                this.renderer.orientToAnchors(mesh, constellation);
-            }
+            // Orientation & Position
+            this.renderer.orientToAnchors(mesh, constellation);
+            console.log(`constellation-illustration: Setup complete for ${this.data.constellationId}`);
         };
 
         if (imagePath) {

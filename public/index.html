@@ -81,7 +81,7 @@
         showEcliptic: { type: 'boolean', default: false },
         showCardinalPoints: { type: 'boolean', default: true },
         showCelestialPoles: { type: 'boolean', default: false },
-        activeConstellations: { type: 'string', default: '[]' }
+        activeConstellations: { type: 'string', default: 'INIT' }
       },
       update: function (oldData) {
         if (typeof luxon === 'undefined') return;
@@ -97,6 +97,25 @@
         if (this.data.longitude !== undefined && this.data.longitude !== oldData.longitude) {
           window.longitude = this.data.longitude;
           console.log("Sky State Received: Longitude updated to", this.data.longitude);
+        }
+        if (this.data.activeConstellations !== oldData.activeConstellations) {
+          console.log(`Sky State: activeConstellations changed from "${oldData.activeConstellations}" to "${this.data.activeConstellations}"`);
+          if (this.data.activeConstellations === 'INIT') {
+            console.log('Sky State: Skipping sync for INIT sentinel');
+            return;
+          }
+          const renderer = document.getElementById('constellation-lines')?.components['constellation-renderer'];
+          if (renderer) {
+            try {
+              const activeItems = JSON.parse(this.data.activeConstellations);
+              console.log('Sky State: Triggering renderer sync with', activeItems.length, 'items');
+              renderer.syncConstellations(activeItems);
+            } catch (e) {
+              console.error('Sky State: Error parsing activeConstellations:', e, this.data.activeConstellations);
+            }
+          } else {
+            console.warn('Sky State: constellation-renderer not found for sync. Will rely on renderer pulling state on load.');
+          }
         }
 
         const guides = {
@@ -119,22 +138,6 @@
           updateScene();
         }
 
-        if (this.data.activeConstellations !== oldData.activeConstellations) {
-          try {
-            const activeList = JSON.parse(this.data.activeConstellations);
-            const rendererEl = document.getElementById('constellation-lines');
-            if (rendererEl && rendererEl.components['constellation-renderer']) {
-              const comp = rendererEl.components['constellation-renderer'];
-              if (typeof comp.syncConstellations === 'function') {
-                comp.syncConstellations(activeList);
-              } else {
-                console.warn('syncConstellations method missing on constellation-renderer');
-              }
-            }
-          } catch (e) {
-            console.error('Failed to parse activeConstellations sync data', e);
-          }
-        }
       }
     });
 
@@ -216,14 +219,6 @@
             },
             {
               component: 'constellation-illustration',
-              property: 'rotation'
-            },
-            {
-              component: 'constellation-illustration',
-              property: 'position'
-            },
-            {
-              component: 'constellation-illustration',
               property: 'opacity'
             }
           ]
@@ -244,6 +239,7 @@
           ]
         });
       }
+
       const components = NAF.schemas.getComponentsOriginal(template);
       return components;
     };
@@ -891,17 +887,31 @@
 
       function syncSky() {
         const skyMaster = document.getElementById('sky-master');
-        if (skyMaster && NAF.connection && NAF.connection.adapter) {
+        if (skyMaster && NAF.connection && NAF.connection.adapter && NAF.connection.isConnected()) {
+          const currentState = skyMaster.getAttribute('sky-state') || {};
+          const sharedConst = currentState.activeConstellations || 'INIT';
+
+
+
+
+          // SAFEGUARD: If we haven't received the room state ('INIT') and we are not alone,
+          // we MUST NOT take ownership. Doing so would broadcast our empty state and wipe the room.
+          // We must remain passive until NAF syncs the correct state to us.
+          if ((!sharedConst || sharedConst === 'INIT') && !NAF.utils.isMine(skyMaster)) {
+            const connectedClients = NAF.connection.getConnectedClients();
+            if (Object.keys(connectedClients).length > 0) {
+              console.warn("syncSky: Local state is INIT and not owner. Aborting broadcast to avoid wiping room state. Waiting for NAF sync...");
+              return;
+            }
+          }
+
           if (!NAF.utils.isMine(skyMaster)) {
             console.log("Taking ownership of sky-master to sync state...");
             NAF.utils.takeOwnership(skyMaster);
           }
-          console.log("Broadcasting Sky State:", {
-            time: simulationTime.toISO(),
-            latitude: latitude,
-            longitude: longitude
-          });
-          skyMaster.setAttribute('sky-state', {
+
+          console.log("Broadcasting Sky State Update...");
+          const updateData = {
             time: simulationTime.toISO(),
             latitude: window.latitude,
             longitude: window.longitude,
@@ -909,8 +919,11 @@
             showEquator: document.getElementById('equator')?.getAttribute('visible') || false,
             showEcliptic: document.getElementById('ecliptic')?.getAttribute('visible') || false,
             showCardinalPoints: document.getElementById('cardinal-points')?.getAttribute('visible') || false,
-            showCelestialPoles: document.getElementById('ncp')?.getAttribute('visible') || false
-          });
+            showCelestialPoles: document.getElementById('ncp')?.getAttribute('visible') || false,
+            activeConstellations: sharedConst || 'INIT'
+          };
+
+          skyMaster.setAttribute('sky-state', updateData);
         }
       }
 
@@ -1466,8 +1479,7 @@
             const constellationLines = document.getElementById('constellation-lines');
             if (constellationLines && constellationLines.components['constellation-renderer']) {
               const renderer = constellationLines.components['constellation-renderer'];
-              // Always clear and then show all
-              renderer.clearAllIllustrations();
+              // Fill in the gaps by showing all illustrations
               renderer.showAllIllustrations();
               // Haptics on show-all
               if (rightController.components['haptics']) {
