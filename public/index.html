@@ -13,7 +13,8 @@
     window.loadingStatus = {
       assets: false,
       network: false,
-      stars: false
+      stars: false,
+      sync: false
     };
     if (typeof window.localPlayerSpawned === 'undefined') {
       window.localPlayerSpawned = false;
@@ -32,24 +33,32 @@
         if (!window.nafConnectTime) window.nafConnectTime = performance.now();
 
         const connectedClients = NAF.connection.getConnectedClients();
-        // We must see NO ONE for at least 5 seconds after connecting before we declare ourselves Master
-        if (Object.keys(connectedClients).length === 0) {
-          if (performance.now() - window.nafConnectTime > 5000) {
+        const skyMaster = document.getElementById('sky-master');
+        const isOwner = skyMaster && NAF.utils.isMine(skyMaster);
+
+        // GRADUATION: We graduate to Master if:
+        // 1. We've been connected for at least 5 seconds.
+        // 2. We either see NO ONE or we are the OWNER of the sky-master entity.
+        if (performance.now() - window.nafConnectTime > 5000) {
+          if (Object.keys(connectedClients).length === 0 || isOwner) {
+            console.log("canUpdateSkyState: Graduating to Master (Owner or Alone).");
             window.skyStateInitialized = true;
+            updateLoadingIndicator('sync', true);
             return true;
           }
-        } else {
-          // We see others, stay passive
-          return false;
         }
       }
       return false;
     };
 
     function checkLoadingComplete() {
+      if (performance.now() % 5000 < 100) { // Log every ~5s
+        console.log("Loading Status:", JSON.parse(JSON.stringify(window.loadingStatus)), "PlayerSpawned:", window.localPlayerSpawned);
+      }
       if (window.loadingStatus.assets &&
         window.loadingStatus.network &&
         window.loadingStatus.stars &&
+        window.loadingStatus.sync &&
         window.localPlayerSpawned) {
         const overlay = document.getElementById('loading-overlay');
         if (overlay && overlay.style.display !== 'none') {
@@ -77,6 +86,8 @@
             item.querySelector('.label').textContent = 'Modules Ready';
           } else if (type === 'stars') {
             item.querySelector('.label').textContent = 'Star Map Processed';
+          } else if (type === 'sync') {
+            item.querySelector('.label').textContent = 'Universe Synchronized';
           }
         } else {
           item.classList.add('active');
@@ -108,18 +119,24 @@
         showEcliptic: { type: 'boolean', default: false },
         showCardinalPoints: { type: 'boolean', default: true },
         showCelestialPoles: { type: 'boolean', default: false },
-        activeConstellations: { type: 'string', default: 'INIT' }
+        activeConstellations: { type: 'string', default: 'INIT' },
+        heartbeat: { type: 'number', default: 0 }
       },
       init: function () {
         // Watchdog interval (same logic as constellations)
-        this.checkInterval = setInterval(() => this.checkSharedState(), 5000);
-        console.log("sky-state: Watchdog started.");
+        this.checkInterval = setInterval(() => this.checkSharedState(), 2000);
+        console.log("sky-state: Watchdog started (2s interval).");
       },
       remove: function () {
         if (this.checkInterval) clearInterval(this.checkInterval);
       },
       checkSharedState: function () {
         if (typeof NAF === 'undefined' || !NAF.connection.isConnected()) return;
+
+        // Proactively check if we can graduate to Master (handles solitary master case)
+        if (typeof window.canUpdateSkyState === 'function') {
+          window.canUpdateSkyState();
+        }
 
         const isOwner = NAF.utils.isMine(this.el);
         if (isOwner) {
@@ -144,9 +161,19 @@
           const timeDrift = Math.abs(window.simulationTime.diff(sharedTime, 'seconds').seconds);
           const latDrift = Math.abs(window.latitude - this.data.latitude);
 
-          if (timeDrift > 10 || latDrift > 0.01) {
+          if (timeDrift > 5 || latDrift > 0.01) {
             console.log("sky-state: Watchdog detected drift from master. Pulling state...");
-            this.update({ ...this.data, time: '' }); // Force update call by spoofing oldData
+            // Instead of just update(), let's explicitly copy the data to our locals
+            window.simulationTime = sharedTime;
+            window.latitude = this.data.latitude;
+            window.longitude = this.data.longitude;
+            updateScene();
+
+            const incomingIsInit = (this.data.activeConstellations === 'INIT');
+            if (!incomingIsInit) {
+              window.skyStateInitialized = true;
+              updateLoadingIndicator('sync', true);
+            }
           }
         }
       },
@@ -156,27 +183,40 @@
         // PROTECTION: If we are already initialized and we receive an "INIT" state from someone else,
         // it's almost certainly a "joining-wipe" packet from a newcomer. We MUST ignore it.
         const isRemote = !NAF.utils.isMine(this.el);
-        if (isRemote && this.data.activeConstellations === 'INIT' && window.skyStateInitialized) {
+        const incomingIsInit = (this.data.activeConstellations === 'INIT');
+
+        if (isRemote && incomingIsInit && window.skyStateInitialized) {
           console.warn("sky-state: Ignoring 'INIT' state from remote. Likely a newcomer-wipe attempt.");
           return;
         }
 
-        if (isRemote) window.skyStateInitialized = true;
+        // We only consider the state "Synchronized" if we've received data with a heartbeat
+        // OR if we've been promoted to Master.
+        if (isRemote && !incomingIsInit && this.data.heartbeat > 0) {
+          if (!window.skyStateInitialized) {
+            console.log("sky-state: First heartbeat received. Syncing reality...");
+          }
+          window.skyStateInitialized = true;
+          updateLoadingIndicator('sync', true);
+        }
 
         if (this.data.time && (this.data.time !== oldData.time || isRemote)) {
-          window.simulationTime = luxon.DateTime.fromISO(this.data.time);
-          console.log("Sky State Received: Time updated to", this.data.time);
-          window.skyStateInitialized = true;
+          if (!incomingIsInit) {
+            window.simulationTime = luxon.DateTime.fromISO(this.data.time);
+            console.log("Sky State Received: Time updated to", this.data.time);
+          }
         }
         if (this.data.latitude !== undefined && (this.data.latitude !== oldData.latitude || isRemote)) {
-          window.latitude = this.data.latitude;
-          console.log("Sky State Received: Latitude updated to", this.data.latitude);
-          window.skyStateInitialized = true;
+          if (!incomingIsInit) {
+            window.latitude = this.data.latitude;
+            console.log("Sky State Received: Latitude updated to", this.data.latitude);
+          }
         }
         if (this.data.longitude !== undefined && (this.data.longitude !== oldData.longitude || isRemote)) {
-          window.longitude = this.data.longitude;
-          console.log("Sky State Received: Longitude updated to", this.data.longitude);
-          window.skyStateInitialized = true;
+          if (!incomingIsInit) {
+            window.longitude = this.data.longitude;
+            console.log("Sky State Received: Longitude updated to", this.data.longitude);
+          }
         }
         if (this.data.activeConstellations !== oldData.activeConstellations) {
           console.log(`Sky State: activeConstellations changed from "${oldData.activeConstellations}" to "${this.data.activeConstellations}"`);
@@ -511,6 +551,10 @@
         <li id="status-stars" class="status-item active">
           <span class="icon">○</span>
           <span class="label">Downloading Star Data (35MB)...</span>
+        </li>
+        <li id="status-sync" class="status-item active">
+          <span class="icon">○</span>
+          <span class="label">Synchronizing Reality...</span>
         </li>
       </ul>
 
@@ -989,6 +1033,9 @@
             NAF.utils.takeOwnership(skyMaster);
           }
 
+          const renderer = document.getElementById('constellation-lines')?.components['constellation-renderer'];
+          const constellationData = renderer ? JSON.stringify(renderer.placedIllustrations.map(e => e.dataset.constellationId).filter(id => id)) : sharedConst;
+
           if (!silent) console.log("Broadcasting Sky State Update...");
           const updateData = {
             time: simulationTime.toISO(),
@@ -999,7 +1046,8 @@
             showEcliptic: document.getElementById('ecliptic')?.getAttribute('visible') || false,
             showCardinalPoints: document.getElementById('cardinal-points')?.getAttribute('visible') || false,
             showCelestialPoles: document.getElementById('ncp')?.getAttribute('visible') || false,
-            activeConstellations: sharedConst || 'INIT'
+            activeConstellations: constellationData || 'INIT',
+            heartbeat: performance.now()
           };
 
           skyMaster.setAttribute('sky-state', updateData);
