@@ -232,38 +232,47 @@ AFRAME.registerComponent('player-info', {
                 });
             } else {
                 // Create phantom avatar for 'out' effect
-                const visuals = el.querySelectorAll('.head, .face, .nametag, .eyelid');
+                // We only query the top-level parts we want to clone.
+                // We leave out .eyelid here because it's already inside .face
+                const visuals = el.querySelectorAll('.head, .face, .nametag');
                 visuals.forEach(v => {
                     const clone = v.cloneNode(true);
                     clone.object3D.quaternion.copy(currentQuat);
 
-                    if (clone.classList.contains('head') || clone.classList.contains('eyelid')) {
-                        clone.setAttribute('material', {
-                            color: color,
-                            transparent: true,
-                            opacity: 1,
-                            depthWrite: false
-                        });
-                    }
-                    if (clone.tagName.toLowerCase() === 'a-text') {
-                        clone.setAttribute('value', this.data.name);
-                    }
+                    // Recursive function to apply properties to all mesh/text children
+                    const applyProperties = (node) => {
+                        const isText = node.tagName && node.tagName.toLowerCase() === 'a-text';
+                        const isPart = node.classList && (node.classList.contains('head') || node.classList.contains('eyelid'));
 
-                    effectContainer.appendChild(clone);
-
-                    const animateParts = clone.classList.contains('face') ? clone.querySelectorAll('.eye, .pupil, .eyelid') : [clone];
-                    animateParts.forEach(part => {
-                        const isText = part.tagName.toLowerCase() === 'a-text';
-                        const property = isText ? 'opacity' : 'material.opacity';
-
-                        if (!isText) {
-                            part.setAttribute('material', 'depthWrite', false);
+                        if (isPart && !isText) {
+                            node.setAttribute('material', {
+                                color: color,
+                                transparent: true,
+                                opacity: 1,
+                                depthWrite: false
+                            });
+                        } else if (!isText && node.setAttribute) {
+                            node.setAttribute('material', 'depthWrite', false);
                         }
 
-                        part.setAttribute('animation__fadeout', {
+                        if (isText) {
+                            node.setAttribute('value', this.data.name);
+                        }
+
+                        // Animate
+                        const property = isText ? 'opacity' : 'material.opacity';
+                        node.setAttribute('animation__fadeout', {
                             property: property, from: 1, to: 0, dur: 1500, delay: 200, easing: 'easeInQuad'
                         });
-                    });
+
+                        // Recurse
+                        for (let i = 0; i < node.children.length; i++) {
+                            applyProperties(node.children[i]);
+                        }
+                    };
+
+                    applyProperties(clone);
+                    effectContainer.appendChild(clone);
                 });
             }
 
