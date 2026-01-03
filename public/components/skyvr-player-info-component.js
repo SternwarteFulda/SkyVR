@@ -22,6 +22,7 @@ AFRAME.registerComponent('player-info', {
         this.eyelids = this.el.querySelectorAll('.eyelid');
         this.pointer = this.el.querySelector('.pointer');
         this.lastSpawned = false;
+        this.exiting = false;
 
         this.ownedByLocalUser = this.el.id === 'camera' || this.el.id === 'right-controller';
 
@@ -64,11 +65,19 @@ AFRAME.registerComponent('player-info', {
             // Set opacity to 0 before making visible to allow fade-in
             this.setAvatarOpacity(0);
             this.el.setAttribute('visible', true);
-            this.playTeleportEffect();
+            this.playTeleportEffect('in');
             this.lastSpawned = true;
         } else if (!this.data.spawned) {
             this.el.setAttribute('visible', false);
             this.lastSpawned = false;
+        }
+    },
+
+    remove: function () {
+        // When a player leaves, NAF removes the entity.
+        if (this.data.spawned && !this.exiting) {
+            this.exiting = true;
+            this.playTeleportEffect('out');
         }
     },
 
@@ -88,21 +97,37 @@ AFRAME.registerComponent('player-info', {
         });
     },
 
-    playTeleportEffect: function () {
-        // Star Trek style teleporter effect
+    playTeleportEffect: function (mode = 'in') {
         const el = this.el;
         const color = this.data.color;
+        const scene = el.sceneEl;
 
-        // 1. ADD A SHORT DELAY to prevent the "center glimpse"
-        // This ensures the entity's position has updated from 0,0,0 on all clients
-        setTimeout(() => {
-            // Re-check visibility, if somehow became invisible again, don't show effect
-            if (!this.data.spawned) return;
+        // For "out", we need to capture position immediately before removal
+        const finalWorldPos = new THREE.Vector3();
+        const finalWorldQuat = new THREE.Quaternion();
+        el.object3D.getWorldPosition(finalWorldPos);
+        el.object3D.getWorldQuaternion(finalWorldQuat);
+        const finalWorldRot = el.object3D.rotation.clone();
+
+        const runEffect = () => {
+            // Recalculate position for "in" after the delay to avoid (0,0,0)
+            const currentPos = new THREE.Vector3();
+            const currentQuat = new THREE.Quaternion();
+            if (mode === 'in') {
+                el.object3D.getWorldPosition(currentPos);
+                el.object3D.getWorldQuaternion(currentQuat);
+            } else {
+                currentPos.copy(finalWorldPos);
+                currentQuat.copy(finalWorldQuat);
+            }
 
             // Create a temporary container for the effect
             const effectContainer = document.createElement('a-entity');
-            effectContainer.setAttribute('data-no-sync', ''); // Don't sync this entity
-            el.appendChild(effectContainer);
+            effectContainer.setAttribute('data-no-sync', '');
+            effectContainer.setAttribute('position', currentPos);
+            // Apply world rotation to container to match original avatar orientation
+            effectContainer.object3D.quaternion.copy(currentQuat);
+            scene.appendChild(effectContainer);
 
             // Add a temporary light burst
             const light = document.createElement('a-entity');
@@ -123,21 +148,59 @@ AFRAME.registerComponent('player-info', {
             });
             effectContainer.appendChild(light);
 
-            // FADE IN AVATAR COMPONENTS
-            const parts = this.el.querySelectorAll('.head, .eye, .pupil, .eyelid, .nametag');
-            parts.forEach(part => {
-                const property = part.tagName.toLowerCase() === 'a-text' ? 'opacity' : 'material.opacity';
-                part.setAttribute('animation__fadein', {
-                    property: property,
-                    from: 0,
-                    to: 1,
-                    dur: 2000,
-                    delay: 500, // Start materializing after beamlets start
-                    easing: 'easeInOutQuad'
+            if (mode === 'in') {
+                // FADE IN AVATAR COMPONENTS (on the original element)
+                const parts = el.querySelectorAll('.head, .eye, .pupil, .eyelid, .nametag');
+                parts.forEach(part => {
+                    const property = part.tagName.toLowerCase() === 'a-text' ? 'opacity' : 'material.opacity';
+                    part.setAttribute('animation__fadein', {
+                        property: property,
+                        from: 0,
+                        to: 1,
+                        dur: 2000,
+                        delay: 500,
+                        easing: 'easeInOutQuad'
+                    });
                 });
-            });
+            } else {
+                // FADE OUT: Create a phantom avatar
+                // Instead of full cloning which is messy with components, let's clone just visuals
+                const visuals = el.querySelectorAll('.head, .face, .nametag');
+                visuals.forEach(v => {
+                    const clone = v.cloneNode(true);
+                    // If it's a head or eyelid, ensure color is copied manually since it might be in material attribute
+                    if (clone.classList.contains('head') || clone.classList.contains('eyelid')) {
+                        clone.setAttribute('material', 'color', color);
+                        clone.setAttribute('material', 'transparent', true);
+                        clone.setAttribute('material', 'opacity', 1);
+                    }
+                    if (clone.tagName.toLowerCase() === 'a-text') {
+                        clone.setAttribute('value', this.data.name);
+                    }
 
-            // Create several small vertical beamlets (Energy needles)
+                    effectContainer.appendChild(clone);
+
+                    // Add fade out animation to children of phantom
+                    const parts = clone.classList.contains('face') ? clone.querySelectorAll('.eye, .pupil, .eyelid') : [clone];
+                    parts.forEach(part => {
+                        const property = part.tagName.toLowerCase() === 'a-text' ? 'opacity' : 'material.opacity';
+                        if (property === 'material.opacity') {
+                            part.setAttribute('material', 'transparent', true);
+                            part.setAttribute('material', 'opacity', 1);
+                        }
+                        part.setAttribute('animation__fadeout', {
+                            property: property,
+                            from: 1,
+                            to: 0,
+                            dur: 1500,
+                            delay: 200,
+                            easing: 'easeInQuad'
+                        });
+                    });
+                });
+            }
+
+            // Energy needles
             for (let i = 0; i < 16; i++) {
                 const beam = document.createElement('a-cylinder');
                 const angle = Math.random() * Math.PI * 2;
@@ -191,7 +254,7 @@ AFRAME.registerComponent('player-info', {
                 effectContainer.appendChild(beam);
             }
 
-            // Many more sparkles with shimmering effect
+            // Sparkles
             for (let i = 0; i < 45; i++) {
                 const sparkle = document.createElement('a-sphere');
                 const angle = Math.random() * Math.PI * 2;
@@ -220,7 +283,6 @@ AFRAME.registerComponent('player-info', {
                     easing: 'easeOutQuad'
                 });
 
-                // Rapid shimmer (flicker)
                 sparkle.setAttribute('animation__flicker', {
                     property: 'material.opacity',
                     from: 0.2,
@@ -249,12 +311,18 @@ AFRAME.registerComponent('player-info', {
                 effectContainer.appendChild(sparkle);
             }
 
-            // Clean up effect after it's done
+            // Clean up
             setTimeout(() => {
                 if (effectContainer.parentNode) {
-                    el.removeChild(effectContainer);
+                    scene.removeChild(effectContainer);
                 }
             }, 5000);
-        }, 100);
+        };
+
+        if (mode === 'in') {
+            setTimeout(runEffect, 150); // Increased delay to ensure world positioning is settled
+        } else {
+            runEffect();
+        }
     }
 });
