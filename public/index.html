@@ -18,6 +18,33 @@
     if (typeof window.localPlayerSpawned === 'undefined') {
       window.localPlayerSpawned = false;
     }
+    // Track if we have received a valid sky state from the network or if we are the room creator
+    window.skyStateInitialized = false;
+    window.skyStateLastSync = 0;
+    window.nafConnectTime = 0; // Track when NAF actually connected
+
+    // Helper to determine if we are safe to broadcast changes to the room
+    window.canUpdateSkyState = function () {
+      if (window.skyStateInitialized) return true;
+
+      // If we are alone, we are allowed after a short grace period starting from CONNECTION
+      if (typeof NAF !== 'undefined' && NAF.connection && NAF.connection.adapter && NAF.connection.isConnected()) {
+        if (!window.nafConnectTime) window.nafConnectTime = performance.now();
+
+        const connectedClients = NAF.connection.getConnectedClients();
+        // We must see NO ONE for at least 5 seconds after connecting before we declare ourselves Master
+        if (Object.keys(connectedClients).length === 0) {
+          if (performance.now() - window.nafConnectTime > 5000) {
+            window.skyStateInitialized = true;
+            return true;
+          }
+        } else {
+          // We see others, stay passive
+          return false;
+        }
+      }
+      return false;
+    };
 
     function checkLoadingComplete() {
       if (window.loadingStatus.assets &&
@@ -83,20 +110,73 @@
         showCelestialPoles: { type: 'boolean', default: false },
         activeConstellations: { type: 'string', default: 'INIT' }
       },
+      init: function () {
+        // Watchdog interval (same logic as constellations)
+        this.checkInterval = setInterval(() => this.checkSharedState(), 5000);
+        console.log("sky-state: Watchdog started.");
+      },
+      remove: function () {
+        if (this.checkInterval) clearInterval(this.checkInterval);
+      },
+      checkSharedState: function () {
+        if (typeof NAF === 'undefined' || !NAF.connection.isConnected()) return;
+
+        const isOwner = NAF.utils.isMine(this.el);
+        if (isOwner) {
+          // Master PUSH logic: Periodically refresh the broadcast to catch up any joining players
+          if (window.skyStateInitialized) {
+            syncSky(true);
+          }
+        } else {
+          // Client PULL logic: If we see data in the component that we haven't applied yet, pull it.
+          // RESURRECTION: If shared state is null (INIT) but we have a valid local state, 
+          // it means the state was wiped (likely by a new master). We must fix it.
+          if (this.data.activeConstellations === 'INIT') {
+            if (window.skyStateInitialized) {
+              console.warn("sky-state: Shared state is INIT but local is NOT. Taking ownership to restore room.");
+              NAF.utils.takeOwnership(this.el);
+              syncSky();
+            }
+            return;
+          }
+
+          const sharedTime = luxon.DateTime.fromISO(this.data.time);
+          const timeDrift = Math.abs(window.simulationTime.diff(sharedTime, 'seconds').seconds);
+          const latDrift = Math.abs(window.latitude - this.data.latitude);
+
+          if (timeDrift > 10 || latDrift > 0.01) {
+            console.log("sky-state: Watchdog detected drift from master. Pulling state...");
+            this.update({ ...this.data, time: '' }); // Force update call by spoofing oldData
+          }
+        }
+      },
       update: function (oldData) {
         if (typeof luxon === 'undefined') return;
 
-        if (this.data.time && this.data.time !== oldData.time) {
+        // PROTECTION: If we are already initialized and we receive an "INIT" state from someone else,
+        // it's almost certainly a "joining-wipe" packet from a newcomer. We MUST ignore it.
+        const isRemote = !NAF.utils.isMine(this.el);
+        if (isRemote && this.data.activeConstellations === 'INIT' && window.skyStateInitialized) {
+          console.warn("sky-state: Ignoring 'INIT' state from remote. Likely a newcomer-wipe attempt.");
+          return;
+        }
+
+        if (isRemote) window.skyStateInitialized = true;
+
+        if (this.data.time && (this.data.time !== oldData.time || isRemote)) {
           window.simulationTime = luxon.DateTime.fromISO(this.data.time);
           console.log("Sky State Received: Time updated to", this.data.time);
+          window.skyStateInitialized = true;
         }
-        if (this.data.latitude !== undefined && this.data.latitude !== oldData.latitude) {
+        if (this.data.latitude !== undefined && (this.data.latitude !== oldData.latitude || isRemote)) {
           window.latitude = this.data.latitude;
           console.log("Sky State Received: Latitude updated to", this.data.latitude);
+          window.skyStateInitialized = true;
         }
-        if (this.data.longitude !== undefined && this.data.longitude !== oldData.longitude) {
+        if (this.data.longitude !== undefined && (this.data.longitude !== oldData.longitude || isRemote)) {
           window.longitude = this.data.longitude;
           console.log("Sky State Received: Longitude updated to", this.data.longitude);
+          window.skyStateInitialized = true;
         }
         if (this.data.activeConstellations !== oldData.activeConstellations) {
           console.log(`Sky State: activeConstellations changed from "${oldData.activeConstellations}" to "${this.data.activeConstellations}"`);
@@ -885,24 +965,23 @@
       let isRightControllerGripDown = false;
       window.micEnabled = false;
 
-      function syncSky() {
+      function syncSky(silent = false) {
         const skyMaster = document.getElementById('sky-master');
         if (skyMaster && NAF.connection && NAF.connection.adapter && NAF.connection.isConnected()) {
           const currentState = skyMaster.getAttribute('sky-state') || {};
           const sharedConst = currentState.activeConstellations || 'INIT';
 
+          // ROBUST SAFEGUARD:
+          // Use the global helper to check if we are authorized to broadcast.
+          if (!window.canUpdateSkyState()) {
+            if (!silent) console.warn("syncSky: Not authorized to update yet (waiting for room state).");
+            return;
+          }
 
-
-
-          // SAFEGUARD: If we haven't received the room state ('INIT') and we are not alone,
-          // we MUST NOT take ownership. Doing so would broadcast our empty state and wipe the room.
-          // We must remain passive until NAF syncs the correct state to us.
-          if ((!sharedConst || sharedConst === 'INIT') && !NAF.utils.isMine(skyMaster)) {
-            const connectedClients = NAF.connection.getConnectedClients();
-            if (Object.keys(connectedClients).length > 0) {
-              console.warn("syncSky: Local state is INIT and not owner. Aborting broadcast to avoid wiping room state. Waiting for NAF sync...");
-              return;
-            }
+          // Clear any pending initialization timeout once we are ready to broadcast
+          if (window.skyInitTimeout) {
+            clearTimeout(window.skyInitTimeout);
+            window.skyInitTimeout = null;
           }
 
           if (!NAF.utils.isMine(skyMaster)) {
@@ -910,7 +989,7 @@
             NAF.utils.takeOwnership(skyMaster);
           }
 
-          console.log("Broadcasting Sky State Update...");
+          if (!silent) console.log("Broadcasting Sky State Update...");
           const updateData = {
             time: simulationTime.toISO(),
             latitude: window.latitude,
@@ -1142,22 +1221,20 @@
       const joystickThreshold = 0.95;
 
       leftController.addEventListener("thumbstickmoved", function (event) {
-        if (event.detail.x !== 0) {
+        let needsSync = false;
+        if (Math.abs(event.detail.x) > 0.05) {
           // Adjust simulation time by the thumbstick's X axis movement.
           let timeAdjustment = Math.pow(event.detail.x, 3.0) * timeAdjustmentSpeed;
-          //simulationTime = new DateTime(simulationTime.getTime() + timeAdjustment);
           simulationTime = simulationTime.plus({ seconds: timeAdjustment });
-          // Update the scene based on the new simulation time.
-          //debouncedUpdateScene();
-          //throttledUpdateScene()
-          syncSky();
-          updateScene();
+          needsSync = true;
         }
         if (Math.abs(event.detail.y) >= joystickThreshold) {
-          //eqContainer.object3D.rotation.x -= event.detail.y * starRotationSpeed;
           let latitudeAdjustment = -event.detail.y * latitudeAdjustmentSpeed;
           updateLatitude(latitude + latitudeAdjustment);
+          needsSync = true;
+        }
 
+        if (needsSync) {
           syncSky();
           updateScene();
         }

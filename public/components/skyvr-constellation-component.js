@@ -611,6 +611,13 @@ AFRAME.registerComponent('constellation-renderer', {
         const skyMaster = document.getElementById('sky-master');
         if (!skyMaster) return;
 
+        // AUTH CHECK: If we haven't received the room state yet, we are not allowed 
+        // to take ownership or broadcast anything, as it would wipe the room.
+        if (typeof window.canUpdateSkyState === 'function' && !window.canUpdateSkyState()) {
+            console.warn('updateSharedState: Blocked update - still waiting for room state initialization.');
+            return;
+        }
+
         if (typeof NAF !== 'undefined' && NAF.connection.isConnected()) {
             if (!NAF.utils.isMine(skyMaster)) {
                 console.log('updateSharedState: Taking ownership of sky-master');
