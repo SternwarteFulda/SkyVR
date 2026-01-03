@@ -194,10 +194,14 @@ AFRAME.registerComponent('player-info', {
                     // Rotate the clone to match the avatar's actual orientation
                     clone.object3D.quaternion.copy(currentQuat);
 
+                    // Apply color to head and eyelids
                     if (clone.classList.contains('head') || clone.classList.contains('eyelid')) {
-                        clone.setAttribute('material', 'color', color);
-                        clone.setAttribute('material', 'transparent', true);
-                        clone.setAttribute('material', 'opacity', 1);
+                        // Use setAttribute to ensure it overrides defaults
+                        clone.setAttribute('material', {
+                            color: color,
+                            transparent: true,
+                            opacity: 1
+                        });
                     }
                     if (clone.tagName.toLowerCase() === 'a-text') {
                         clone.setAttribute('value', this.data.name);
@@ -209,11 +213,18 @@ AFRAME.registerComponent('player-info', {
                     // If it's the 'face' container, animate children. Otherwise, animate the clone itself.
                     const animateParts = clone.classList.contains('face') ? clone.querySelectorAll('.eye, .pupil, .eyelid') : [clone];
                     animateParts.forEach(part => {
-                        const property = part.tagName.toLowerCase() === 'a-text' ? 'opacity' : 'material.opacity';
-                        if (property === 'material.opacity') {
-                            part.setAttribute('material', 'transparent', true);
-                            part.setAttribute('material', 'opacity', 1);
+                        const isText = part.tagName.toLowerCase() === 'a-text';
+                        const property = isText ? 'opacity' : 'material.opacity';
+
+                        // Ensure eyelids/head have color and transparency if they are the part being animated
+                        if (!isText && (part.classList.contains('head') || part.classList.contains('eyelid'))) {
+                            part.setAttribute('material', {
+                                color: color,
+                                transparent: true,
+                                opacity: 1
+                            });
                         }
+
                         part.setAttribute('animation__fadeout', {
                             property: property, from: 1, to: 0, dur: 1500, delay: 200, easing: 'easeInQuad'
                         });
