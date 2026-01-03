@@ -105,6 +105,14 @@ AFRAME.registerComponent('spawn-in-spots', {
 
         console.log(`Spawned at index ${chosenIndex} (Radius: ${this.data.radius}, Angle: ${angleDeg.toFixed(1)})`);
 
+        // Mark as spawned to trigger visibility and teleporter effect
+        const camera = document.getElementById('camera');
+        const rightController = document.getElementById('right-controller');
+        const leftController = document.getElementById('left-controller');
+        if (camera) camera.setAttribute('player-info', 'spawned', true);
+        if (rightController) rightController.setAttribute('player-info', 'spawned', true);
+        if (leftController) leftController.setAttribute('player-info', 'spawned', true);
+
         // IMPORTANT: Reset rig-follower if present, otherwise it might interpret the teleport as a huge step
         if (el.components['rig-follower'] && typeof el.components['rig-follower'].reset === 'function') {
             el.components['rig-follower'].reset();

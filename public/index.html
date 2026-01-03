@@ -275,6 +275,8 @@
 
       const rightControllerEl = document.getElementById('right-controller');
 
+      const leftControllerEl = document.getElementById('left-controller');
+
       if (cameraEl) {
         if (nameParam) cameraEl.setAttribute('player-info', 'name', nameParam);
         if (colorParam) {
@@ -288,6 +290,14 @@
         if (colorParam) {
           const color = colorParam.startsWith('#') ? colorParam : '#' + colorParam;
           rightControllerEl.setAttribute('player-info', 'color', color);
+        }
+      }
+
+      if (leftControllerEl) {
+        if (nameParam) leftControllerEl.setAttribute('player-info', 'name', nameParam);
+        if (colorParam) {
+          const color = colorParam.startsWith('#') ? colorParam : '#' + colorParam;
+          leftControllerEl.setAttribute('player-info', 'color', color);
         }
       }
     });
@@ -607,7 +617,7 @@
           <a-entity line="start: 0 0 0; end: -0.01 -0.03 -0.01; color: white; opacity: 0.5"></a-entity>
         </a-entity>
       </a-entity>
-      <a-entity id="left-controller" meta-touch-controls="hand: left" position="0 0 0">
+      <a-entity id="left-controller" player-info meta-touch-controls="hand: left" position="0 0 0">
         <a-entity light="type: point; intensity: 0.2; distance: 0.5; decay: 1" position="0 0.05 0"></a-entity>
         <!-- Controller Hints -->
         <a-entity id="hint-x" class="controller-hint" position="-0.04 0.05 0.02" rotation="-120 0 0">
