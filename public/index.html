@@ -281,22 +281,6 @@
       }
     });
 
-    AFRAME.registerComponent('position-follower', {
-      schema: {
-        target: { type: 'selector' },
-        ignoreY: { type: 'boolean', default: true }
-      },
-      tick: function () {
-        if (!this.data.target) return;
-        const targetPos = this.data.target.object3D.position;
-        this.el.object3D.position.x = targetPos.x;
-        this.el.object3D.position.z = targetPos.z;
-        if (!this.data.ignoreY) {
-          this.el.object3D.position.y = targetPos.y;
-        }
-      }
-    });
-
     window.onConnect = function () {
       console.log('onConnect', new Date());
       updateLoadingIndicator('network', true);
