@@ -16,6 +16,8 @@ AFRAME.registerComponent('drawing-stroke', {
             color: this.data.color,
             linewidth: this.data.width,
             transparent: true,
+            opacity: 0.8,
+            depthWrite: false, // Prevents Z-fighting
             fog: false
         });
         this.updateLine();
@@ -48,6 +50,7 @@ AFRAME.registerComponent('drawing-stroke', {
 
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
         this.mesh = new THREE.Line(geometry, this.lineMaterial);
+        this.mesh.renderOrder = 100; // Above stars (20) and illustrations (10)
         this.el.object3D.add(this.mesh);
     },
 

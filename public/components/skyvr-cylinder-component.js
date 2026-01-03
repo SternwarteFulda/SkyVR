@@ -8,13 +8,13 @@ AFRAME.registerComponent("bottom-origin-cylinder", {
     },
     init: function () {
         // Create a parent entity to handle rotation and translation
-        const parentEntity = document.createElement("a-entity");
+        this.parentEntity = document.createElement("a-entity");
 
         // Set the rotation of the parent entity
-        parentEntity.setAttribute("rotation", this.data.rotation);
+        this.parentEntity.setAttribute("rotation", this.data.rotation);
 
         // Append the parent entity to the current entity
-        this.el.appendChild(parentEntity);
+        this.el.appendChild(this.parentEntity);
 
         // Create the cylinder geometry
         const geometry = new THREE.CylinderGeometry(
@@ -30,12 +30,24 @@ AFRAME.registerComponent("bottom-origin-cylinder", {
             opacity: this.data.opacity,
         });
         // Create the mesh
-        const cylinder = new THREE.Mesh(geometry, material);
+        this.cylinder = new THREE.Mesh(geometry, material);
 
         // Move the cylinder downward based on half of its height
-        cylinder.position.y -= this.data.height / 2;
+        this.cylinder.position.y -= this.data.height / 2;
 
         // Append the cylinder to the parent entity
-        parentEntity.setObject3D("mesh", cylinder);
+        this.parentEntity.setObject3D("mesh", this.cylinder);
     },
+    update: function (oldData) {
+        if (!this.parentEntity) return;
+
+        if (this.data.rotation !== oldData.rotation) {
+            this.parentEntity.setAttribute("rotation", this.data.rotation);
+        }
+
+        if (this.cylinder && this.cylinder.material) {
+            this.cylinder.material.color.set(this.data.color);
+            this.cylinder.material.opacity = this.data.opacity;
+        }
+    }
 });

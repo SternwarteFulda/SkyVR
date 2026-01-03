@@ -281,6 +281,22 @@
       }
     });
 
+    AFRAME.registerComponent('position-follower', {
+      schema: {
+        target: { type: 'selector' },
+        ignoreY: { type: 'boolean', default: true }
+      },
+      tick: function () {
+        if (!this.data.target) return;
+        const targetPos = this.data.target.object3D.position;
+        this.el.object3D.position.x = targetPos.x;
+        this.el.object3D.position.z = targetPos.z;
+        if (!this.data.ignoreY) {
+          this.el.object3D.position.y = targetPos.y;
+        }
+      }
+    });
+
     window.onConnect = function () {
       console.log('onConnect', new Date());
       updateLoadingIndicator('network', true);
@@ -291,6 +307,29 @@
         if (micBtnEle) micBtnEle.textContent = 'Unmute Mic';
       }
     };
+
+    // Dynamically align the visual pointer with the controller's rayOrigin
+    document.addEventListener('controllermodelready', (evt) => {
+      const el = evt.target;
+      const rayOrigin = evt.detail.rayOrigin;
+      if (!rayOrigin) return;
+
+      const pointerEl = el.querySelector('.pointer');
+      if (pointerEl) {
+        console.log(`Aligning pointer for ${el.id} using rayOrigin`, rayOrigin);
+
+        // Update position
+        pointerEl.setAttribute('position', rayOrigin.origin);
+
+        // Calculate rotation for the bottom-origin-cylinder component
+        // The cylinder points -Y. We need to find the Euler angles (X, Y) to match rayOrigin.direction
+        const dir = rayOrigin.direction;
+        const pitch = Math.acos(-dir.y) * (180 / Math.PI);
+        const yaw = Math.atan2(-dir.x, -dir.z) * (180 / Math.PI);
+
+        pointerEl.setAttribute('bottom-origin-cylinder', 'rotation', { x: pitch, y: yaw, z: 0 });
+      }
+    });
 
   </script>
   <script src="js/astronomy.browser.min.js"></script>
@@ -448,8 +487,8 @@
       </template>
       <template id="right-controller-template">
         <a-entity>
-          <a-entity class="pointer" position="0 0.005 0"
-            bottom-origin-cylinder="height: 394; radius: 0.009; color: red; rotation: 53.6 8.9 0; opacity: 0.6;"
+          <a-entity class="pointer" position="-0.0065 -0.0186 -0.05"
+            bottom-origin-cylinder="height: 394; radius: 0.009; color: red; rotation: 53.53 8.87 0; opacity: 0.6;"
             visible="false">
           </a-entity>
         </a-entity>
@@ -530,8 +569,8 @@
           <a-entity line="start: 0 0 0; end: 0 0 0.1; color: blue;"></a-entity>
         </a-entity>
         <!-- Pointer -->
-        <a-entity id="pointer" class="pointer" position="0 0.005 0"
-          bottom-origin-cylinder="height: 394; radius: 0.009; color: red; rotation: 53.6 8.9 0; opacity: 0.6;"
+        <a-entity id="pointer" class="pointer" position="-0.0065 -0.0186 -0.05"
+          bottom-origin-cylinder="height: 394; radius: 0.009; color: red; rotation: 53.53 8.87 0; opacity: 0.6;"
           visible="false">
         </a-entity>
 

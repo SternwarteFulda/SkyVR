@@ -2,30 +2,29 @@ AFRAME.registerComponent('drawing', {
     schema: {
         color: { default: 'yellow' },
         width: { default: 2.5 },
-        //offset: {type: 'vec3', default: {x: 0, y: 0, z: 0}}
-        offset: { type: 'vec3', default: { x: -31.0, y: -149.0, z: -200 } }
+        distance: { type: 'number', default: 393 } // Drawing surface distance (meters)
     },
     init: function () {
         this.lineMaterial = new THREE.LineBasicMaterial({
             color: this.data.color,
             linewidth: this.data.width,
-            fog: false
+            fog: false,
+            depthWrite: false,
+            transparent: true,
+            opacity: 0.8
         });
-        this.tempVector = new THREE.Vector3();
-        this.tempQuaternion = new THREE.Quaternion();
-        this.offsetVector = new THREE.Vector3();
         this.currentSegmentPoints = [];
         this.currentSegmentMesh = null;
         this.completedSegmentMeshes = [];
         this.isDrawing = false;
+        this.strokeDistance = this.data.distance;
         this.precessionContainerEl = document.getElementById("precession-container");
-        if (!this.precessionContainerEl) {
-            console.error('Drawing component: precession-container not found!');
-        }
     },
     startDrawing: function () {
         this.isDrawing = true;
         this.currentSegmentPoints = [];
+        // Per-stroke jitter to prevent Z-fighting
+        this.strokeDistance = this.data.distance + (Math.random() * 0.1);
     },
     stopDrawing: function () {
         this.isDrawing = false;
@@ -42,7 +41,6 @@ AFRAME.registerComponent('drawing', {
             }
         });
         this.completedSegmentMeshes = [];
-
         if (this.currentSegmentMesh && this.precessionContainerEl) {
             this.precessionContainerEl.object3D.remove(this.currentSegmentMesh);
             this.currentSegmentMesh.geometry.dispose();
@@ -52,33 +50,63 @@ AFRAME.registerComponent('drawing', {
     },
     clearLastSegment: function () {
         if (this.completedSegmentMeshes.length > 0) {
-            const lastSegment = this.completedSegmentMeshes.pop(); // Remove last segment from array
+            const lastSegment = this.completedSegmentMeshes.pop();
             if (lastSegment && this.precessionContainerEl) {
-                this.precessionContainerEl.object3D.remove(lastSegment); // Remove from scene
-                lastSegment.geometry.dispose(); // Dispose geometry
+                this.precessionContainerEl.object3D.remove(lastSegment);
+                lastSegment.geometry.dispose();
             }
         }
     },
     tick: function () {
         if (this.isDrawing && this.precessionContainerEl) {
-            const controllerPosition = new THREE.Vector3();
-            this.el.object3D.getWorldPosition(controllerPosition);
+            const controllerPos = new THREE.Vector3();
+            const controllerQuat = new THREE.Quaternion();
+            this.el.object3D.getWorldPosition(controllerPos);
+            this.el.object3D.getWorldQuaternion(controllerQuat);
 
-            const controllerQuaternion = new THREE.Quaternion();
-            this.el.object3D.getWorldQuaternion(controllerQuaternion);
+            let rayOriginLocal = new THREE.Vector3(0, 0, 0);
+            let rayDirectionLocal = new THREE.Vector3(0, 0, -1);
 
-            const offset = new THREE.Vector3(this.data.offset.x, this.data.offset.y, this.data.offset.z);
-            offset.applyQuaternion(controllerQuaternion);
+            const metaTouch = this.el.components['meta-touch-controls'];
+            if (metaTouch && metaTouch.displayModel) {
+                const hand = metaTouch.data.hand;
+                const model = metaTouch.displayModel[hand];
+                if (model && model.rayOrigin) {
+                    rayOriginLocal.copy(model.rayOrigin.origin);
+                    rayDirectionLocal.copy(model.rayOrigin.direction);
+                }
+            } else {
+                const dir = new THREE.Vector3(0, -1, 0);
+                const tiltEuler = new THREE.Euler(THREE.MathUtils.degToRad(54), THREE.MathUtils.degToRad(9), 0, 'YXZ');
+                dir.applyEuler(tiltEuler);
+                rayDirectionLocal.copy(dir);
+            }
 
-            const offsetWorldPosition = controllerPosition.add(offset);
-            const localPosition = this.precessionContainerEl.object3D.worldToLocal(offsetWorldPosition.clone());
+            // World-space ray
+            const worldStart = rayOriginLocal.clone().applyQuaternion(controllerQuat).add(controllerPos);
+            const worldDir = rayDirectionLocal.clone().applyQuaternion(controllerQuat).normalize();
+
+            // Intersect with a sphere of radius 'strokeDistance' centered at (0,0,0)
+            const skyOrigin = new THREE.Vector3(0, 0, 0);
+            const L = worldStart.clone().sub(skyOrigin);
+            const b = L.dot(worldDir);
+            const c = L.dot(L) - (this.strokeDistance * this.strokeDistance);
+            const discriminant = b * b - c;
+
+            let t = 0;
+            if (discriminant >= 0) {
+                t = -b + Math.sqrt(discriminant);
+            } else {
+                t = this.strokeDistance;
+            }
+
+            const hitPoint = worldStart.clone().add(worldDir.multiplyScalar(t));
+            const localPosition = this.precessionContainerEl.object3D.worldToLocal(hitPoint);
 
             if (this.currentSegmentPoints.length > 0) {
                 const lastPoint = this.currentSegmentPoints[this.currentSegmentPoints.length - 1];
-                const interpolatedPoints = this.interpolatePoints(lastPoint, localPosition, 5);
-                interpolatedPoints.forEach(point => {
-                    this.currentSegmentPoints.push(point);
-                });
+                const interpolatedPoints = this.calculateInterpolatedPoints(lastPoint, localPosition, 5);
+                interpolatedPoints.forEach(p => this.currentSegmentPoints.push(p));
             } else {
                 this.currentSegmentPoints.push(localPosition);
             }
@@ -91,35 +119,19 @@ AFRAME.registerComponent('drawing', {
             if (this.currentSegmentPoints.length > 1) {
                 const geometry = new THREE.BufferGeometry().setFromPoints(this.currentSegmentPoints);
                 this.currentSegmentMesh = new THREE.Line(geometry, this.lineMaterial);
+                this.currentSegmentMesh.renderOrder = 100;
                 this.precessionContainerEl.object3D.add(this.currentSegmentMesh);
             }
         }
     },
-
-    interpolatePoints: function (startPoint, endPoint, numberOfPoints) {
-        let points = [];
-        for (let i = 1; i <= numberOfPoints; i++) {
-            const interpolatedPoint = startPoint.clone().lerp(endPoint, i / (numberOfPoints + 1));
-            points.push(interpolatedPoint);
+    calculateInterpolatedPoints: function (start, end, num) {
+        let pts = [];
+        for (let i = 1; i <= num; i++) {
+            pts.push(start.clone().lerp(end, i / (num + 1)));
         }
-        return points;
+        return pts;
     },
-
-
     remove: function () {
-        this.completedSegmentMeshes.forEach(mesh => {
-            if (mesh && this.precessionContainerEl) {
-                this.precessionContainerEl.object3D.remove(mesh);
-                mesh.geometry.dispose();
-            }
-        });
-        this.completedSegmentMeshes = [];
-
-        if (this.currentSegmentMesh && this.precessionContainerEl) {
-            this.precessionContainerEl.object3D.remove(this.currentSegmentMesh);
-            this.currentSegmentMesh.geometry.dispose();
-            this.currentSegmentMesh = null;
-        }
-        this.currentSegmentPoints = [];
+        this.clearDrawing();
     }
 });

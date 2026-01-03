@@ -3,7 +3,7 @@ AFRAME.registerComponent('constellation-pointer', {
         this.constellationRenderer = null;
         this.currentConstellation = null;
         this.raycaster = new THREE.Raycaster();
-        this.raycaster.far = 500; // Extended range for sky pointing
+        this.raycaster.far = 1000;
 
         // Wait for constellation renderer to be ready
         this.checkForRenderer = setInterval(() => {
@@ -29,27 +29,39 @@ AFRAME.registerComponent('constellation-pointer', {
             return;
         }
 
-        // Get controller position and direction for raycasting
         const controllerPos = new THREE.Vector3();
         const controllerQuat = new THREE.Quaternion();
         this.el.object3D.getWorldPosition(controllerPos);
         this.el.object3D.getWorldQuaternion(controllerQuat);
 
-        // Create ray direction vector starting from local -Y (downward), 
-        // which matches how the bottom-origin-cylinder geometry is offset (points from 0 to -height).
-        const direction = new THREE.Vector3(0, -1, 0);
+        // Get ray origin and direction from meta-touch-controls
+        let rayOriginLocal = new THREE.Vector3(0, 0, 0);
+        let rayDirectionLocal = new THREE.Vector3(0, 0, -1);
 
-        // Match the rotation schema of the bottom-origin-cylinder: 54 9 0
-        const tiltEuler = new THREE.Euler(
-            THREE.MathUtils.degToRad(54),
-            THREE.MathUtils.degToRad(9),
-            0,
-            'YXZ'
-        );
-        direction.applyEuler(tiltEuler);
-        direction.applyQuaternion(controllerQuat);
+        const metaTouch = this.el.components['meta-touch-controls'];
+        if (metaTouch && metaTouch.displayModel) {
+            const hand = metaTouch.data.hand;
+            const model = metaTouch.displayModel[hand];
+            if (model && model.rayOrigin) {
+                rayOriginLocal.copy(model.rayOrigin.origin);
+                rayDirectionLocal.copy(model.rayOrigin.direction);
+            }
+        } else {
+            const dir = new THREE.Vector3(0, -1, 0);
+            const tiltEuler = new THREE.Euler(THREE.MathUtils.degToRad(54), THREE.MathUtils.degToRad(9), 0, 'YXZ');
+            dir.applyEuler(tiltEuler);
+            rayDirectionLocal.copy(dir);
+        }
 
-        this.raycaster.set(controllerPos, direction);
+        const worldStart = rayOriginLocal.clone().applyQuaternion(controllerQuat).add(controllerPos);
+        const worldDir = rayDirectionLocal.clone().applyQuaternion(controllerQuat).normalize();
+
+        // Parallax-robust selection: We point from the controller but we are selecting 
+        // objects on a sphere centered at (0,0,0). Because the user might be several 
+        // meters away, we use the controller's world position and direction to find 
+        // what they are pointing at on that fixed sphere.
+        const skyOrigin = new THREE.Vector3(0, 0, 0);
+        this.raycaster.set(worldStart, worldDir);
 
         // Find pointed constellation
         const pointedConstellation = this.constellationRenderer.findPointedConstellation(this.raycaster);
