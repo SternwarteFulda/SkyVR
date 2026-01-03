@@ -34,6 +34,9 @@ AFRAME.registerComponent('player-info', {
         if (!this.data.spawned) {
             this.el.setAttribute('visible', false);
         }
+
+        // Initialize blinking timer
+        this.nextBlink = 0;
     },
 
     // here as an example, not used in current demo. Could build a user list, expanding on this.
@@ -46,6 +49,19 @@ AFRAME.registerComponent('player-info', {
 
     newRandomColor: function () {
         this.el.setAttribute('player-info', 'color', window.ntExample.randomColor());
+    },
+
+    tick: function (time, deltaTime) {
+        if (!this.data.spawned || this.exiting) return;
+
+        // Initialize timer on first active tick
+        if (this.nextBlink === 0) {
+            this.nextBlink = time + 2000 + Math.random() * 5000;
+        }
+
+        if (time > this.nextBlink) {
+            this.blink();
+        }
     },
 
     update: function (oldData) {
@@ -377,5 +393,33 @@ AFRAME.registerComponent('player-info', {
 
         // Start checking for valid position
         runEffect();
+    },
+
+    blink: function () {
+        if (!this.eyelids || this.eyelids.length === 0) {
+            this.eyelids = this.el.querySelectorAll('.eyelid');
+        }
+        if (!this.eyelids || this.eyelids.length === 0) return;
+
+        const isDouble = Math.random() < 0.1;
+        const duration = 120;
+        const loops = isDouble ? 4 : 2;
+
+        // Blinking is handled locally for each client to avoid unnecessary network traffic.
+        this.eyelids.forEach(eyelid => {
+            eyelid.setAttribute('animation__blink', {
+                property: 'rotation',
+                from: '20 0 0',
+                to: '-70 0 0',
+                dur: duration,
+                dir: 'alternate',
+                loop: loops,
+                easing: 'easeInOutQuad'
+            });
+        });
+
+        // Schedule next blink
+        const nextDelay = Math.random() * 6000 + 2000;
+        this.nextBlink = this.el.sceneEl.time + (loops * duration) + nextDelay;
     }
 });
