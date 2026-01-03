@@ -633,7 +633,7 @@
         </a-entity>
       </template>
       <template id="right-controller-template">
-        <a-entity player-info>
+        <a-entity player-info offscreen-indicator>
           <a-entity class="pointer" position="-0.0065 -0.0186 -0.05"
             bottom-origin-cylinder="height: 394; radius: 0.009; color: red; rotation: 53.53 8.87 0; opacity: 0.6;"
             visible="false">
@@ -682,6 +682,7 @@
       <script src="components/skyvr-constellation-component.js?v=2"></script>
       <script src="components/skyvr-constellation-pointer-component.js"></script>
       <script src="components/skyvr-networked-components.js?v=2"></script>
+      <script src="components/skyvr-offscreen-indicator-component.js"></script>
     </a-assets>
 
     <a-entity id="sky-master" networked="template:#sky-template;persistent:true;networkId:sky-master;owner:scene"
@@ -705,7 +706,7 @@
       <a-entity id="right-controller" player-info
         networked="template:#right-controller-template;attachTemplateToLocal:false;" meta-touch-controls="hand: right"
         laser-controls haptics raycaster="objects: [data-raycastable]; far: 600; lineOpacity: 0.5;" drawing
-        constellation-pointer>
+        constellation-pointer offscreen-indicator>
         <a-entity light="type: point; intensity: 0.2; distance: 0.5; decay: 1" position="0 0.05 0"></a-entity>
         <!-- Coordinate system for the right controller -->
         <a-entity>
