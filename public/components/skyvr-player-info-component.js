@@ -21,10 +21,13 @@ AFRAME.registerComponent('player-info', {
         this.nametags = this.el.querySelectorAll('.nametag');
         this.eyelids = this.el.querySelectorAll('.eyelid');
         this.pointer = this.el.querySelector('.pointer');
-        this.lastSpawned = false;
+
+        // Track initialization time to distinguish pre-existing players from new ones
+        this.initTime = performance.now();
+        this.lastSpawned = this.data.spawned;
         this.exiting = false;
 
-        this.ownedByLocalUser = this.el.id === 'camera' || this.el.id === 'right-controller';
+        this.ownedByLocalUser = this.el.id === 'camera' || this.el.id === 'right-controller' || this.el.id === 'left-controller';
 
         // Initially hide if not spawned
         if (!this.data.spawned) {
@@ -62,11 +65,32 @@ AFRAME.registerComponent('player-info', {
 
         // Handle Spawn Visibility & Effect
         if (this.data.spawned && !this.lastSpawned) {
-            // Set opacity to 0 before making visible to allow fade-in
-            this.setAvatarOpacity(0);
-            this.el.setAttribute('visible', true);
-            this.playTeleportEffect('in');
+            // CRITICAL CHECK for pre-existing players:
+            // Initial NAF sync often triggers this update within a few hundred ms of init().
+            const timeSinceInit = performance.now() - this.initTime;
+            // INCREASED THRESHOLD: Some connections take longer to sync state
+            const isInitialSync = timeSinceInit < 2000 && !this.ownedByLocalUser;
+
+            if (isInitialSync) {
+                // Pre-existing player detected. Show immediately, NO beam.
+                this.el.setAttribute('visible', true);
+                this.setAvatarOpacity(1);
+            } else {
+                // This is a real join event happening while we are already in the room
+                this.setAvatarOpacity(0);
+                this.el.setAttribute('visible', true);
+                this.playTeleportEffect('in');
+            }
+
             this.lastSpawned = true;
+
+            // Signal local spawn
+            if (this.el.id === 'camera') {
+                window.localPlayerSpawned = true;
+                if (typeof window.onLocalPlayerSpawned === 'function') {
+                    window.onLocalPlayerSpawned();
+                }
+            }
         } else if (!this.data.spawned) {
             this.el.setAttribute('visible', false);
             this.lastSpawned = false;
@@ -102,15 +126,27 @@ AFRAME.registerComponent('player-info', {
         const color = this.data.color;
         const scene = el.sceneEl;
 
-        // For "out", we need to capture position immediately before removal
+        // Capture position immediately
         const finalWorldPos = new THREE.Vector3();
         const finalWorldQuat = new THREE.Quaternion();
         el.object3D.getWorldPosition(finalWorldPos);
         el.object3D.getWorldQuaternion(finalWorldQuat);
-        const finalWorldRot = el.object3D.rotation.clone();
 
         const runEffect = () => {
-            // Recalculate position for "in" after the delay to avoid (0,0,0)
+            // BEAM VISIBILITY CHECK:
+            // Only show 'in' beams if this is a remote player.
+            if (mode === 'in' && this.ownedByLocalUser) {
+                const avatarParts = el.querySelectorAll('.head, .eye, .pupil, .eyelid, .nametag');
+                avatarParts.forEach(part => {
+                    const property = part.tagName.toLowerCase() === 'a-text' ? 'opacity' : 'material.opacity';
+                    part.setAttribute('animation__fadein', {
+                        property: property, from: 0, to: 1, dur: 2000, delay: 500, easing: 'easeInOutQuad'
+                    });
+                });
+                return;
+            }
+
+            // Recalculate position for "in" after the delay
             const currentPos = new THREE.Vector3();
             const currentQuat = new THREE.Quaternion();
             if (mode === 'in') {
@@ -125,50 +161,39 @@ AFRAME.registerComponent('player-info', {
             const effectContainer = document.createElement('a-entity');
             effectContainer.setAttribute('data-no-sync', '');
             effectContainer.setAttribute('position', currentPos);
-            // Apply world rotation to container to match original avatar orientation
-            effectContainer.object3D.quaternion.copy(currentQuat);
+            // BEAM ORIENTATION: Keep effectContainer upright
             scene.appendChild(effectContainer);
 
             // Add a temporary light burst
             const light = document.createElement('a-entity');
             light.setAttribute('light', {
-                type: 'point',
-                intensity: 1.5,
-                distance: 4,
-                color: '#fff',
-                decay: 2
+                type: 'point', intensity: 1.5, distance: 4, color: '#fff', decay: 2
             });
             light.setAttribute('position', '0 1 0');
             light.setAttribute('animation', {
-                property: 'light.intensity',
-                from: 1.5,
-                to: 0,
-                dur: 1500,
-                easing: 'linear'
+                property: 'light.intensity', from: 1.5, to: 0, dur: 1500, easing: 'linear'
             });
             effectContainer.appendChild(light);
 
             if (mode === 'in') {
-                // FADE IN AVATAR COMPONENTS (on the original element)
+                // Fade in original avatar components
                 const parts = el.querySelectorAll('.head, .eye, .pupil, .eyelid, .nametag');
                 parts.forEach(part => {
                     const property = part.tagName.toLowerCase() === 'a-text' ? 'opacity' : 'material.opacity';
                     part.setAttribute('animation__fadein', {
-                        property: property,
-                        from: 0,
-                        to: 1,
-                        dur: 2000,
-                        delay: 500,
-                        easing: 'easeInOutQuad'
+                        property: property, from: 0, to: 1, dur: 2000, delay: 500, easing: 'easeInOutQuad'
                     });
                 });
             } else {
-                // FADE OUT: Create a phantom avatar
-                // Instead of full cloning which is messy with components, let's clone just visuals
-                const visuals = el.querySelectorAll('.head, .face, .nametag');
+                // Create phantom avatar
+                // FIX: Include .eyelid explicitly in the clone query
+                const visuals = el.querySelectorAll('.head, .face, .nametag, .eyelid');
                 visuals.forEach(v => {
                     const clone = v.cloneNode(true);
-                    // If it's a head or eyelid, ensure color is copied manually since it might be in material attribute
+
+                    // Rotate the clone to match the avatar's actual orientation
+                    clone.object3D.quaternion.copy(currentQuat);
+
                     if (clone.classList.contains('head') || clone.classList.contains('eyelid')) {
                         clone.setAttribute('material', 'color', color);
                         clone.setAttribute('material', 'transparent', true);
@@ -180,21 +205,17 @@ AFRAME.registerComponent('player-info', {
 
                     effectContainer.appendChild(clone);
 
-                    // Add fade out animation to children of phantom
-                    const parts = clone.classList.contains('face') ? clone.querySelectorAll('.eye, .pupil, .eyelid') : [clone];
-                    parts.forEach(part => {
+                    // Add fade out animation
+                    // If it's the 'face' container, animate children. Otherwise, animate the clone itself.
+                    const animateParts = clone.classList.contains('face') ? clone.querySelectorAll('.eye, .pupil, .eyelid') : [clone];
+                    animateParts.forEach(part => {
                         const property = part.tagName.toLowerCase() === 'a-text' ? 'opacity' : 'material.opacity';
                         if (property === 'material.opacity') {
                             part.setAttribute('material', 'transparent', true);
                             part.setAttribute('material', 'opacity', 1);
                         }
                         part.setAttribute('animation__fadeout', {
-                            property: property,
-                            from: 1,
-                            to: 0,
-                            dur: 1500,
-                            delay: 200,
-                            easing: 'easeInQuad'
+                            property: property, from: 1, to: 0, dur: 1500, delay: 200, easing: 'easeInQuad'
                         });
                     });
                 });
@@ -212,44 +233,24 @@ AFRAME.registerComponent('player-info', {
                 beam.setAttribute('height', 0.1);
                 beam.setAttribute('position', { x: x, y: 0.1, z: z });
                 beam.setAttribute('material', {
-                    shader: 'flat',
-                    color: i % 4 === 0 ? '#ffffff' : color,
-                    transparent: true,
-                    opacity: 0,
-                    blending: 'additive'
+                    shader: 'flat', color: i % 4 === 0 ? '#ffffff' : color,
+                    transparent: true, opacity: 0, blending: 'additive'
                 });
 
                 const dur = 1000 + Math.random() * 1000;
                 const startDelay = Math.random() * 500;
 
                 beam.setAttribute('animation__scale', {
-                    property: 'height',
-                    from: 0.1,
-                    to: 2.2 + Math.random() * 0.6,
-                    dur: dur,
-                    delay: startDelay,
-                    easing: 'easeOutQuad'
+                    property: 'height', from: 0.1, to: 2.2 + Math.random() * 0.6, dur: dur, delay: startDelay, easing: 'easeOutQuad'
                 });
                 beam.setAttribute('animation__pos', {
-                    property: 'position',
-                    to: `${x} ${1.2 + Math.random() * 0.3} ${z}`,
-                    dur: dur,
-                    delay: startDelay,
-                    easing: 'easeOutQuad'
+                    property: 'position', to: `${x} ${1.2 + Math.random() * 0.3} ${z}`, dur: dur, delay: startDelay, easing: 'easeOutQuad'
                 });
                 beam.setAttribute('animation__fade_in', {
-                    property: 'material.opacity',
-                    to: 0.9,
-                    dur: 200,
-                    delay: startDelay,
-                    easing: 'linear'
+                    property: 'material.opacity', to: 0.9, dur: 200, delay: startDelay, easing: 'linear'
                 });
                 beam.setAttribute('animation__fade_out', {
-                    property: 'material.opacity',
-                    to: 0,
-                    dur: 600,
-                    delay: startDelay + dur - 600,
-                    easing: 'linear'
+                    property: 'material.opacity', to: 0, dur: 600, delay: startDelay + dur - 600, easing: 'linear'
                 });
                 effectContainer.appendChild(beam);
             }
@@ -265,49 +266,25 @@ AFRAME.registerComponent('player-info', {
                 sparkle.setAttribute('position', { x: x, y: Math.random() * 0.5, z: z });
                 sparkle.setAttribute('radius', 0.008 + Math.random() * 0.015);
                 sparkle.setAttribute('material', {
-                    shader: 'flat',
-                    color: i % 3 === 0 ? '#ffffff' : (i % 3 === 1 ? color : '#ffeeaa'),
-                    transparent: true,
-                    opacity: 0,
-                    blending: 'additive'
+                    shader: 'flat', color: i % 3 === 0 ? '#ffffff' : (i % 3 === 1 ? color : '#ffeeaa'),
+                    transparent: true, opacity: 0, blending: 'additive'
                 });
 
                 const duration = 1500 + Math.random() * 1000;
                 const startDelay = Math.random() * 1000;
 
                 sparkle.setAttribute('animation__up', {
-                    property: 'position',
-                    to: `${x} ${2.5 + Math.random() * 1.5} ${z}`,
-                    dur: duration,
-                    delay: startDelay,
-                    easing: 'easeOutQuad'
+                    property: 'position', to: `${x} ${2.5 + Math.random() * 1.5} ${z}`, dur: duration, delay: startDelay, easing: 'easeOutQuad'
                 });
-
                 sparkle.setAttribute('animation__flicker', {
-                    property: 'material.opacity',
-                    from: 0.2,
-                    to: 1,
-                    dur: 100 + Math.random() * 100,
-                    dir: 'alternate',
-                    loop: true
+                    property: 'material.opacity', from: 0.2, to: 1, dur: 100 + Math.random() * 100, dir: 'alternate', loop: true
                 });
-
                 sparkle.setAttribute('animation__fade_in', {
-                    property: 'material.opacity',
-                    to: 1,
-                    dur: 200,
-                    delay: startDelay,
-                    easing: 'linear'
+                    property: 'material.opacity', to: 1, dur: 200, delay: startDelay, easing: 'linear'
                 });
-
                 sparkle.setAttribute('animation__fade_out', {
-                    property: 'material.opacity',
-                    to: 0,
-                    dur: 500,
-                    delay: startDelay + duration - 500,
-                    easing: 'linear'
+                    property: 'material.opacity', to: 0, dur: 500, delay: startDelay + duration - 500, easing: 'linear'
                 });
-
                 effectContainer.appendChild(sparkle);
             }
 
@@ -320,7 +297,7 @@ AFRAME.registerComponent('player-info', {
         };
 
         if (mode === 'in') {
-            setTimeout(runEffect, 150); // Increased delay to ensure world positioning is settled
+            setTimeout(runEffect, 150);
         } else {
             runEffect();
         }

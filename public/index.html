@@ -9,6 +9,68 @@
   <script src="/easyrtc/easyrtc.js"></script>
   <script src="/js/networked-aframe.min.js"></script>
   <script>
+    // Initialize loading status immediately to prevent race conditions
+    window.loadingStatus = {
+      assets: false,
+      network: false,
+      stars: false
+    };
+    if (typeof window.localPlayerSpawned === 'undefined') {
+      window.localPlayerSpawned = false;
+    }
+
+    function checkLoadingComplete() {
+      if (window.loadingStatus.assets &&
+        window.loadingStatus.network &&
+        window.loadingStatus.stars &&
+        window.localPlayerSpawned) {
+        const overlay = document.getElementById('loading-overlay');
+        if (overlay && overlay.style.display !== 'none') {
+          overlay.classList.add('fade-out');
+          setTimeout(() => {
+            overlay.style.display = 'none';
+          }, 1000);
+        }
+      }
+    }
+
+    function updateLoadingIndicator(type, status) {
+      window.loadingStatus[type] = status;
+      const item = document.getElementById(`status-${type}`);
+      if (item) {
+        if (status) {
+          item.classList.remove('active');
+          item.classList.add('complete');
+          item.querySelector('.icon').textContent = '✓';
+          if (type === 'network') {
+            const urlParams = new URLSearchParams(window.location.search);
+            const room = urlParams.get('room') || 'default';
+            item.querySelector('.label').textContent = `Connected to Room: ${room}`;
+          } else if (type === 'assets') {
+            item.querySelector('.label').textContent = 'Modules Ready';
+          } else if (type === 'stars') {
+            item.querySelector('.label').textContent = 'Star Map Processed';
+          }
+        } else {
+          item.classList.add('active');
+          item.querySelector('.icon').textContent = '○';
+        }
+      }
+      checkLoadingComplete();
+    }
+
+    window.onLocalPlayerSpawned = function () {
+      console.log("Local player spawned and positioned. Fading loading screen.");
+      window.localPlayerSpawned = true;
+      checkLoadingComplete();
+    };
+
+    // Safety fallback
+    setInterval(checkLoadingComplete, 1000);
+  </script>
+
+  <script>
+
     AFRAME.registerComponent('sky-state', {
       schema: {
         time: { type: 'string', default: '' },
@@ -344,48 +406,6 @@
   <script src="components/skyvr-drawing-component.js"></script>
   <link rel="stylesheet" type="text/css" href="/css/style.css" />
   <link rel="stylesheet" type="text/css" href="/css/fonts.css" />
-  <script>
-    window.loadingStatus = {
-      assets: false,
-      network: false,
-      stars: false
-    };
-
-    function updateLoadingIndicator(type, status) {
-      window.loadingStatus[type] = status;
-      const item = document.getElementById(`status-${type}`);
-      if (item) {
-        if (status) {
-          item.classList.remove('active');
-          item.classList.add('complete');
-          item.querySelector('.icon').textContent = '✓';
-
-          if (type === 'network') {
-            const urlParams = new URLSearchParams(window.location.search);
-            const room = urlParams.get('room') || 'default';
-            item.querySelector('.label').textContent = `Connected to Room: ${room}`;
-          } else if (type === 'assets') {
-            item.querySelector('.label').textContent = 'Modules Ready';
-          } else if (type === 'stars') {
-            item.querySelector('.label').textContent = 'Star Map Processed';
-          }
-        } else {
-          item.classList.add('active');
-          item.querySelector('.icon').textContent = '○';
-        }
-      }
-
-      if (window.loadingStatus.assets && window.loadingStatus.network && window.loadingStatus.stars) {
-        const overlay = document.getElementById('loading-overlay');
-        if (overlay) {
-          overlay.classList.add('fade-out');
-          setTimeout(() => {
-            overlay.style.display = 'none';
-          }, 1000);
-        }
-      }
-    }
-  </script>
 
   <script>
     if ('serviceWorker' in navigator) {
