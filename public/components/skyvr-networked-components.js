@@ -74,7 +74,7 @@ AFRAME.registerComponent('drawing-stroke', {
 AFRAME.registerComponent('constellation-illustration', {
     schema: {
         constellationId: { type: 'string' },
-        opacity: { type: 'number', default: 0.4 }
+        opacity: { type: 'number', default: 0.1 }
     },
 
     init: function () {

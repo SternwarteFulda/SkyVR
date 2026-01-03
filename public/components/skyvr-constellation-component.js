@@ -319,7 +319,7 @@ AFRAME.registerComponent('constellation-renderer', {
                 this.orientToAnchors(mesh, constellation);
             } else {
                 // Fallback placeholder
-                this.addPlaceholderToGroup(previewSet, illustrationGeo, 0.4);
+                this.addPlaceholderToGroup(previewSet, illustrationGeo, 0.1);
                 previewSet.position.copy(bounds.center.clone().normalize().multiplyScalar(illustRadius));
                 previewSet.lookAt(0, 0, 0);
                 previewSet.userData.id = constellation.id;
@@ -421,7 +421,7 @@ AFRAME.registerComponent('constellation-renderer', {
                     entity.dataset.constellationId = data.id;
                     entity.setAttribute('constellation-illustration', {
                         constellationId: data.id,
-                        opacity: 0.4
+                        opacity: 0.1
                     });
                     this.el.appendChild(entity);
                     this.placedIllustrations.push(entity);
@@ -805,14 +805,14 @@ AFRAME.registerComponent('constellation-renderer', {
 
         // Handle Active Preview Fade
         if (this.previewIllustration) {
-            const target = 0.15; // Increased from 0.05 for visibility
+            const target = 0.1; // Reduced from 0.15
             this.previewOpacity += (target - this.previewOpacity) * lerpFactor;
             this.previewIllustration.traverse(node => {
                 if (node.material) {
                     if (node.material.uniforms && node.material.uniforms.opacity) {
                         node.material.uniforms.opacity.value = this.previewOpacity;
                     } else if (node.material.transparent) {
-                        node.material.opacity = this.previewOpacity * (0.4 / target);
+                        node.material.opacity = this.previewOpacity * (0.1 / target);
                     }
                 }
             });
@@ -828,7 +828,7 @@ AFRAME.registerComponent('constellation-renderer', {
                     if (node.material.uniforms && node.material.uniforms.opacity) {
                         node.material.uniforms.opacity.value = item.opacity;
                     } else if (node.material.transparent) {
-                        node.material.opacity = item.opacity * (0.4 / 0.15);
+                        node.material.opacity = item.opacity * (0.1 / 0.1);
                     }
                 }
             });
