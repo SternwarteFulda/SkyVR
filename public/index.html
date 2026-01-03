@@ -133,7 +133,8 @@
             {
               selector: '.pointer',
               component: 'rotation'
-            }
+            },
+            'player-info'
           ]
         });
       }
@@ -272,11 +273,21 @@
         sceneEl.setAttribute('networked-scene', 'room', roomParam);
       }
 
+      const rightControllerEl = document.getElementById('right-controller');
+
       if (cameraEl) {
         if (nameParam) cameraEl.setAttribute('player-info', 'name', nameParam);
         if (colorParam) {
           const color = colorParam.startsWith('#') ? colorParam : '#' + colorParam;
           cameraEl.setAttribute('player-info', 'color', color);
+        }
+      }
+
+      if (rightControllerEl) {
+        if (nameParam) rightControllerEl.setAttribute('player-info', 'name', nameParam);
+        if (colorParam) {
+          const color = colorParam.startsWith('#') ? colorParam : '#' + colorParam;
+          rightControllerEl.setAttribute('player-info', 'color', color);
         }
       }
     });
@@ -470,7 +481,7 @@
         </a-entity>
       </template>
       <template id="right-controller-template">
-        <a-entity>
+        <a-entity player-info>
           <a-entity class="pointer" position="-0.0065 -0.0186 -0.05"
             bottom-origin-cylinder="height: 394; radius: 0.009; color: red; rotation: 53.53 8.87 0; opacity: 0.6;"
             visible="false">
@@ -539,9 +550,10 @@
       </a-entity>
       <!-- Infobar placed in front of user, visible when looking down -->
       <a-entity id="infobar" skyvr-infobar position="0 0.8 -0.6" rotation="-40 0 0"></a-entity>
-      <a-entity id="right-controller" networked="template:#right-controller-template;attachTemplateToLocal:false;"
-        meta-touch-controls="hand: right" laser-controls haptics
-        raycaster="objects: [data-raycastable]; far: 600; lineOpacity: 0.5;" drawing constellation-pointer>
+      <a-entity id="right-controller" player-info
+        networked="template:#right-controller-template;attachTemplateToLocal:false;" meta-touch-controls="hand: right"
+        laser-controls haptics raycaster="objects: [data-raycastable]; far: 600; lineOpacity: 0.5;" drawing
+        constellation-pointer>
         <a-entity light="type: point; intensity: 0.2; distance: 0.5; decay: 1" position="0 0.05 0"></a-entity>
         <!-- Coordinate system for the right controller -->
         <a-entity>

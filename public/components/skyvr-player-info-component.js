@@ -19,8 +19,9 @@ AFRAME.registerComponent('player-info', {
         this.head = this.el.querySelector('.head');
         this.nametags = this.el.querySelectorAll('.nametag');
         this.eyelids = this.el.querySelectorAll('.eyelid');
+        this.pointer = this.el.querySelector('.pointer');
 
-        this.ownedByLocalUser = this.el.id === 'camera';
+        this.ownedByLocalUser = this.el.id === 'camera' || this.el.id === 'right-controller';
         console.log('this.el.id', this.el.id);
     },
 
@@ -47,6 +48,9 @@ AFRAME.registerComponent('player-info', {
             this.nametags.forEach(nametag => {
                 nametag.setAttribute('value', this.data.name);
             });
+        }
+        if (this.pointer) {
+            this.pointer.setAttribute('bottom-origin-cylinder', 'color', this.data.color);
         }
     }
 });
