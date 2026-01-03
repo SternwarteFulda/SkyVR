@@ -206,9 +206,20 @@ AFRAME.registerComponent('player-info', {
             // Create a temporary container for the effect
             const effectContainer = document.createElement('a-entity');
             effectContainer.setAttribute('data-no-sync', '');
-            // Pass position as an object for A-Frame compatibility
+
+            // The root container stays VERTICAL (no rotation) for the beams
             effectContainer.setAttribute('position', { x: currentPos.x, y: currentPos.y, z: currentPos.z });
             scene.appendChild(effectContainer);
+
+            // Create a sub-container for the visual avatar clones (rotated)
+            const visualsContainer = document.createElement('a-entity');
+            const euler = new THREE.Euler().setFromQuaternion(currentQuat, 'YXZ');
+            visualsContainer.setAttribute('rotation', {
+                x: THREE.MathUtils.radToDeg(euler.x),
+                y: THREE.MathUtils.radToDeg(euler.y),
+                z: THREE.MathUtils.radToDeg(euler.z)
+            });
+            effectContainer.appendChild(visualsContainer);
 
             // Add a temporary light burst
             const light = document.createElement('a-entity');
@@ -233,11 +244,9 @@ AFRAME.registerComponent('player-info', {
             } else {
                 // Create phantom avatar for 'out' effect
                 // We only query the top-level parts we want to clone.
-                // We leave out .eyelid here because it's already inside .face
                 const visuals = el.querySelectorAll('.head, .face, .nametag');
                 visuals.forEach(v => {
                     const clone = v.cloneNode(true);
-                    clone.object3D.quaternion.copy(currentQuat);
 
                     // Recursive function to apply properties to all mesh/text children
                     const applyProperties = (node) => {
@@ -259,20 +268,28 @@ AFRAME.registerComponent('player-info', {
                             node.setAttribute('value', this.data.name);
                         }
 
-                        // Animate
-                        const property = isText ? 'opacity' : 'material.opacity';
-                        node.setAttribute('animation__fadeout', {
-                            property: property, from: 1, to: 0, dur: 1500, delay: 200, easing: 'easeInQuad'
-                        });
+                        // ANIMATION: Wait for 'loaded' to prevent mesh flicker
+                        const startFade = () => {
+                            const property = isText ? 'opacity' : 'material.opacity';
+                            node.setAttribute('animation__fadeout', {
+                                property: property, from: 1, to: 0, dur: 1500, delay: 200, easing: 'easeInQuad'
+                            });
+                        };
 
-                        // Recurse
+                        if (node.hasLoaded) {
+                            startFade();
+                        } else {
+                            node.addEventListener('loaded', startFade, { once: true });
+                        }
+
+                        // Recurse children
                         for (let i = 0; i < node.children.length; i++) {
                             applyProperties(node.children[i]);
                         }
                     };
 
                     applyProperties(clone);
-                    effectContainer.appendChild(clone);
+                    visualsContainer.appendChild(clone);
                 });
             }
 
