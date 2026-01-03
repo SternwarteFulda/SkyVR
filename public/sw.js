@@ -1,4 +1,4 @@
-const CACHE_NAME = 'skyvr-cache-v61';
+const CACHE_NAME = 'skyvr-cache-v62';
 
 const ASSETS_TO_CACHE = [
     '/',
@@ -35,7 +35,7 @@ const ASSETS_TO_CACHE = [
     '/assets/icons/mic-off.svg',
     '/assets/icons/draw.svg',
     '/assets/icons/stamp.svg',
-    '/assets/icons/stick.svg',
+    '/assets/icons/stickfigure.svg',
     '/assets/icons/constellation.svg',
 
     '/assets/arrow.svg',

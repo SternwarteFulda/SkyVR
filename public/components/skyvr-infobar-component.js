@@ -7,7 +7,7 @@ AFRAME.registerComponent('skyvr-infobar', {
             micOff: '#icon-mic-off',
             draw: '#icon-draw',
             stamp: '#icon-stamp',
-            sticky: '#icon-sticky',
+            stickfigure: '#icon-stickfigure',
             constellation: '#icon-constellation'
         };
 
@@ -87,7 +87,7 @@ AFRAME.registerComponent('skyvr-infobar', {
 
         // Mode Group (Right)
         this.modeButtons = {};
-        this.modesList = ['draw', 'stamp', 'sticky', 'constellation'];
+        this.modesList = ['draw', 'stamp', 'stickfigure', 'constellation'];
 
         // Mode container starts after the center
         this.modeGroup = document.createElement('a-entity');
@@ -97,7 +97,7 @@ AFRAME.registerComponent('skyvr-infobar', {
         const modes = [
             { id: 'draw', icon: this.ICONS.draw },
             { id: 'stamp', icon: this.ICONS.stamp },
-            { id: 'sticky', icon: this.ICONS.sticky },
+            { id: 'stickfigure', icon: this.ICONS.stickfigure },
             { id: 'constellation', icon: this.ICONS.constellation }
         ];
 
@@ -216,7 +216,7 @@ AFRAME.registerComponent('skyvr-infobar', {
                 let width = 0.15;
                 if (currentMode === 'draw') { label = "Draw (B)"; width = 0.1; }
                 else if (currentMode === 'stamp') { label = "Stamp (B)"; width = 0.12; }
-                else if (currentMode === 'sticky') { label = "Add stick figure (B)"; width = 0.22; }
+                else if (currentMode === 'stickfigure') { label = "Add stick figure (B)"; width = 0.22; }
                 else if (currentMode === 'constellation') { label = "Add Illustration (B)"; width = 0.22; }
 
                 bText.setAttribute('value', label);
