@@ -8,8 +8,9 @@ AFRAME.registerComponent('spawn-in-spots', {
     init: function () {
         this.hasSpawned = false;
 
-        // Check if NAF is ready
-        if (this.isNAFConnected()) {
+        // Check if NAF is ready OR if we are in standalone mode
+        // Check if NAF is ready OR if we are in standalone mode
+        if (this.isNAFConnected() || this.isStandalone()) {
             this.spawn();
         } else {
             // Listen for NAF connection
@@ -26,8 +27,24 @@ AFRAME.registerComponent('spawn-in-spots', {
         return window.NAF && window.NAF.connection && window.NAF.connection.isConnected();
     },
 
+    isStandalone: function () {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get('room') === 'none';
+    },
+
+    isStandalone: function () {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get('room') === 'none';
+    },
+
     spawn: function () {
         if (this.hasSpawned) return;
+
+        if (this.isStandalone()) {
+            // Immediate spawn for standalone
+            this.doSpawn();
+            return;
+        }
 
         // Safer spawn: wait until we see as many avatars as there are connected clients
         const checkAndSpawn = () => {
@@ -61,6 +78,34 @@ AFRAME.registerComponent('spawn-in-spots', {
 
     doSpawn: function () {
         if (this.hasSpawned) return;
+
+        // SOLO MODE: Spawn at center
+        if (this.isStandalone()) {
+            this.el.setAttribute('position', { x: 0, y: 0, z: 0 });
+            this.el.setAttribute('rotation', { x: 0, y: 0, z: 0 });
+
+            // Mark as spawned
+            const camera = document.getElementById('camera');
+            const rightController = document.getElementById('right-controller');
+            const leftController = document.getElementById('left-controller');
+
+            if (camera) {
+                camera.setAttribute('player-info', {
+                    spawned: true,
+                    spotId: 0 // Center is spot 0 effectively
+                });
+            }
+            if (rightController) rightController.setAttribute('player-info', 'spawned', true);
+            if (leftController) leftController.setAttribute('player-info', 'spawned', true);
+
+            this.hasSpawned = true;
+
+            // IMPORTANT: Reset rig-follower if present
+            if (this.el.components['rig-follower'] && typeof this.el.components['rig-follower'].reset === 'function') {
+                this.el.components['rig-follower'].reset();
+            }
+            return;
+        }
 
         const spots = this.generateSpots();
         const occupied = this.getOccupiedSpotIndices(spots);
@@ -187,6 +232,9 @@ AFRAME.registerComponent('spawn-in-spots', {
     createMarkers: function () {
         const scene = document.querySelector('a-scene');
         if (!scene) return;
+
+        // Hide markers in standalone mode
+        if (this.isStandalone()) return;
 
         // Remove existing container if any (re-init case)
         const oldContainer = document.getElementById('spawn-markers-container');

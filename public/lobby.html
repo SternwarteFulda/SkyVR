@@ -158,6 +158,12 @@
             box-shadow: 0 0 15px rgba(255, 255, 255, 0.4);
         }
 
+        .color-option:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px #a855f7, 0 0 15px rgba(168, 85, 247, 0.5);
+            transform: scale(1.2);
+        }
+
         .btn-join {
             width: 100%;
             padding: 18px;
@@ -168,6 +174,7 @@
             color: white;
             font-size: 1.2rem;
             font-weight: 600;
+            text-transform: uppercase;
             cursor: pointer;
             transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             box-shadow: 0 8px 25px rgba(168, 85, 247, 0.4);
@@ -198,6 +205,110 @@
 
         .btn-join:active {
             transform: translateY(-1px);
+        }
+
+        /* Toggles and Permissions */
+        .permissions-section {
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--glass-border);
+            text-align: left;
+        }
+
+        .toggle-group {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+
+        .toggle-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .toggle-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .toggle-desc {
+            font-size: 0.75rem;
+            opacity: 0.5;
+        }
+
+        /* The switch - the box around the slider */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+
+        /* Hide default HTML checkbox */
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        /* The slider */
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.1);
+            transition: .4s;
+            border-radius: 24px;
+            border: 1px solid var(--glass-border);
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 2px;
+            bottom: 2px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        input:checked+.slider {
+            background-color: #a855f7;
+            border-color: #a855f7;
+        }
+
+        input:focus+.slider {
+            box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.4), 0 0 0 4px rgba(168, 85, 247, 0.2);
+            border-color: #fff;
+            background-color: rgba(255, 255, 255, 0.15);
+            animation: pulse-focus 2s infinite ease-in-out;
+        }
+
+        /* Add a subtle pulse to focused toggle */
+        @keyframes pulse-focus {
+            0% {
+                box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.4), 0 0 0 4px rgba(168, 85, 247, 0.2);
+            }
+
+            50% {
+                box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.6), 0 0 0 6px rgba(168, 85, 247, 0.3);
+            }
+
+            100% {
+                box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.4), 0 0 0 4px rgba(168, 85, 247, 0.2);
+            }
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(20px);
         }
 
         /* Micro-animations */
@@ -265,26 +376,66 @@
         <h1>SkyVR</h1>
         <div class="subtitle">Observation Portal</div>
 
-        <div class="input-group">
-            <label for="room-id">Room Channel</label>
-            <input type="text" id="room-id" placeholder="e.g. 1984 or sky-vr-01" value="">
-        </div>
-
-        <div class="input-group">
-            <label for="username">Observer Identity</label>
-            <input type="text" id="username" placeholder="Enter nametag">
-        </div>
-
-        <div class="input-group">
-            <label class="color-picker-label">Avatar Core Signature</label>
-            <div class="color-picker" id="color-picker">
-                <!-- Colors injected by JS -->
+        <div class="permissions-section"
+            style="border-top: none; margin-top: 0; padding-top: 0; padding-bottom: 1.5rem; margin-bottom: 1rem; position: relative;">
+            <div class="toggle-group" style="margin-bottom: 0;">
+                <div class="toggle-info">
+                    <span class="toggle-title">Solo Mode</span>
+                    <span class="toggle-desc">Standalone session without networking</span>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" id="solo-toggle">
+                    <span class="slider"></span>
+                </label>
             </div>
-            <input type="hidden" id="selected-color" value="#ff4444">
+            <!-- Animated Divider -->
+            <div id="solo-divider"
+                style="position: absolute; bottom: 0; left: 0; right: 0; height: 1px; background: var(--glass-border); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);">
+            </div>
         </div>
 
-        <button class="btn-join" onclick="joinSession()">Beitreten</button>
+        <div id="multiplayer-settings">
+            <div class="input-group">
+                <label for="room-id">Room Channel</label>
+                <input type="text" id="room-id" placeholder="e.g. 1984 or sky-vr-01" value="">
+            </div>
+
+            <div class="input-group">
+                <label for="username">Observer Identity</label>
+                <input type="text" id="username" placeholder="Enter nametag">
+            </div>
+
+            <div class="input-group">
+                <label class="color-picker-label">Avatar Core Signature</label>
+                <div class="color-picker" id="color-picker">
+                    <!-- Colors injected by JS -->
+                </div>
+                <input type="hidden" id="selected-color" value="#ff4444">
+            </div>
+
+            <div class="permissions-section" style="border-top: none; padding-top: 0;">
+                <div class="toggle-group">
+                    <div class="toggle-info">
+                        <span class="toggle-title">Voice Communication</span>
+                        <span class="toggle-desc">Enable microphone for spatial chat</span>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="mic-toggle" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <button class="btn-join" onclick="joinSession()"><span class="btn-text">JOIN ROOM</span></button>
     </div>
+
+    <style>
+        .btn-text {
+            display: inline-block;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+    </style>
 
     <script>
         const colors = [
@@ -312,7 +463,8 @@
         const nameParamRaw = urlParams.get('name');
 
         // Sanitize URL parameters
-        const roomInit = sanitizeRoomName(roomParamRaw) || localStorage.getItem('skyvr_room');
+        let roomInit = sanitizeRoomName(roomParamRaw) || localStorage.getItem('skyvr_room');
+        if (roomInit === 'none') roomInit = null;
         let nameInit = sanitizePlayerName(nameParamRaw) || localStorage.getItem('skyvr_name');
 
         // Force-clear the old "Anonymous" fallback if it exists in storage or URL
@@ -320,6 +472,9 @@
 
         const colorInitRaw = urlParams.get('color') || localStorage.getItem('skyvr_color');
         const colorInit = colorInitRaw ? decodeURIComponent(colorInitRaw) : null;
+
+        const micInit = localStorage.getItem('skyvr_mic') !== 'false'; // Default TRUE
+        const soloInit = localStorage.getItem('skyvr_solo') === 'true'; // Default FALSE
 
         // Check if URL parameters were modified by sanitization and show warning
         let warningMessages = [];
@@ -382,18 +537,30 @@
             e.target.value = value;
         });
 
+        const randomColorIndex = Math.floor(Math.random() * colors.length);
         colors.forEach((color, index) => {
-            const isSelected = colorInit ? (color.toLowerCase() === colorInit.toLowerCase()) : (index === 0);
+            const isSelected = colorInit ? (color.toLowerCase() === colorInit.toLowerCase()) : (index === randomColorIndex);
             const div = document.createElement('div');
             div.className = 'color-option' + (isSelected ? ' selected' : '');
             div.style.backgroundColor = color;
+            div.setAttribute('tabindex', '0');
+            div.setAttribute('role', 'button');
+            div.setAttribute('aria-label', 'Select color ' + color);
             if (isSelected) colorInput.value = color;
 
-            div.onclick = () => {
+            const selectColor = () => {
                 document.querySelectorAll('.color-option').forEach(opt => opt.classList.remove('selected'));
                 div.classList.add('selected');
                 colorInput.value = color;
                 localStorage.setItem('skyvr_color', color);
+            };
+
+            div.onclick = selectColor;
+            div.onkeydown = (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    selectColor();
+                }
             };
             colorPicker.appendChild(div);
         });
@@ -409,16 +576,142 @@
             document.getElementById('username').value = randomName;
         }
 
+        // Initialize toggles
+        const micToggle = document.getElementById('mic-toggle');
+        const soloToggle = document.getElementById('solo-toggle');
+        const multiplayerSettings = document.getElementById('multiplayer-settings');
+        const soloDivider = document.getElementById('solo-divider');
+        const joinBtn = document.querySelector('.btn-join');
+
+        // Add CSS for smooth transition including height
+        multiplayerSettings.style.transition = 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
+        multiplayerSettings.style.overflow = 'hidden';
+        if (joinBtn) joinBtn.style.transition = 'margin-top 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
+
+        const updateTabOrder = (isSolo) => {
+            const focusables = multiplayerSettings.querySelectorAll('input, .color-option');
+            focusables.forEach(el => {
+                el.tabIndex = isSolo ? -1 : 0;
+            });
+        };
+
+        micToggle.checked = micInit;
+        soloToggle.checked = soloInit;
+
+        if (soloInit) {
+            updateTabOrder(true);
+            multiplayerSettings.style.maxHeight = '0';
+            multiplayerSettings.style.opacity = '0';
+            multiplayerSettings.style.marginTop = '0';
+            multiplayerSettings.style.pointerEvents = 'none';
+            if (joinBtn) {
+                joinBtn.style.marginTop = '1rem';
+                const span = joinBtn.querySelector('.btn-text');
+                if (span) span.textContent = 'START';
+                else joinBtn.textContent = 'START';
+            }
+            if (soloDivider) {
+                soloDivider.style.opacity = '0';
+                soloDivider.style.transform = 'scaleX(0)';
+            }
+        } else {
+            updateTabOrder(false);
+            multiplayerSettings.style.maxHeight = '500px';
+            multiplayerSettings.style.opacity = '1';
+            if (joinBtn) {
+                joinBtn.style.marginTop = '2.5rem';
+                const span = joinBtn.querySelector('.btn-text');
+                if (span) span.textContent = 'JOIN ROOM';
+                else joinBtn.textContent = 'JOIN ROOM';
+            }
+            if (soloDivider) {
+                soloDivider.style.opacity = '1';
+                soloDivider.style.transform = 'scaleX(1)';
+            }
+        }
+
+        soloToggle.addEventListener('change', function () {
+            updateTabOrder(this.checked);
+            if (this.checked) {
+                multiplayerSettings.style.maxHeight = '0';
+                multiplayerSettings.style.opacity = '0';
+                multiplayerSettings.style.marginTop = '0';
+                multiplayerSettings.style.pointerEvents = 'none';
+                if (joinBtn) {
+                    joinBtn.style.marginTop = '1rem';
+                    const span = joinBtn.querySelector('.btn-text');
+                    if (span) {
+                        span.style.opacity = '0';
+                        span.style.transform = 'translateY(10px)';
+                        setTimeout(() => {
+                            span.textContent = 'START';
+                            span.style.transform = 'translateY(-10px)';
+                            setTimeout(() => {
+                                span.style.opacity = '1';
+                                span.style.transform = 'translateY(0)';
+                            }, 50);
+                        }, 200);
+                    } else {
+                        joinBtn.textContent = 'START';
+                    }
+                }
+                if (soloDivider) {
+                    soloDivider.style.opacity = '0';
+                    soloDivider.style.transform = 'scaleX(0)';
+                }
+            } else {
+                // If we're coming back from Solo Mode and the room is 'none', regenerate it
+                const roomInput = document.getElementById('room-id');
+                if (roomInput.value === 'none' || !roomInput.value) {
+                    roomInput.value = Math.floor(1000 + Math.random() * 9000).toString();
+                }
+
+                multiplayerSettings.style.maxHeight = '500px';
+                multiplayerSettings.style.opacity = '1';
+                multiplayerSettings.style.marginTop = '0';
+                multiplayerSettings.style.pointerEvents = 'all';
+                if (joinBtn) {
+                    joinBtn.style.marginTop = '2.5rem';
+                    const span = joinBtn.querySelector('.btn-text');
+                    if (span) {
+                        span.style.opacity = '0';
+                        span.style.transform = 'translateY(10px)';
+                        setTimeout(() => {
+                            span.textContent = 'JOIN ROOM';
+                            span.style.transform = 'translateY(-10px)';
+                            setTimeout(() => {
+                                span.style.opacity = '1';
+                                span.style.transform = 'translateY(0)';
+                            }, 50);
+                        }, 200);
+                    } else {
+                        joinBtn.textContent = 'JOIN ROOM';
+                    }
+                }
+                if (soloDivider) {
+                    soloDivider.style.opacity = '1';
+                    soloDivider.style.transform = 'scaleX(1)';
+                }
+            }
+        });
+
+        // Auto-focus the solo mode toggle on load
+        soloToggle.focus();
+
         function joinSession() {
             let room = document.getElementById('room-id').value || '';
             let name = document.getElementById('username').value || '';
             const color = colorInput.value;
+            const micEnabled = document.getElementById('mic-toggle').checked;
+            const soloMode = document.getElementById('solo-toggle').checked;
 
             // Sanitize room name (ensure it follows validation rules)
             room = sanitizeRoomName(room);
 
             // Generate random 4-digit number if room is empty after sanitization
-            if (!room) {
+            if (soloMode) {
+                room = 'none';
+            } else if (!room) {
                 room = Math.floor(1000 + Math.random() * 9000).toString();
             }
 
@@ -434,11 +727,13 @@
             localStorage.setItem('skyvr_room', room);
             localStorage.setItem('skyvr_name', name);
             localStorage.setItem('skyvr_color', color);
+            localStorage.setItem('skyvr_mic', micEnabled);
+            localStorage.setItem('skyvr_solo', soloMode);
 
             const encodedColor = encodeURIComponent(color);
 
             // Redirect to main skyvr page
-            window.location.href = `./?room=${room}&name=${encodeURIComponent(name)}&color=${encodedColor}`;
+            window.location.href = `./?room=${room}&name=${encodeURIComponent(name)}&color=${encodedColor}&mic=${micEnabled}`;
         }
 
         // Add keyboard support

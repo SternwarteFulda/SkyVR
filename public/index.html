@@ -55,6 +55,13 @@
       if (performance.now() % 5000 < 100) { // Log every ~5s
         console.log("Loading Status:", JSON.parse(JSON.stringify(window.loadingStatus)), "PlayerSpawned:", window.localPlayerSpawned);
       }
+
+      const isSolo = new URLSearchParams(window.location.search).get('room') === 'none';
+      if (isSolo) {
+        window.loadingStatus.network = true;
+        window.loadingStatus.sync = true;
+      }
+
       if (window.loadingStatus.assets &&
         window.loadingStatus.network &&
         window.loadingStatus.stars &&
@@ -73,7 +80,15 @@
     function updateLoadingIndicator(type, status) {
       window.loadingStatus[type] = status;
       const item = document.getElementById(`status-${type}`);
+      const isSolo = new URLSearchParams(window.location.search).get('room') === 'none';
+
       if (item) {
+        // Hide network/sync steps in solo mode
+        if (isSolo && (type === 'network' || type === 'sync')) {
+          item.style.display = 'none';
+          return;
+        }
+
         if (status) {
           item.classList.remove('active');
           item.classList.add('complete');
@@ -105,6 +120,22 @@
 
     // Safety fallback
     setInterval(checkLoadingComplete, 1000);
+
+    // Network connection timeout fallback (e.g. for mic rejection)
+    setTimeout(() => {
+      if (!window.loadingStatus.network && urlParams.get('mic') !== 'false') {
+        const fallbackMsg = document.getElementById('network-fallback');
+        if (fallbackMsg) {
+          fallbackMsg.style.display = 'block';
+        }
+      }
+    }, 8000); // Show after 8 seconds of waiting for network
+
+    window.joinWithoutAudio = function () {
+      const url = new URL(window.location.href);
+      url.searchParams.set('mic', 'false');
+      window.location.href = url.toString();
+    };
   </script>
 
   <script>
@@ -423,7 +454,7 @@
     const urlParams = new URLSearchParams(window.location.search);
     const roomParamRaw = urlParams.get('room');
     const nameParamRaw = urlParams.get('name');
-    const roomParam = sanitizeRoomName(roomParamRaw);
+    const roomParam = roomParamRaw === 'none' ? 'none' : sanitizeRoomName(roomParamRaw);
     const nameParam = sanitizePlayerName(nameParamRaw);
     const colorParam = urlParams.get('color');
 
@@ -482,7 +513,7 @@
       return params;
     };
 
-    // If no room is specified, redirect to lobby
+    // If no room is specified, redirect to lobby (unless it's 'none' for solo)
     if (!roomParam && !window.location.search.includes('no-redirect')) {
       window.location.href = 'lobby.html' + window.getLobbyParams();
     }
@@ -490,9 +521,40 @@
     document.addEventListener('DOMContentLoaded', () => {
       const sceneEl = document.querySelector('a-scene');
       const cameraEl = document.getElementById('camera');
+      const micEnabled = urlParams.get('mic') !== 'false';
 
-      if (sceneEl && roomParam) {
-        sceneEl.setAttribute('networked-scene', 'room', roomParam);
+      if (sceneEl) {
+        if (roomParam && roomParam !== 'none') {
+          sceneEl.setAttribute('networked-scene', 'room', roomParam);
+          sceneEl.setAttribute('networked-scene', 'audio', micEnabled);
+        } else if (roomParam === 'none') {
+          console.log("Standalone mode: Disabling NAF and auto-completing network syncing.");
+          sceneEl.removeAttribute('networked-scene');
+          window.loadingStatus.network = true;
+          window.loadingStatus.sync = true;
+          window.skyStateInitialized = true;
+
+          // Re-update indicators for UI
+          setTimeout(() => {
+            updateLoadingIndicator('network', true);
+            updateLoadingIndicator('sync', true);
+          }, 100);
+
+          // Hide lobby-related UI
+          const micBtnEle = document.getElementById('mic-btn');
+          if (micBtnEle) micBtnEle.style.display = 'none';
+        }
+
+        // If mic is explicitly disabled or in solo mode, update the UI immediately
+        if (!micEnabled || roomParam === 'none') {
+          const micBtnEle = document.getElementById('mic-btn');
+          if (micBtnEle) {
+            micBtnEle.textContent = 'Voice Disabled';
+            micBtnEle.classList.add('disabled');
+            micBtnEle.style.opacity = '0.5';
+            micBtnEle.style.pointerEvents = 'none';
+          }
+        }
       }
 
       const rightControllerEl = document.getElementById('right-controller');
@@ -528,7 +590,9 @@
       console.log('onConnect', new Date());
       updateLoadingIndicator('network', true);
       const micBtnEle = document.getElementById('mic-btn');
-      if (typeof NAF !== 'undefined' && NAF.connection && NAF.connection.adapter) {
+      const micEnabledParam = urlParams.get('mic') !== 'false';
+
+      if (micEnabledParam && typeof NAF !== 'undefined' && NAF.connection && NAF.connection.adapter && typeof NAF.connection.adapter.enableMicrophone === 'function') {
         NAF.connection.adapter.enableMicrophone(false);
         window.micEnabled = false;
         if (micBtnEle) micBtnEle.textContent = 'Unmute Mic';
@@ -566,6 +630,19 @@
   <script src="components/skyvr-drawing-component.js"></script>
   <link rel="stylesheet" type="text/css" href="/css/style.css" />
   <link rel="stylesheet" type="text/css" href="/css/fonts.css" />
+  <style>
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  </style>
 
   <script>
     if ('serviceWorker' in navigator) {
@@ -601,6 +678,20 @@
           <span class="label">Synchronizing Reality...</span>
         </li>
       </ul>
+
+      <div id="network-fallback" style="display: none; margin-top: 2rem; animation: fadeIn 0.5s;">
+        <p style="font-size: 0.9rem; opacity: 0.8; margin-bottom: 1rem;">Taking longer than usual? Mic permission might
+          be pending or blocked.</p>
+        <button onclick="joinWithoutAudio()" style="
+          background: rgba(255,255,255,0.1);
+          border: 1px solid rgba(255,255,255,0.2);
+          color: white;
+          padding: 10px 20px;
+          border-radius: 8px;
+          cursor: pointer;
+          font-family: inherit;
+        ">Join without Audio</button>
+      </div>
 
     </div>
   </div>
@@ -640,7 +731,6 @@
       shadow: false" networked-scene="
       debug: true;
       adapter: easyrtc;
-      audio: true;
       onConnect: onConnect;">
 
     <a-assets timeout="60000">

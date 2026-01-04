@@ -56,15 +56,51 @@ AFRAME.registerComponent('skyvr-infobar', {
         this.container.appendChild(this.roomGroup);
 
         this.roomIcon = this.createIcon(this.ICONS.room, this.CONFIG.iconSize);
-        this.roomIcon.setAttribute('position', '0 0 0');
         this.roomIcon.addEventListener('click', () => {
-            const params = typeof window.getLobbyParams === 'function' ? window.getLobbyParams() : window.location.search;
-            window.location.href = 'lobby.html' + params;
+            // 1. Play exit animation on the icon
+            this.roomIcon.setAttribute('animation__exit', {
+                property: 'scale',
+                to: '0 0 0',
+                dur: 300,
+                easing: 'easeInBack'
+            });
+
+            // 2. Perform VR Fade (Works in both VR and 2D)
+            this.performVRFade();
+
+            // 3. Keep HTML Overlay for 2D fallback (rendering overlap is fine)
+            const overlay = document.getElementById('loading-overlay');
+            if (overlay) {
+                overlay.style.display = 'flex';
+                overlay.offsetHeight; // Force reflow
+                overlay.classList.remove('fade-out');
+                overlay.style.opacity = '1';
+
+                // Show "Returning..." text
+                const title = overlay.querySelector('.loading-title');
+                if (title) title.textContent = 'Returning to Portal...';
+
+                // Hide other status items
+                const list = overlay.querySelector('.status-list');
+                if (list) list.style.display = 'none';
+            }
+
+            // 4. Wait 1s for the fade to complete before actual redirection
+            setTimeout(() => {
+                if (typeof window.getLobbyParams === 'function') {
+                    window.location.href = 'lobby.html' + window.getLobbyParams();
+                } else {
+                    window.location.href = 'lobby.html';
+                }
+            }, 1000);
         });
+
+        const isStandalone = new URLSearchParams(window.location.search).get('room') === 'none';
+        // Always show the door icon so users can exit
         this.roomGroup.appendChild(this.roomIcon);
 
         this.roomText = document.createElement('a-text');
-        this.roomText.setAttribute('value', '----');
+        this.roomText.setAttribute('value', isStandalone ? 'Standalone Session' : '----');
         this.roomText.setAttribute('color', 'white');
         this.roomText.setAttribute('width', 0.4);
         this.roomText.setAttribute('align', 'left');
@@ -73,17 +109,24 @@ AFRAME.registerComponent('skyvr-infobar', {
         this.roomGroup.appendChild(this.roomText);
 
         // Mic Section (Center)
-        this.micIcon = this.createIcon(this.ICONS.micOff, this.CONFIG.iconSize);
-        this.micIcon.setAttribute('position', '0 0 0.001');
-        this.micIcon.addEventListener('click', () => {
-            window.micEnabled = !window.micEnabled;
-            if (typeof NAF !== 'undefined' && NAF.connection && NAF.connection.adapter) {
-                NAF.connection.adapter.enableMicrophone(window.micEnabled);
-            }
-            const micBtnEle = document.getElementById('mic-btn');
-            if (micBtnEle) micBtnEle.textContent = window.micEnabled ? 'Mute Mic' : 'Unmute Mic';
-        });
-        this.container.appendChild(this.micIcon);
+        const urlParams = new URLSearchParams(window.location.search);
+        const micEnabledParam = urlParams.get('mic') !== 'false' && !isStandalone;
+        if (micEnabledParam) {
+            this.micIcon = this.createIcon(this.ICONS.micOff, this.CONFIG.iconSize);
+            this.micIcon.setAttribute('position', '0 0 0.001');
+            this.micIcon.addEventListener('click', () => {
+                window.micEnabled = !window.micEnabled;
+                if (typeof NAF !== 'undefined' && NAF.connection && NAF.connection.adapter) {
+                    NAF.connection.adapter.enableMicrophone(window.micEnabled);
+                }
+                const micBtnEle = document.getElementById('mic-btn');
+                if (micBtnEle) micBtnEle.textContent = window.micEnabled ? 'Mute Mic' : 'Unmute Mic';
+            });
+            this.container.appendChild(this.micIcon);
+        } else {
+            console.log("Infobar: Mic disabled via URL param. Hiding mic icon.");
+            this.micIcon = null;
+        }
 
         // Mode Group (Right)
         this.modeButtons = {};
@@ -125,7 +168,11 @@ AFRAME.registerComponent('skyvr-infobar', {
         this.lastMode = null;
         this.lastConnected = false;
 
-        this.roomText.setAttribute('value', 'Connecting...');
+        if (isStandalone) {
+            this.roomText.setAttribute('value', 'Standalone Session');
+        } else {
+            this.roomText.setAttribute('value', 'Connecting...');
+        }
         window.currentMode = 'draw';
     },
 
@@ -166,6 +213,100 @@ AFRAME.registerComponent('skyvr-infobar', {
         return icon;
     },
 
+    performVRFade: function () {
+        const camera = document.getElementById('camera');
+        const scene = document.querySelector('a-scene');
+        if (!camera || !scene) return;
+
+        // Get Camera's World Transform to spawn the tunnel 'around' the user initially
+        const camPos = new THREE.Vector3();
+        const camQuat = new THREE.Quaternion();
+        camera.object3D.getWorldPosition(camPos);
+        camera.object3D.getWorldQuaternion(camQuat);
+
+        // 1. "Warp Tunnel" Effect
+        // Use a cylinder to create a proper tunnel grid
+        const warpContainer = document.createElement('a-entity');
+
+        // Apply Camera Transform to Container
+        warpContainer.object3D.position.copy(camPos);
+        warpContainer.object3D.quaternion.copy(camQuat);
+        warpContainer.object3D.rotateX(THREE.MathUtils.degToRad(-90)); // Align cylinder to forward direction
+
+        const warpTunnel = document.createElement('a-cylinder');
+        warpTunnel.setAttribute('radius', 2);
+        warpTunnel.setAttribute('height', 80); // Longer tunnel for speed
+        warpTunnel.setAttribute('open-ended', 'true');
+        warpTunnel.setAttribute('segments-radial', 32);
+        warpTunnel.setAttribute('segments-height', 40);
+        warpTunnel.setAttribute('material', {
+            color: '#00ffff',
+            wireframe: true,
+            shader: 'flat',
+            transparent: true,
+            opacity: 0,
+            side: 'back',
+            depthTest: false
+        });
+        warpTunnel.setAttribute('position', '0 0 0');
+
+        // Ensure render order is high but below black fade
+        warpContainer.object3D.renderOrder = 99998;
+        warpTunnel.object3D.renderOrder = 99998;
+
+        // Animations on the Tunnel ("Swoosh" speed)
+
+        // 1. Fade In Instantly
+        warpTunnel.setAttribute('animation__fadein', {
+            property: 'material.opacity', from: 0, to: 0.8, dur: 200, easing: 'easeOutQuad'
+        });
+
+        // 2. Fly (Move tunnel backwards RAPIDLY)
+        warpTunnel.setAttribute('animation__fly', {
+            property: 'position', from: '0 20 0', to: '0 -100 0', dur: 800, easing: 'easeInExpo'
+        });
+
+        // 3. Implode
+        warpTunnel.setAttribute('animation__implode', {
+            property: 'scale', from: '1 1 1', to: '0.05 1 0.05', dur: 800, easing: 'easeInExpo'
+        });
+
+        // 4. Fade Out at end
+        warpTunnel.setAttribute('animation__fadeout', {
+            property: 'material.opacity', from: 0.8, to: 0, dur: 200, delay: 600, easing: 'easeInQuad'
+        });
+
+        warpContainer.appendChild(warpTunnel);
+        scene.appendChild(warpContainer); // Attached to world, not camera
+
+
+        // 2. Black Fade Sphere (Final blocking layer)
+        const fadeSphere = document.createElement('a-sphere');
+        fadeSphere.setAttribute('radius', 0.3);
+        fadeSphere.setAttribute('material', {
+            color: 'black',
+            shader: 'flat',
+            side: 'back', // Render inside face
+            transparent: true,
+            opacity: 0,
+            depthTest: false
+        });
+        fadeSphere.setAttribute('position', '0 0 0');
+        fadeSphere.object3D.renderOrder = 99999;
+
+        camera.appendChild(fadeSphere);
+
+        // Fade to black
+        fadeSphere.setAttribute('animation', {
+            property: 'material.opacity',
+            from: 0,
+            to: 1,
+            dur: 600,
+            delay: 400,
+            easing: 'easeInOutQuad'
+        });
+    },
+
     updateIcon: function (el, src, color) {
         el.setAttribute('material', {
             src: src,
@@ -176,29 +317,43 @@ AFRAME.registerComponent('skyvr-infobar', {
     },
 
     tick: function () {
+        const urlParams = new URLSearchParams(window.location.search);
+        const isStandalone = urlParams.get('room') === 'none';
+
+        if (isStandalone) {
+            // In standalone, just ensure the text is correct once (redundant but safe)
+            if (this.roomText.getAttribute('value') !== 'Standalone Session') {
+                this.roomText.setAttribute('value', 'Standalone Session');
+            }
+        }
+
         const isConnected = !!(typeof NAF !== 'undefined' && NAF.connection && NAF.connection.adapter);
         const currentMic = !!window.micEnabled;
         const currentMode = window.currentMode || 'draw';
 
         // Update connection status and room name
-        if (isConnected !== this.lastConnected) {
-            this.lastConnected = isConnected;
-            if (isConnected) {
-                const urlParams = new URLSearchParams(window.location.search);
-                const roomName = urlParams.get('room') || 'n/a';
-                this.roomText.setAttribute('value', roomName);
-            } else {
-                this.roomText.setAttribute('value', 'Connecting...');
+        if (!isStandalone) {
+            // Update connection status and room name only if networked
+            if (isConnected !== this.lastConnected) {
+                this.lastConnected = isConnected;
+                if (isConnected) {
+                    const roomName = urlParams.get('room') || 'n/a';
+                    this.roomText.setAttribute('value', roomName);
+                } else {
+                    this.roomText.setAttribute('value', 'Connecting...');
+                }
             }
         }
 
-        if (currentMic !== this.lastMic) {
+        // Mic status updates
+        if (this.micIcon && currentMic !== this.lastMic) {
             this.lastMic = currentMic;
             const micSrc = currentMic ? this.ICONS.micOn : this.ICONS.micOff;
             this.updateIcon(this.micIcon, micSrc, currentMic ? '#ff0000' : 'white');
             this.borderEl.setAttribute('color', currentMic ? '#ff0000' : '#8a2be2');
         }
 
+        // Mode updates (runs in both Standalone and Networked)
         if (currentMode !== this.lastMode) {
             this.lastMode = currentMode;
             // Highlight active mode, dim others

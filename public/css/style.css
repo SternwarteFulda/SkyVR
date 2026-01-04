@@ -42,7 +42,9 @@
   align-items: center;
   justify-content: center;
   z-index: 9999;
-  transition: opacity 1s ease-out, visibility 1s;
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.5s ease-in-out, visibility 0.5s;
   font-family: 'Outfit', sans-serif;
   color: white;
 }
@@ -50,6 +52,7 @@
 #loading-overlay.fade-out {
   opacity: 0;
   visibility: hidden;
+  transition: opacity 1s ease-out, visibility 1s;
 }
 
 .loader-container {
@@ -67,7 +70,9 @@
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .status-list {
