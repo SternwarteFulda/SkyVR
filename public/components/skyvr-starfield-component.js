@@ -204,7 +204,7 @@ AFRAME.registerComponent('starfield', {
       bumpMap: moonBump,
       fog: false,
       transparent: true,
-      depthWrite: false, // Don't block background illustrations
+      depthWrite: true,
       depthTest: true,
       blending: THREE.CustomBlending,
       blendSrc: THREE.OneFactor,
