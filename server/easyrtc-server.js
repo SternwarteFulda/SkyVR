@@ -27,15 +27,15 @@ const app = express();
 
 // Serve the bundle in-memory in development (needs to be before the express.static)
 if (process.env.NODE_ENV === "development") {
-  const webpackMiddleware = require("webpack-dev-middleware");
-  const webpack = require("webpack");
-  const config = require("../webpack.config");
+	const webpackMiddleware = require("webpack-dev-middleware");
+	const webpack = require("webpack");
+	const config = require("../webpack.config");
 
-  app.use(
-    webpackMiddleware(webpack(config), {
-      publicPath: "/dist/"
-    })
-  );
+	app.use(
+		webpackMiddleware(webpack(config), {
+			publicPath: "/dist/"
+		})
+	);
 }
 
 // Serve the files from the public folder
@@ -46,6 +46,24 @@ const publicPath = path.resolve(__dirname, "..", "public");
 // });
 // For everything else (scripts, textures, assets, components), look in the public folder
 app.use(express.static(publicPath));
+
+// Serve libraries from node_modules
+app.use('/js/astronomy-engine', express.static(path.resolve(__dirname, "..", "node_modules", "astronomy-engine")));
+
+// Dynamically serve A-Frame versioned build as a generic name
+const aframePackage = require(path.resolve(__dirname, "..", "node_modules", "aframe", "package.json"));
+app.get('/js/aframe/aframe.min.js', (req, res) => {
+	res.sendFile(path.resolve(__dirname, "..", "node_modules", "aframe", "dist", `aframe-v${aframePackage.version}.min.js`));
+});
+app.use('/js/aframe', express.static(path.resolve(__dirname, "..", "node_modules", "aframe", "dist")));
+
+app.use('/js/luxon', express.static(path.resolve(__dirname, "..", "node_modules", "luxon", "build", "global")));
+app.use('/js/socket.io', express.static(path.resolve(__dirname, "..", "node_modules", "socket.io", "client-dist")));
+app.use('/js/networked-aframe', express.static(path.resolve(__dirname, "..", "node_modules", "networked-aframe", "dist")));
+app.use('/js/aframe-extras', express.static(path.resolve(__dirname, "..", "node_modules", "aframe-extras", "dist")));
+
+
+
 
 
 // Serve the files from the examples folder
@@ -59,11 +77,11 @@ const webServer = http.createServer(app);
 // const webServer = https.createServer(credentials, app);
 
 // Start Socket.io so it attaches itself to Express server
-const socketServer = socketIo(webServer, {"log level": 1});
+const socketServer = socketIo(webServer, { "log level": 1 });
 const myIceServers = [
-	{"urls": "stun:stun1.l.google.com:19302"},
-	{"urls": "stun:stun2.l.google.com:19302"},
-	{"urls": "stun:stun.relay.metered.ca:80"},
+	{ "urls": "stun:stun1.l.google.com:19302" },
+	{ "urls": "stun:stun2.l.google.com:19302" },
+	{ "urls": "stun:stun.relay.metered.ca:80" },
 	{
 		"urls": "turn:turn.sternwarte-fulda.de:3478",
 		"username": process.env.TURN_USER_HNS,
@@ -97,38 +115,38 @@ easyrtc.setOption("demosEnable", false);
 
 // Overriding the default easyrtcAuth listener, only so we can directly access its callback
 easyrtc.events.on("easyrtcAuth", (socket, easyrtcid, msg, socketCallback, callback) => {
-    easyrtc.events.defaultListeners.easyrtcAuth(socket, easyrtcid, msg, socketCallback, (err, connectionObj) => {
-        if (err || !msg.msgData || !msg.msgData.credential || !connectionObj) {
-            callback(err, connectionObj);
-            return;
-        }
+	easyrtc.events.defaultListeners.easyrtcAuth(socket, easyrtcid, msg, socketCallback, (err, connectionObj) => {
+		if (err || !msg.msgData || !msg.msgData.credential || !connectionObj) {
+			callback(err, connectionObj);
+			return;
+		}
 
-        connectionObj.setField("credential", msg.msgData.credential, {"isShared":false});
+		connectionObj.setField("credential", msg.msgData.credential, { "isShared": false });
 
-        console.log("["+easyrtcid+"] Credential saved!", connectionObj.getFieldValueSync("credential"));
+		console.log("[" + easyrtcid + "] Credential saved!", connectionObj.getFieldValueSync("credential"));
 
-        callback(err, connectionObj);
-    });
+		callback(err, connectionObj);
+	});
 });
 
 // To test, lets print the credential to the console for every room join!
 easyrtc.events.on("roomJoin", (connectionObj, roomName, roomParameter, callback) => {
-    console.log("["+connectionObj.getEasyrtcid()+"] Credential retrieved!", connectionObj.getFieldValueSync("credential"));
-    easyrtc.events.defaultListeners.roomJoin(connectionObj, roomName, roomParameter, callback);
+	console.log("[" + connectionObj.getEasyrtcid() + "] Credential retrieved!", connectionObj.getFieldValueSync("credential"));
+	easyrtc.events.defaultListeners.roomJoin(connectionObj, roomName, roomParameter, callback);
 });
 
 // Start EasyRTC server
 easyrtc.listen(app, socketServer, null, (err, rtcRef) => {
-    console.log("Initiated");
+	console.log("Initiated");
 
-    rtcRef.events.on("roomCreate", (appObj, creatorConnectionObj, roomName, roomOptions, callback) => {
-        console.log("roomCreate fired! Trying to create: " + roomName);
+	rtcRef.events.on("roomCreate", (appObj, creatorConnectionObj, roomName, roomOptions, callback) => {
+		console.log("roomCreate fired! Trying to create: " + roomName);
 
-        appObj.events.defaultListeners.roomCreate(appObj, creatorConnectionObj, roomName, roomOptions, callback);
-    });
+		appObj.events.defaultListeners.roomCreate(appObj, creatorConnectionObj, roomName, roomOptions, callback);
+	});
 });
 
 // Listen on port
 webServer.listen(port, () => {
-    console.log("listening on http://localhost:" + port);
+	console.log("listening on http://localhost:" + port);
 });
