@@ -23,6 +23,11 @@ AFRAME.registerComponent('player-info', {
         this.eyelids = this.el.querySelectorAll('.eyelid');
         this.pointer = this.el.querySelector('.pointer');
 
+        // Initial render order setup to fix "transparent sorting" (eyeballs seen through head)
+        if (this.head) this.head.object3D.renderOrder = 20;
+        this.el.querySelectorAll('.eye, .pupil, .eyelid').forEach(p => p.object3D.renderOrder = 10);
+        this.nametags.forEach(p => p.object3D.renderOrder = 30);
+
         // Track initialization time to distinguish pre-existing players from new ones
         this.initTime = performance.now();
         this.lastSpawned = this.data.spawned;
@@ -145,7 +150,8 @@ AFRAME.registerComponent('player-info', {
                 // Ensure material is transparent
                 part.setAttribute('material', {
                     transparent: true,
-                    opacity: opacity
+                    opacity: opacity,
+                    depthWrite: true // Keep depthWrite to allow head to mask eyes during fade
                 });
             }
         });
@@ -211,7 +217,9 @@ AFRAME.registerComponent('player-info', {
             if (mode === 'in' && this.ownedByLocalUser) {
                 const avatarParts = el.querySelectorAll('.head, .eye, .pupil, .eyelid, .nametag');
                 avatarParts.forEach(part => {
-                    const property = part.tagName.toLowerCase() === 'a-text' ? 'opacity' : 'material.opacity';
+                    const isText = part.tagName.toLowerCase() === 'a-text';
+                    const property = isText ? 'opacity' : 'material.opacity';
+
                     part.setAttribute('animation__fadein', {
                         property: property, from: 0, to: 1, dur: 2000, delay: 500, easing: 'easeInOutQuad'
                     });
@@ -252,7 +260,9 @@ AFRAME.registerComponent('player-info', {
                 // Fade in original avatar components
                 const parts = el.querySelectorAll('.head, .eye, .pupil, .eyelid, .nametag');
                 parts.forEach(part => {
-                    const property = part.tagName.toLowerCase() === 'a-text' ? 'opacity' : 'material.opacity';
+                    const isText = part.tagName.toLowerCase() === 'a-text';
+                    const property = isText ? 'opacity' : 'material.opacity';
+
                     part.setAttribute('animation__fadein', {
                         property: property, from: 0, to: 1, dur: 2000, delay: 500, easing: 'easeInOutQuad'
                     });
@@ -267,22 +277,32 @@ AFRAME.registerComponent('player-info', {
                     // Recursive function to apply properties to all mesh/text children
                     const applyProperties = (node) => {
                         const isText = node.tagName && node.tagName.toLowerCase() === 'a-text';
-                        const isPart = node.classList && (node.classList.contains('head') || node.classList.contains('eyelid'));
+                        const isHead = node.classList && node.classList.contains('head');
+                        const isEyePart = node.classList && (node.classList.contains('eye') || node.classList.contains('pupil') || node.classList.contains('eyelid'));
 
-                        if (isPart && !isText) {
-                            node.setAttribute('material', {
-                                color: color,
-                                transparent: true,
-                                opacity: 1,
-                                depthWrite: false
-                            });
-                        } else if (!isText && node.setAttribute) {
-                            node.setAttribute('material', 'depthWrite', false);
+                        if (!isText && node.setAttribute) {
+                            // Enable depthWrite to allow head to mask eyes
+                            node.setAttribute('material', 'depthWrite', true);
+                            node.setAttribute('material', 'transparent', true);
+
+                            // Apply consistent color
+                            if (isHead || node.classList.contains('eyelid')) {
+                                node.setAttribute('material', 'color', color);
+                            }
                         }
 
                         if (isText) {
                             node.setAttribute('value', this.data.name);
                         }
+
+                        // Apply renderOrder to fix sorting
+                        const setRO = () => {
+                            if (isHead) node.object3D.renderOrder = 20;
+                            else if (isEyePart) node.object3D.renderOrder = 10;
+                            else if (isText) node.object3D.renderOrder = 30;
+                        };
+                        if (node.hasLoaded) setRO();
+                        else node.addEventListener('loaded', setRO, { once: true });
 
                         // ANIMATION: Wait for 'loaded' to prevent mesh flicker
                         const startFade = () => {
@@ -327,8 +347,10 @@ AFRAME.registerComponent('player-info', {
                     transparent: true,
                     opacity: 0,
                     blending: 'additive',
-                    depthWrite: false // FIX: Prevents "shadow-like" depth artifacts
+                    depthTest: false, // Bypass depth check to avoid shadow artifact from the avatar
+                    depthWrite: false
                 });
+                beam.object3D.renderOrder = 100; // Render over the avatar
 
                 const dur = 1000 + Math.random() * 1000;
                 const startDelay = Math.random() * 500;
@@ -362,8 +384,10 @@ AFRAME.registerComponent('player-info', {
                 sparkle.setAttribute('material', {
                     shader: 'flat', color: i % 3 === 0 ? '#ffffff' : (i % 3 === 1 ? color : '#ffeeaa'),
                     transparent: true, opacity: 0, blending: 'additive',
+                    depthTest: false, // Bypass depth check
                     depthWrite: false
                 });
+                sparkle.object3D.renderOrder = 100;
 
                 const duration = 1500 + Math.random() * 1000;
                 const startDelay = Math.random() * 1000;
