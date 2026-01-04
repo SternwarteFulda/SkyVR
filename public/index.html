@@ -1112,10 +1112,55 @@
         updateScene();
       }
 
+      // Make sure we have a target time initialized
+      window.targetSimulationTime = window.simulationTime;
+
+      // Register a global tick handler for local interpolation
+      AFRAME.registerComponent('local-time-interpolator', {
+        init: function () {
+          this.lerpSpeed = 5.0;
+          if (!window.targetSimulationTime && window.simulationTime) {
+            window.targetSimulationTime = window.simulationTime;
+          }
+        },
+        tick: function (t, dt) {
+          // If we are the owner (or alone), we smoothly interpolate towards our own target
+          // If we are a client, the sky-state component handles interpolation from network data.
+          const skyState = document.getElementById('sky-master');
+          const isMine = skyState && NAF.utils.isMine(skyState);
+
+          if (isMine && window.targetSimulationTime && window.simulationTime) {
+            const diffSeconds = window.targetSimulationTime.diff(window.simulationTime, 'seconds').seconds;
+
+            // If barely any difference, sync exact and stop
+            if (Math.abs(diffSeconds) < 0.01) {
+              if (diffSeconds !== 0) {
+                window.simulationTime = window.targetSimulationTime;
+                updateScene();
+              }
+              return;
+            }
+
+            // Huge jump logic (reset/preset)
+            if (Math.abs(diffSeconds) > 3600) {
+              window.simulationTime = window.targetSimulationTime;
+            } else {
+              // Smooth Lerp
+              const step = diffSeconds * this.lerpSpeed * (dt / 1000);
+              window.simulationTime = window.simulationTime.plus({ seconds: step });
+            }
+            updateScene();
+          }
+        }
+      });
+      // Attach this component to the scene
+      document.querySelector('a-scene').setAttribute('local-time-interpolator', '');
+
       function adjustTime(unit, amount) {
-        simulationTime = simulationTime.plus({ [unit]: amount });
+        window.targetSimulationTime = window.targetSimulationTime.plus({ [unit]: amount });
+        // We do NOT call updateScene() here efficiently anymore, the tick loop handles it.
+        // But we DO need to broadcast eventual state.
         syncSky();
-        updateScene();
       }
 
       function adjustCoordinate(type, amount) {
@@ -1357,9 +1402,12 @@
 
         let needsSync = false;
         if (Math.abs(event.detail.x) > 0.05) {
-          // Adjust simulation time by the thumbstick's X axis movement.
+          // Adjust TARGET time, not direct time
           let timeAdjustment = Math.pow(event.detail.x, 3.0) * timeAdjustmentSpeed;
-          simulationTime = simulationTime.plus({ seconds: timeAdjustment });
+          window.targetSimulationTime = window.targetSimulationTime.plus({ seconds: timeAdjustment });
+
+          // Force simulationTime updates immediately for "snappier" feel? 
+          // No, user requested smooth interpolation. The tick loop will handle visual update.
           needsSync = true;
         }
         if (Math.abs(event.detail.y) >= joystickThreshold) {
@@ -1369,8 +1417,9 @@
         }
 
         if (needsSync) {
+          // We still sync network state (which broadcasts targetTime basically)
           syncSky();
-          updateScene();
+          // updateScene is handled by tick loop
         }
       });
 
