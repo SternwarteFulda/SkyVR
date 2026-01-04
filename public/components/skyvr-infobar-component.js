@@ -87,16 +87,16 @@ AFRAME.registerComponent('skyvr-infobar', {
 
         // Mode Group (Right)
         this.modeButtons = {};
-        this.modesList = ['draw', 'stamp', 'stickfigure', 'constellation'];
+        this.modesList = ['draw', 'stickfigure', 'constellation']; // 'stamp' disabled
 
         // Mode container starts after the center
         this.modeGroup = document.createElement('a-entity');
-        this.modeGroup.setAttribute('position', '0.14 0 0');
+        this.modeGroup.setAttribute('position', '0.205 0 0');
         this.container.appendChild(this.modeGroup);
 
         const modes = [
             { id: 'draw', icon: this.ICONS.draw },
-            { id: 'stamp', icon: this.ICONS.stamp },
+            // { id: 'stamp', icon: this.ICONS.stamp },
             { id: 'stickfigure', icon: this.ICONS.stickfigure },
             { id: 'constellation', icon: this.ICONS.constellation }
         ];
