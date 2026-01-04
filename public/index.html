@@ -1222,40 +1222,37 @@
         // Use persistent variables for Sun caching if they don't exist
         if (!window._skyCache) window._skyCache = { sunAltAz: { altitude: -10, azimuth: 0 }, lastSunUpdateTime: 0 };
 
-        // Throttle Sun math, Environment, and Shader visuals to 30fps
-        if (now - window._skyCache.lastSunUpdateTime > 32) {
-          // Ensure observer exists and is up to date
-          if (typeof observer === 'undefined' || observer.latitude !== latitude || observer.longitude !== longitude) {
-            observer = new Astronomy.Observer(latitude, longitude, elevation);
-          }
-
-          const sunRaDec = Astronomy.Equator('Sun', astroTime, observer, false, false);
-          window._skyCache.sunAltAz = Astronomy.Horizon(astroTime, observer, sunRaDec.ra, sunRaDec.dec, false);
-          const sunAltAz = window._skyCache.sunAltAz;
-
-          const distance = 394;
-          const x = -distance * Math.cos((sunAltAz.altitude * Math.PI) / 180) * Math.sin((sunAltAz.azimuth * Math.PI) / 180);
-          const y = distance * Math.sin((sunAltAz.altitude * Math.PI) / 180);
-          const z = distance * Math.cos((sunAltAz.altitude * Math.PI) / 180) * Math.cos((sunAltAz.azimuth * Math.PI) / 180);
-
-          if (sceneEl) {
-            sceneEl.setAttribute('environment', 'lightPosition', `${x} ${y} ${z}`);
-          }
-
-          let skyBrightness = mapSunAltitudeToSkyBrightness(sunAltAz.altitude, 0.0);
-          if (typeof starShaderMaterial !== 'undefined' && starShaderMaterial.uniforms.skyBrightness) {
-            starShaderMaterial.uniforms.skyBrightness.value = skyBrightness;
-          }
-          if (typeof haloShaderMaterial !== 'undefined' && haloShaderMaterial.uniforms.skyBrightness) {
-            haloShaderMaterial.uniforms.skyBrightness.value = skyBrightness;
-          }
-          if (milkyway) {
-            const mwOpacity = mapRange(skyBrightness, 0.0, 0.2, 0.25, 0.0);
-            milkyway.setAttribute('material', 'opacity', mwOpacity);
-          }
-
-          window._skyCache.lastSunUpdateTime = now;
+        // Ensure observer exists and is up to date
+        if (typeof observer === 'undefined' || observer.latitude !== latitude || observer.longitude !== longitude) {
+          observer = new Astronomy.Observer(latitude, longitude, elevation);
         }
+
+        const sunRaDec = Astronomy.Equator('Sun', astroTime, observer, false, false);
+        window._skyCache.sunAltAz = Astronomy.Horizon(astroTime, observer, sunRaDec.ra, sunRaDec.dec, false);
+        const sunAltAz = window._skyCache.sunAltAz;
+
+        const distance = 394;
+        const x = -distance * Math.cos((sunAltAz.altitude * Math.PI) / 180) * Math.sin((sunAltAz.azimuth * Math.PI) / 180);
+        const y = distance * Math.sin((sunAltAz.altitude * Math.PI) / 180);
+        const z = distance * Math.cos((sunAltAz.altitude * Math.PI) / 180) * Math.cos((sunAltAz.azimuth * Math.PI) / 180);
+
+        if (sceneEl) {
+          sceneEl.setAttribute('environment', 'lightPosition', `${x} ${y} ${z}`);
+        }
+
+        let skyBrightness = mapSunAltitudeToSkyBrightness(sunAltAz.altitude, 0.0);
+        if (typeof starShaderMaterial !== 'undefined' && starShaderMaterial.uniforms.skyBrightness) {
+          starShaderMaterial.uniforms.skyBrightness.value = skyBrightness;
+        }
+        if (typeof haloShaderMaterial !== 'undefined' && haloShaderMaterial.uniforms.skyBrightness) {
+          haloShaderMaterial.uniforms.skyBrightness.value = skyBrightness;
+        }
+        if (milkyway) {
+          const mwOpacity = mapRange(skyBrightness, 0.0, 0.2, 0.25, 0.0);
+          milkyway.setAttribute('material', 'opacity', mwOpacity);
+        }
+
+        window._skyCache.lastSunUpdateTime = now;
 
         // Throttle UI text updates to ~10Hz
         if (now - lastUIUpdateTime > 100) {
