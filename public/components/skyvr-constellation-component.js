@@ -161,7 +161,7 @@ AFRAME.registerComponent('constellation-renderer', {
                         const geometry = new THREE.BufferGeometry().setFromPoints([pos1, pos2]);
                         const line = new THREE.Line(geometry, lineMaterial);
                         line.name = `constellation-line-${constellation.id}`;
-                        line.renderOrder = 30; // Above stars (20) and illustrations (10)
+                        line.renderOrder = 7; // Below avatar (10)
 
                         this.el.object3D.add(line);
                         this.constellationLines.push(line);
@@ -305,7 +305,7 @@ AFRAME.registerComponent('constellation-renderer', {
                     blending: THREE.NormalBlending
                 });
                 const mesh = new THREE.Mesh(illustrationGeo, material);
-                mesh.renderOrder = 10;
+                mesh.renderOrder = 3;
 
                 // Initial positioning (Parent entity center)
                 const illustPos = bounds.center.clone().normalize().multiplyScalar(illustRadius);
@@ -340,7 +340,7 @@ AFRAME.registerComponent('constellation-renderer', {
             depthTest: false
         });
         const mesh = new THREE.Mesh(geometry, material);
-        mesh.renderOrder = 10;
+        mesh.renderOrder = 3;
         group.add(mesh);
     },
 

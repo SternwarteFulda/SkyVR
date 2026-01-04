@@ -23,10 +23,10 @@ AFRAME.registerComponent('player-info', {
         this.eyelids = this.el.querySelectorAll('.eyelid');
         this.pointer = this.el.querySelector('.pointer');
 
-        // Initial render order setup to fix "transparent sorting" (eyeballs seen through head)
-        if (this.head) this.head.object3D.renderOrder = 20;
-        this.el.querySelectorAll('.eye, .pupil, .eyelid').forEach(p => p.object3D.renderOrder = 10);
-        this.nametags.forEach(p => p.object3D.renderOrder = 30);
+        // Initial render order setup to fix "transparent sorting" (head occluding eyes)
+        if (this.head) this.head.object3D.renderOrder = 10;
+        this.el.querySelectorAll('.eye, .pupil, .eyelid').forEach(p => p.object3D.renderOrder = 12);
+        this.nametags.forEach(p => p.object3D.renderOrder = 15);
 
         // Track initialization time to distinguish pre-existing players from new ones
         this.initTime = performance.now();
@@ -297,9 +297,9 @@ AFRAME.registerComponent('player-info', {
 
                         // Apply renderOrder to fix sorting
                         const setRO = () => {
-                            if (isHead) node.object3D.renderOrder = 20;
-                            else if (isEyePart) node.object3D.renderOrder = 10;
-                            else if (isText) node.object3D.renderOrder = 30;
+                            if (isHead) node.object3D.renderOrder = 10;
+                            else if (isEyePart) node.object3D.renderOrder = 12;
+                            else if (isText) node.object3D.renderOrder = 15;
                         };
                         if (node.hasLoaded) setRO();
                         else node.addEventListener('loaded', setRO, { once: true });
