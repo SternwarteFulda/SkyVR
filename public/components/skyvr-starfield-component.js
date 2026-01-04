@@ -321,7 +321,7 @@ AFRAME.registerComponent('starfield', {
     }
     let raDegrees = (equ_2000.ra / 24) * 360;
     let decDegrees = equ_2000.dec;
-    const distance = 400;
+    const distance = bodyName === "Moon" ? 398 : 400;
     const x = distance * Math.cos((decDegrees * Math.PI) / 180) * Math.cos((raDegrees * Math.PI) / 180);
     const y = distance * Math.cos((decDegrees * Math.PI) / 180) * Math.sin((raDegrees * Math.PI) / 180);
     const z = distance * Math.sin((decDegrees * Math.PI) / 180);
