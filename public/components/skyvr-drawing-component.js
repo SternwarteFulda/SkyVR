@@ -2,7 +2,7 @@ AFRAME.registerComponent('drawing', {
     schema: {
         color: { default: 'yellow' },
         width: { default: 2.5 },
-        distance: { type: 'number', default: 393 } // Drawing surface distance (meters)
+        distance: { type: 'number', default: 400 } // Drawing surface distance (meters)
     },
     init: function () {
         this.lineMaterial = new THREE.LineBasicMaterial({

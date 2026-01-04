@@ -613,7 +613,7 @@
       highRefreshRate: true;
       foveationLevel: 0.3" environment="
       active: true;
-      stageSize: 400;
+      stageSize: 401;
       preset: none;
       seed: 0;
       skyType: atmosphere;
@@ -680,7 +680,7 @@
       <template id="right-controller-template">
         <a-entity player-info offscreen-indicator>
           <a-entity class="pointer" position="-0.0065 -0.0186 -0.05"
-            bottom-origin-cylinder="height: 394; radius: 0.009; color: red; rotation: 53.53 8.87 0; opacity: 0.6;"
+            bottom-origin-cylinder="height: 400; radius: 0.009; color: red; rotation: 53.53 8.87 0; opacity: 0.6;"
             visible="false">
           </a-entity>
         </a-entity>
@@ -764,7 +764,7 @@
         </a-entity>
         <!-- Pointer -->
         <a-entity id="pointer" class="pointer" position="-0.0065 -0.0186 -0.05"
-          bottom-origin-cylinder="height: 394; radius: 0.009; color: red; rotation: 53.53 8.87 0; opacity: 0.6;"
+          bottom-origin-cylinder="height: 400; radius: 0.009; color: red; rotation: 53.53 8.87 0; opacity: 0.6;"
           visible="false">
         </a-entity>
 
@@ -931,60 +931,60 @@
       <!-- Floor -->
       <!-- <a-circle id="floor" radius="400" color="#111" position="0 0 0" rotation="-90 0 0" opacity="0.90"></a-circle> -->
 
-      <a-cylinder id="meridian" material="shader: flat; fog: false; depthWrite: true;" radius="390" height="0.8"
+      <a-cylinder id="meridian" material="shader: flat; fog: false; depthWrite: false;" radius="400" height="0.8"
         open-ended="true" color="#228B22" side="back" opacity="0.8" position="0 0 0" rotation="90 90 0"
-        object-render-order="1" visible="false">
+        object-render-order="2" visible="false">
       </a-cylinder>
 
       <!-- Cardinal points on the horizon -->
-      <a-entity id="cardinal-points" object-render-order="0" visible="true">
+      <a-entity id="cardinal-points" object-render-order="-10" visible="true">
         <a-entity id="N" custom-fogless-text="
             value: N;
             fontSize: 90;
             textColor: #FFBB00;
-            worldScale: 0.1;" position="0 3 -380" object-render-order="0">
+            worldScale: 0.1;" position="0 3 -395" object-render-order="-10">
         </a-entity>
         <a-entity id="O" custom-fogless-text="
             value: O;
             fontSize: 90;
             textColor: #FFBB00;
-            worldScale: 0.1;" position="380 3 0" rotation="0 -90 0" object-render-order="0">
+            worldScale: 0.1;" position="395 3 0" rotation="0 -90 0" object-render-order="-10">
         </a-entity>
         <a-entity id="S" custom-fogless-text="
             value: S;
             fontSize: 90;
             textColor: #FFBB00;
-            worldScale: 0.1;" position="0 3 380" rotation="0 180 0" object-render-order="0">
+            worldScale: 0.1;" position="0 3 395" rotation="0 180 0" object-render-order="-10">
         </a-entity>
         <a-entity id="W" custom-fogless-text="
             value: W;
             fontSize: 90;
             textColor: #FFBB00;
-            worldScale: 0.1;" position="-380 3 0" rotation="0 90 0" object-render-order="0">
+            worldScale: 0.1;" position="-395 3 0" rotation="0 90 0" object-render-order="-10">
         </a-entity>
       </a-entity>
 
       <!-- Equatorial Container with initial geographic latitude of 90 degrees (North Pole) -->
       <a-entity id="eq-container" position="0 0 0" rotation="-90 0 0">
-        <a-cylinder id="equator" material="shader: flat; fog: false" radius="392" height="0.8" open-ended="true"
-          color="#0096FF" side="back" opacity="0.8" position="0 0 0" rotation="90 0 0" visible="false">
+        <a-cylinder id="equator" material="shader: flat; fog: false; depthWrite: false;" radius="400" height="0.8"
+          open-ended="true" color="#0096FF" side="back" opacity="0.8" position="0 0 0" rotation="90 0 0"
+          object-render-order="2" visible="false">
         </a-cylinder>
 
-
         <!-- North Celestial Pole (NCP) with Glow Effect -->
-        <a-sphere id="ncp" material="shader: flat; fog: false" blending="normal" position="0 0 387" radius="2.0"
-          color="#FF0000" transparent="true" opacity="1.0" visible="false">
+        <a-sphere id="ncp" material="shader: flat; fog: false" blending="normal" position="0 0 400" radius="2.0"
+          color="#FF0000" transparent="true" opacity="1.0" visible="false" object-render-order="2">
         </a-sphere>
-        <a-sphere id="ncp_glow" material="shader: flat; fog: false" blending="normal" position="0 0 387" radius="4.0"
-          color="#FF0000" transparent="true" opacity="0.2" visible="false">
+        <a-sphere id="ncp_glow" material="shader: flat; fog: false" blending="normal" position="0 0 400" radius="4.0"
+          color="#FF0000" transparent="true" opacity="0.2" visible="false" object-render-order="2">
         </a-sphere>
 
         <!-- South Celestial Pole (SCP) with Glow Effect -->
-        <a-sphere id="scp" material="shader: flat; fog: false" blending="normal" position="0 0 -387" radius="2.0"
-          color="#0000FF" transparent="true" opacity="1.0" visible="false">
+        <a-sphere id="scp" material="shader: flat; fog: false" blending="normal" position="0 0 -400" radius="2.0"
+          color="#0000FF" transparent="true" opacity="1.0" visible="false" object-render-order="2">
         </a-sphere>
-        <a-sphere id="scp_glow" material="shader: flat; fog: false" blending="normal" position="0 0 -387" radius="4.0"
-          color="#0000FF" transparent="true" opacity="0.2" visible="false">
+        <a-sphere id="scp_glow" material="shader: flat; fog: false" blending="normal" position="0 0 -400" radius="4.0"
+          color="#0000FF" transparent="true" opacity="0.2" visible="false" object-render-order="2">
         </a-sphere>
 
         <!-- Koordinatensystem für den Eq-Container -->
@@ -998,14 +998,15 @@
         </a-entity>
 
         <a-entity id="precession-container" rotation="23.43619 0 0">
-          <a-cylinder id="ecliptic" material="shader: flat; fog: false" radius="394" height="0.8" open-ended="true"
-            color="#FFBF00" side="back" opacity="0.8" position="0 0 0" rotation="90 0 0" visible="false">
+          <a-cylinder id="ecliptic" material="shader: flat; fog: false; depthWrite: false;" radius="400" height="0.8"
+            open-ended="true" color="#FFBF00" side="back" opacity="0.8" position="0 0 0" rotation="90 0 0"
+            object-render-order="1" visible="false">
           </a-cylinder>
 
           <!-- Custom Shader for Stars -->
           <a-entity id="stars-point-cloud" position="0 0 0" rotation="-23.43619 0 0" starfield></a-entity>
 
-          <a-sphere id="milkyway" radius="399" rotation="6.45 29.85 90.06" scale="-1.0 1.0 1.0"
+          <a-sphere id="milkyway" radius="400" rotation="6.45 29.85 90.06" scale="-1.0 1.0 1.0" object-render-order="0"
             material="shader: flat; src: url(assets/gaia.png); side: back; fog: false; transparent: true; opacity: 0.0; blending: additive; depthWrite: false;">
           </a-sphere>
 
@@ -1247,7 +1248,7 @@
         window._skyCache.sunAltAz = Astronomy.Horizon(astroTime, observer, sunRaDec.ra, sunRaDec.dec, false);
         const sunAltAz = window._skyCache.sunAltAz;
 
-        const distance = 394;
+        const distance = 400;
         const x = -distance * Math.cos((sunAltAz.altitude * Math.PI) / 180) * Math.sin((sunAltAz.azimuth * Math.PI) / 180);
         const y = distance * Math.sin((sunAltAz.altitude * Math.PI) / 180);
         const z = distance * Math.cos((sunAltAz.altitude * Math.PI) / 180) * Math.cos((sunAltAz.azimuth * Math.PI) / 180);

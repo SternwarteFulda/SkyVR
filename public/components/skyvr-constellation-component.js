@@ -5,7 +5,7 @@ AFRAME.registerComponent('constellation-renderer', {
         lineColor: { type: 'color', default: '#4499ff' },
         lineOpacity: { type: 'number', default: 0.6 },
         lineWidth: { type: 'number', default: 2 },
-        radius: { type: 'number', default: 394 },
+        radius: { type: 'number', default: 400 },
         showLines: { type: 'boolean', default: false },
         illustrationOpacity: { type: 'number', default: 0.1 }
     },
@@ -261,8 +261,7 @@ AFRAME.registerComponent('constellation-renderer', {
         this.previewOpacity = 0;
 
         if (constellation && constellation.image) {
-            const jitter = this.getZOffset(constellation.id);
-            const illustRadius = 395 + jitter;
+            const illustRadius = 400;
             const bounds = this.getConstellationBounds(constellation, illustRadius);
             const previewSet = new THREE.Group();
             previewSet.name = 'preview-group';
@@ -634,16 +633,12 @@ AFRAME.registerComponent('constellation-renderer', {
         });
     },
 
-    // Helper for depth stacking to avoid z-fighting
+    // Distance jitter no longer needed as we use renderOrder
     getZOffset: function (constellationId) {
-        let hash = 0;
-        for (let i = 0; i < constellationId.length; i++) {
-            hash = constellationId.charCodeAt(i) + ((hash << 5) - hash);
-        }
-        return (Math.abs(hash) % 1000) / 1000 * 0.5; // Small 0.5m jitter
+        return 0;
     },
 
-    getConstellationBounds: function (constellation, targetRadius = 395) {
+    getConstellationBounds: function (constellation, targetRadius = 400) {
         if (!constellation.lines) {
             return {
                 center: new THREE.Vector3(0, targetRadius, 0),

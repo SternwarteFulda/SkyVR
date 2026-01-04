@@ -186,8 +186,7 @@ AFRAME.registerComponent('constellation-illustration', {
         const constellation = this.renderer.constellationData.constellations.find(c => c.id === this.data.constellationId);
         if (!constellation) return;
 
-        const jitter = this.renderer.getZOffset(this.data.constellationId);
-        const illustRadius = 395 + jitter;
+        const illustRadius = 400;
         const bounds = this.renderer.getConstellationBounds(constellation, illustRadius);
         const imagePath = constellation.image ? `/assets/constellations/${constellation.image.file}` : null;
 
