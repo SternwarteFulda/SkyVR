@@ -177,6 +177,39 @@
           }
         }
       },
+      init: function () {
+        this.targetTime = null;
+        this.targetLatitude = null;
+        this.targetLongitude = null;
+        this.lerpSpeed = 5.0; // Moderate speed (catch up in ~200ms)
+      },
+      tick: function (t, dt) {
+        if (!NAF.utils.isMine(this.el) && this.targetTime && window.simulationTime) {
+          // Only interpolate if the difference is reasonable (e.g. < 1 hour)
+          // If it's a huge jump (reset/preset), snap immediately.
+          const diffSeconds = this.targetTime.diff(window.simulationTime, 'seconds').seconds;
+
+          if (Math.abs(diffSeconds) > 3600) {
+            // Huge jump, snap
+            window.simulationTime = this.targetTime;
+            this.targetTime = null; // Done
+          } else if (Math.abs(diffSeconds) > 0.1) {
+            // Smooth Lerp
+            // dt is ms, so dt/1000 is seconds.
+            // frameStep = error * speed * dt
+            const step = diffSeconds * this.lerpSpeed * (dt / 1000);
+            window.simulationTime = window.simulationTime.plus({ seconds: step });
+          } else {
+            // Close enough
+            window.simulationTime = this.targetTime;
+          }
+          // Also smooth Latitude/Longitude if needed? usually only Time is "scrubbed".
+          // Let's stick to time for now as it's the main stutter source.
+
+          // IMPORTANT: Must call updateScene to reflect the interpolated time
+          updateScene();
+        }
+      },
       update: function (oldData) {
         if (typeof luxon === 'undefined') return;
 
@@ -200,28 +233,32 @@
           updateLoadingIndicator('sync', true);
         }
 
-        if (this.data.time && (this.data.time !== oldData.time || isRemote)) {
-          if (!incomingIsInit) {
-            window.simulationTime = luxon.DateTime.fromISO(this.data.time);
-            console.log("Sky State Received: Time updated to", this.data.time);
+        if (isRemote) {
+          if (this.data.time && this.data.time !== oldData.time) {
+            if (!incomingIsInit) {
+              // Instead of setting simulationTime directly, set a target
+              this.targetTime = luxon.DateTime.fromISO(this.data.time);
+
+              // If this is the FIRST update or a huge jump, snap instantly to avoid weird glide
+              if (!window.simulationTime || Math.abs(this.targetTime.diff(window.simulationTime, 'seconds').seconds) > 3600) {
+                window.simulationTime = this.targetTime;
+              }
+            }
           }
-        }
-        if (this.data.latitude !== undefined && (this.data.latitude !== oldData.latitude || isRemote)) {
-          if (!incomingIsInit) {
-            window.latitude = this.data.latitude;
-            console.log("Sky State Received: Latitude updated to", this.data.latitude);
+          if (this.data.latitude !== undefined && this.data.latitude !== oldData.latitude) {
+            if (!incomingIsInit) {
+              window.latitude = this.data.latitude;
+            }
           }
-        }
-        if (this.data.longitude !== undefined && (this.data.longitude !== oldData.longitude || isRemote)) {
-          if (!incomingIsInit) {
-            window.longitude = this.data.longitude;
-            console.log("Sky State Received: Longitude updated to", this.data.longitude);
+          if (this.data.longitude !== undefined && this.data.longitude !== oldData.longitude) {
+            if (!incomingIsInit) {
+              window.longitude = this.data.longitude;
+            }
           }
         }
         if (this.data.activeConstellations !== oldData.activeConstellations) {
-          console.log(`Sky State: activeConstellations changed from "${oldData.activeConstellations}" to "${this.data.activeConstellations}"`);
+          if (isRemote) console.log(`Sky State: activeConstellations changed from "${oldData.activeConstellations}" to "${this.data.activeConstellations}"`);
           if (this.data.activeConstellations === 'INIT') {
-            console.log('Sky State: Skipping sync for INIT sentinel');
             return;
           }
           const renderer = document.getElementById('constellation-lines')?.components['constellation-renderer'];
@@ -1012,7 +1049,12 @@
       let isRightControllerGripDown = false;
       window.micEnabled = false;
 
+      let lastSyncTime = 0;
       function syncSky(silent = false) {
+        // Throttle network updates to ~10Hz unless it's a critical (non-silent) update
+        const now = performance.now();
+        if (!silent && (now - lastSyncTime < 100)) return;
+
         const skyMaster = document.getElementById('sky-master');
         if (skyMaster && NAF.connection && NAF.connection.adapter && NAF.connection.isConnected()) {
           const currentState = skyMaster.getAttribute('sky-state') || {};
@@ -1039,7 +1081,14 @@
           const renderer = document.getElementById('constellation-lines')?.components['constellation-renderer'];
           const constellationData = renderer ? JSON.stringify(renderer.placedIllustrations.map(e => e.dataset.constellationId).filter(id => id)) : sharedConst;
 
-          if (!silent) console.log("Broadcasting Sky State Update...");
+          if (!silent) {
+            // Only log if it's been a while to avoid console flood during scrubbing
+            if (now - lastSyncTime > 1000) {
+              console.log("Broadcasting Sky State Update...");
+            }
+            lastSyncTime = now;
+          }
+
           const updateData = {
             time: simulationTime.toISO(),
             latitude: window.latitude,
@@ -1082,6 +1131,9 @@
         updateScene();
       }
 
+      let lastUIUpdateTime = 0;
+      let lastLightUpdateTime = 0;
+
       // Function to update the scene
       function updateScene() {
         if (!sceneEl) sceneEl = document.querySelector('a-scene');
@@ -1095,65 +1147,91 @@
         if (!longitudeDisplay) longitudeDisplay = document.getElementById("longitude-display");
         if (!dateTimeDisplay) dateTimeDisplay = document.getElementById("date-time-display");
 
-        let lst = calculateLocalSiderealTime(simulationTime.toUTC().toJSDate(), longitude);
+        const jsDate = simulationTime.toJSDate();
+        const astroTime = Astronomy.MakeTime(jsDate);
+        let lst = calculateLocalSiderealTime(astroTime, longitude);
         let lstDegrees = lst * 15; // Convert LST from hours to degrees
 
         // Update scene elements based on the new simulation time or latitude
         if (eqContainer) {
-          eqContainer.setAttribute('rotation', { x: latitude - 180, y: 0, z: lstDegrees - 90 });
+          // Use direct Object3D manipulation for better performance
+          eqContainer.object3D.rotation.set(
+            THREE.MathUtils.degToRad(latitude - 180),
+            0,
+            THREE.MathUtils.degToRad(lstDegrees - 90)
+          );
         }
 
         let currentYear = simulationTime.year;
         let precessionDegrees = (currentYear - 2000) * 360 / 25750; // Simplified precession effect
         if (precessionContainer) {
-          precessionContainer.setAttribute('rotation', { x: 23.43619, y: 0, z: precessionDegrees });
+          precessionContainer.object3D.rotation.set(
+            THREE.MathUtils.degToRad(23.43619),
+            0,
+            THREE.MathUtils.degToRad(precessionDegrees)
+          );
         }
 
-        observer = new Astronomy.Observer(latitude, longitude, elevation);
-        let sunRaDec = Astronomy.Equator('Sun', simulationTime.toJSDate(), observer, false, false);
-        let sunAltAz = Astronomy.Horizon(simulationTime.toJSDate(), observer, sunRaDec.ra, sunRaDec.dec, false);
-        console.log(sunAltAz);
+        const now = performance.now();
 
-        if (dateTimeDisplay) {
-          dateTimeDisplay.setAttribute("text", `value: ${simulationTime.toLocaleString(luxon.DateTime.DATETIME_FULL_WITH_SECONDS)}; color: white; width: 0.5; align: center`);
+        // Use persistent variables for Sun caching if they don't exist
+        if (!window._skyCache) window._skyCache = { sunAltAz: { altitude: -10, azimuth: 0 }, lastSunUpdateTime: 0 };
+
+        // Throttle Sun math, Environment, and Shader visuals to 30fps
+        if (now - window._skyCache.lastSunUpdateTime > 32) {
+          // Ensure observer exists and is up to date
+          if (typeof observer === 'undefined' || observer.latitude !== latitude || observer.longitude !== longitude) {
+            observer = new Astronomy.Observer(latitude, longitude, elevation);
+          }
+
+          const sunRaDec = Astronomy.Equator('Sun', astroTime, observer, false, false);
+          window._skyCache.sunAltAz = Astronomy.Horizon(astroTime, observer, sunRaDec.ra, sunRaDec.dec, false);
+          const sunAltAz = window._skyCache.sunAltAz;
+
+          const distance = 394;
+          const x = -distance * Math.cos((sunAltAz.altitude * Math.PI) / 180) * Math.sin((sunAltAz.azimuth * Math.PI) / 180);
+          const y = distance * Math.sin((sunAltAz.altitude * Math.PI) / 180);
+          const z = distance * Math.cos((sunAltAz.altitude * Math.PI) / 180) * Math.cos((sunAltAz.azimuth * Math.PI) / 180);
+
+          if (sceneEl) {
+            sceneEl.setAttribute('environment', 'lightPosition', `${x} ${y} ${z}`);
+          }
+
+          let skyBrightness = mapSunAltitudeToSkyBrightness(sunAltAz.altitude, 0.0);
+          if (typeof starShaderMaterial !== 'undefined' && starShaderMaterial.uniforms.skyBrightness) {
+            starShaderMaterial.uniforms.skyBrightness.value = skyBrightness;
+          }
+          if (typeof haloShaderMaterial !== 'undefined' && haloShaderMaterial.uniforms.skyBrightness) {
+            haloShaderMaterial.uniforms.skyBrightness.value = skyBrightness;
+          }
+          if (milkyway) {
+            const mwOpacity = mapRange(skyBrightness, 0.0, 0.2, 0.25, 0.0);
+            milkyway.setAttribute('material', 'opacity', mwOpacity);
+          }
+
+          window._skyCache.lastSunUpdateTime = now;
         }
-        //sunElevationDisplay.setAttribute("text", `value: sun elev.: ${sunAltAz.altitude.toFixed(1)}; color: white; width: 1; align: center`);
 
-        // Update latitude/longitude displays on the control panel
-        const latLabel = latitude >= 0 ? "N" : "S";
-        if (latitudeDisplay) {
-          latitudeDisplay.setAttribute("text", `value: Latitude: ${Math.abs(latitude).toFixed(1)}° ${latLabel}; color: white; width: 1; align: center`);
-        }
+        // Throttle UI text updates to ~10Hz
+        if (now - lastUIUpdateTime > 100) {
+          if (dateTimeDisplay) {
+            dateTimeDisplay.setAttribute("text", `value: ${simulationTime.toLocaleString(luxon.DateTime.DATETIME_FULL_WITH_SECONDS)}; color: white; width: 0.5; align: center`);
+          }
 
-        const lonLabel = longitude >= 0 ? "O" : "W";
-        if (longitudeDisplay) {
-          longitudeDisplay.setAttribute("text", `value: Longitude: ${Math.abs(longitude).toFixed(1)}° ${lonLabel}; color: white; width: 1; align: center`);
-        }
+          const latLabel = latitude >= 0 ? "N" : "S";
+          if (latitudeDisplay) {
+            latitudeDisplay.setAttribute("text", `value: Latitude: ${Math.abs(latitude).toFixed(1)}° ${latLabel}; color: white; width: 1; align: center`);
+          }
 
-        const distance = 394;
-
-        const x = -distance * Math.cos((sunAltAz.altitude * Math.PI) / 180) * Math.sin((sunAltAz.azimuth * Math.PI) / 180);
-        const y = distance * Math.sin((sunAltAz.altitude * Math.PI) / 180);
-        const z = distance * Math.cos((sunAltAz.altitude * Math.PI) / 180) * Math.cos((sunAltAz.azimuth * Math.PI) / 180);
-
-        if (sceneEl) {
-          sceneEl.setAttribute('environment', 'lightPosition', `${x} ${y} ${z}`);
+          const lonLabel = longitude >= 0 ? "O" : "W";
+          if (longitudeDisplay) {
+            longitudeDisplay.setAttribute("text", `value: Longitude: ${Math.abs(longitude).toFixed(1)}° ${lonLabel}; color: white; width: 1; align: center`);
+          }
+          lastUIUpdateTime = now;
         }
 
         if (starsPointCloud && starsPointCloud.components && starsPointCloud.components.starfield) {
           starsPointCloud.components.starfield.update();
-        }
-
-        let skyBrightness = mapSunAltitudeToSkyBrightness(sunAltAz.altitude, 0.0);
-        if (typeof starShaderMaterial !== 'undefined') {
-          starShaderMaterial.uniforms.skyBrightness.value = skyBrightness;
-        }
-        if (typeof haloShaderMaterial !== 'undefined') {
-          haloShaderMaterial.uniforms.skyBrightness.value = skyBrightness;
-        }
-        if (milkyway) {
-          const mwOpacity = mapRange(skyBrightness, 0.0, 0.2, 0.25, 0.0);
-          milkyway.setAttribute('material', 'opacity', mwOpacity);
         }
       }
 
@@ -1271,7 +1349,12 @@
       const starRotationSpeed = 0.001;
       const joystickThreshold = 0.95;
 
+      let lastJoystickTime = 0;
       leftController.addEventListener("thumbstickmoved", function (event) {
+        const now = performance.now();
+        if (now - lastJoystickTime < 20) return; // Limit to ~50Hz
+        lastJoystickTime = now;
+
         let needsSync = false;
         if (Math.abs(event.detail.x) > 0.05) {
           // Adjust simulation time by the thumbstick's X axis movement.
@@ -1693,17 +1776,13 @@
 
     <script>
       // Function to calculate Local Sidereal Time (LST)
-      function calculateLocalSiderealTime(utc, longitude) {
-        //let observer = new Astronomy.Observer(latitude, longitude, elevation);
-        console.log(utc);
+      function calculateLocalSiderealTime(time, longitude) {
         // Calculate Greenwich Apparent Sidereal Time (GMST) in hours
-        let GAST = Astronomy.SiderealTime(utc);
-        console.log("GAST:", GAST);
+        let GAST = Astronomy.SiderealTime(time);
 
         // Local Apparent Sidereal Time (LAST) in hours
         let LAST = GAST + (longitude / 15);
         LAST = LAST % 24;
-        console.log("LAST:", LAST);
         return -LAST;
       }
 

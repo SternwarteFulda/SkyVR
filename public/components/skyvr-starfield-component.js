@@ -222,87 +222,116 @@ AFRAME.registerComponent('starfield', {
     el.object3D.add(this.moonLight);
   },
   update: function () {
-    this.planetsData = this.calculatePlanetsData();
-    this.updatePlanetsPositions();
+    const now = performance.now();
 
-    // Update the Moon position and light direction
-    const moonData = this.planetsData.find(data => data.name === 'Moon');
-    if (moonData) {
-      this.moon.position.set(moonData.position[0], moonData.position[1], moonData.position[2]);
+    // Timer init
+    if (!this.lastMoonUpdate) this.lastMoonUpdate = 0;
+    if (!this.lastPlanetUpdate) this.lastPlanetUpdate = 0;
 
-      // Calculate the direction of the Moon's illumination using GeoVector
-      const moonVector = new Astronomy.GeoVector('Moon', simulationTime.toJSDate(), false);
-      const sunVector = new Astronomy.GeoVector('Sun', simulationTime.toJSDate(), false);
-      const illuminationDirection = new THREE.Vector3(
-        sunVector.x - moonVector.x,
-        sunVector.y - moonVector.y,
-        sunVector.z - moonVector.z
-      ).normalize();
+    let needsBufferUpdate = false;
 
-      this.moonLight.position.copy(this.moon.position);
-      this.moonLight.position.add(illuminationDirection.multiplyScalar(100));
-      this.moonLight.lookAt(this.moon.position);
-
-      // --- STABLE WORLD-SPACE LOOKAT (Tidal Lock) ---
-      // This method ensures the Moon's face always points to Earth (center of scene)
-      // while its spin axis stays aligned with the physical North Pole.
+    // Fast Moon Update (~20Hz)
+    if (now - this.lastMoonUpdate > 50) {
+      if (!this.planetsData) this.calculatePlanetsData(); // Fallback init
 
       const date = simulationTime.toJSDate();
 
-      // 1. Get the physical North Pole in World Space
-      const pole = Astronomy.RotationAxis('Moon', date);
-      const poleJ2000 = new THREE.Vector3(pole.north.x, pole.north.y, pole.north.z);
+      // Update Moon Data (Index 0 is Moon)
+      // We know Moon is index 0 from bodyList order in calculatePlanetsData/updateBodyData
+      this.updateBodyData('Moon', date, 0);
+      needsBufferUpdate = true;
+      this.lastMoonUpdate = now;
 
-      // Map J2000 pole to current World space by applying parent's rotation
-      const parentQuat = new THREE.Quaternion();
-      this.moon.parent.getWorldQuaternion(parentQuat);
-      const poleWorld = poleJ2000.applyQuaternion(parentQuat);
+      // Update Moon 3D Object
+      const moonData = this.planetsData[0];
+      if (moonData) {
+        this.moon.position.set(moonData.position[0], moonData.position[1], moonData.position[2]);
 
-      // 2. Point Moon to Earth (0,0,0 in the scene)
-      this.moon.scale.set(1, 1, 1);
-      this.moon.up.copy(poleWorld); // Lock Green axis to physical North
-      this.moon.lookAt(0, 0, 0);    // Point -Z (Near Side) at Earth
+        // --- STABLE WORLD-SPACE LOOKAT (Tidal Lock) ---
 
-      // 3. Align Red Axis (+X) with Earth
-      // Currently -Z points at Earth, so rotate 90° around Y to bring +X to front.
-      this.moon.rotateY(Math.PI / 2);
+        const moonVector = new Astronomy.GeoVector('Moon', date, false);
+        const sunVector = new Astronomy.GeoVector('Sun', date, false);
+        const illuminationDirection = new THREE.Vector3(
+          sunVector.x - moonVector.x,
+          sunVector.y - moonVector.y,
+          sunVector.z - moonVector.z
+        ).normalize();
 
-      // 4. Apply Physical Libration (Wobbles relative to Earth)
-      const lib = Astronomy.Libration(date);
-      // rotateY (around Green) for elon (Longitude wobble)
-      this.moon.rotateY(THREE.MathUtils.degToRad(-lib.elon));
-      // rotateZ (around Blue) for elat (Latitude wobble)
-      this.moon.rotateZ(THREE.MathUtils.degToRad(lib.elat));
+        this.moonLight.position.copy(this.moon.position);
+        this.moonLight.position.add(illuminationDirection.multiplyScalar(100));
+        this.moonLight.lookAt(this.moon.position);
 
-      // Libration handles the small physical wobbles.
-      // Final texture orientation is handled by geometry.rotateX in init().
+        const pole = Astronomy.RotationAxis('Moon', date);
+        const poleJ2000 = new THREE.Vector3(pole.north.x, pole.north.y, pole.north.z);
+        const parentQuat = new THREE.Quaternion();
+        this.moon.parent.getWorldQuaternion(parentQuat);
+        const poleWorld = poleJ2000.applyQuaternion(parentQuat);
+
+        this.moon.scale.set(1, 1, 1);
+        this.moon.up.copy(poleWorld);
+        this.moon.lookAt(0, 0, 0);
+        this.moon.rotateY(Math.PI / 2);
+
+        const lib = Astronomy.Libration(date);
+        this.moon.rotateY(THREE.MathUtils.degToRad(-lib.elon));
+        this.moon.rotateZ(THREE.MathUtils.degToRad(lib.elat));
+      }
+    }
+
+    // Slow Planets Update (1Hz)
+    if (now - this.lastPlanetUpdate > 1000) {
+      if (!this.planetsData) this.calculatePlanetsData();
+
+      const date = simulationTime.toJSDate();
+      const bodyList = ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune'];
+      // Start index 1 since Moon is 0
+      for (let i = 0; i < bodyList.length; i++) {
+        this.updateBodyData(bodyList[i], date, i + 1);
+      }
+      needsBufferUpdate = true;
+      this.lastPlanetUpdate = now;
+    }
+
+    if (needsBufferUpdate) {
+      this.updatePlanetsPositions();
     }
   },
   calculatePlanetsData: function () {
-    const planetsData = [];
+    // Initial population of the planetsData array
+    if (!this.planetsData) this.planetsData = [];
     const bodyList = ['Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune'];
-    for (let body of bodyList) {
-      let equ_2000 = Astronomy.Equator(body, simulationTime.toJSDate(), observer, false, false);
-      let mag = Astronomy.Illumination(body, simulationTime.toJSDate()).mag;
-      if (body === "Moon") {
-        mag = -26.77;
-      }
-      let raDegrees = (equ_2000.ra / 24) * 360;
-      let decDegrees = equ_2000.dec;
-      const distance = 394;
-      const x = distance * Math.cos((decDegrees * Math.PI) / 180) * Math.cos((raDegrees * Math.PI) / 180);
-      const y = distance * Math.cos((decDegrees * Math.PI) / 180) * Math.sin((raDegrees * Math.PI) / 180);
-      const z = distance * Math.sin((decDegrees * Math.PI) / 180);
-      const size = mapRange(mag, -5.0, 5.5, 14.0, 0.9);
-      planetsData.push({
-        name: body,
-        position: [x, y, z],
-        size: body === "Moon" ? 0.0 : size,
-        haloSize: body === "Moon" ? 0.0 : size,
-        color: [1.0, 1.0, 1.0]
-      });
+    const date = simulationTime.toJSDate();
+
+    // Clear array to be safe on re-init
+    this.planetsData.length = 0;
+
+    for (let i = 0; i < bodyList.length; i++) {
+      // Push a placeholder object we will fill with updateBodyData
+      this.planetsData.push({ name: bodyList[i] });
+      this.updateBodyData(bodyList[i], date, i);
     }
-    return planetsData;
+    return this.planetsData;
+  },
+
+  updateBodyData: function (bodyName, date, index) {
+    let equ_2000 = Astronomy.Equator(bodyName, date, observer, false, false);
+    let mag = Astronomy.Illumination(bodyName, date).mag;
+    if (bodyName === "Moon") {
+      mag = -26.77;
+    }
+    let raDegrees = (equ_2000.ra / 24) * 360;
+    let decDegrees = equ_2000.dec;
+    const distance = 394;
+    const x = distance * Math.cos((decDegrees * Math.PI) / 180) * Math.cos((raDegrees * Math.PI) / 180);
+    const y = distance * Math.cos((decDegrees * Math.PI) / 180) * Math.sin((raDegrees * Math.PI) / 180);
+    const z = distance * Math.sin((decDegrees * Math.PI) / 180);
+    const size = mapRange(mag, -5.0, 5.5, 14.0, 0.9);
+
+    const data = this.planetsData[index];
+    data.position = [x, y, z];
+    data.size = bodyName === "Moon" ? 0.0 : size;
+    data.haloSize = bodyName === "Moon" ? 0.0 : size;
+    data.color = [1.0, 1.0, 1.0];
   },
   createPlanetsObjects: function (type) {
     const planetsGeometry = new THREE.BufferGeometry();
@@ -326,13 +355,16 @@ AFRAME.registerComponent('starfield', {
     return points;
   },
   updatePlanetsPositions: function () {
-    const planetsPositions = [];
-    for (let planetData of this.planetsData) {
-      planetsPositions.push(...planetData.position);
+    const posAttr = this.planets.geometry.attributes.position;
+    const haloPosAttr = this.planetsHalos.geometry.attributes.position;
+
+    for (let i = 0; i < this.planetsData.length; i++) {
+      const pos = this.planetsData[i].position;
+      posAttr.setXYZ(i, pos[0], pos[1], pos[2]);
+      haloPosAttr.setXYZ(i, pos[0], pos[1], pos[2]);
     }
-    this.planetsHalos.geometry.setAttribute('position', new THREE.Float32BufferAttribute(planetsPositions, 3));
-    this.planetsHalos.geometry.attributes.position.needsUpdate = true;
-    this.planets.geometry.setAttribute('position', new THREE.Float32BufferAttribute(planetsPositions, 3));
-    this.planets.geometry.attributes.position.needsUpdate = true;
+
+    posAttr.needsUpdate = true;
+    haloPosAttr.needsUpdate = true;
   },
 });
