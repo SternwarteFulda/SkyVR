@@ -126,6 +126,11 @@
         // Watchdog interval (same logic as constellations)
         this.checkInterval = setInterval(() => this.checkSharedState(), 2000);
         console.log("sky-state: Watchdog started (2s interval).");
+
+        this.targetTime = null;
+        this.targetLatitude = null;
+        this.targetLongitude = null;
+        this.lerpSpeed = 5.0; // Moderate speed (catch up in ~200ms)
       },
       remove: function () {
         if (this.checkInterval) clearInterval(this.checkInterval);
@@ -179,12 +184,6 @@
             }
           }
         }
-      },
-      init: function () {
-        this.targetTime = null;
-        this.targetLatitude = null;
-        this.targetLongitude = null;
-        this.lerpSpeed = 5.0; // Moderate speed (catch up in ~200ms)
       },
       tick: function (t, dt) {
         if (!NAF.utils.isMine(this.el) && this.targetTime && window.simulationTime) {
