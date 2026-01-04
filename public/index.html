@@ -165,6 +165,9 @@
             console.log("sky-state: Watchdog detected drift from master. Pulling state...");
             // Instead of just update(), let's explicitly copy the data to our locals
             window.simulationTime = sharedTime;
+            // CRITICAL: Update local target to match to prevent jump-back on interaction
+            if (window.targetSimulationTime) window.targetSimulationTime = sharedTime;
+
             window.latitude = this.data.latitude;
             window.longitude = this.data.longitude;
             updateScene();
@@ -208,6 +211,11 @@
 
           // IMPORTANT: Must call updateScene to reflect the interpolated time
           updateScene();
+
+          // Also keep local target in sync so if we TAKE ownership, we start from here
+          if (window.targetSimulationTime) {
+            window.targetSimulationTime = window.simulationTime;
+          }
         }
       },
       update: function (oldData) {
@@ -1137,6 +1145,8 @@
               if (diffSeconds !== 0) {
                 window.simulationTime = window.targetSimulationTime;
                 updateScene();
+                // Broadcast final state
+                syncSky();
               }
               return;
             }
@@ -1150,6 +1160,12 @@
               window.simulationTime = window.simulationTime.plus({ seconds: step });
             }
             updateScene();
+
+            // CRITICAL: We MUST broadcast the interpolated state if we are moving,
+            // otherwise remote clients stop receiving updates the moment joystick stops,
+            // missing the "tail" of the glide.
+            // We throttle this inside syncSky (100ms) so it's safe to call every frame here.
+            syncSky();
           }
         }
       });
