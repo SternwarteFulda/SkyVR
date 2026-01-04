@@ -193,10 +193,12 @@ AFRAME.registerComponent('starfield', {
     const moonTexture = textureLoader.load('assets/lroc_color_poles_1k.jpg');
     const moonBump = textureLoader.load('assets/ldem_3_8bit.jpg');
     const moonGeometry = new THREE.SphereGeometry(3.7, 64, 64);
+
     // Rotate the Moon geometry to align the texture
-    //moonGeometry.rotateX(-Math.PI/4);
-    moonGeometry.rotateY(-Math.PI / 2);
-    moonGeometry.rotateZ(Math.PI);
+    moonGeometry.rotateY(Math.PI);
+    //moonGeometry.rotateX(0);
+    //moonGeometry.rotateZ(0);
+
     const moonMaterial = new THREE.MeshLambertMaterial({
       map: moonTexture,
       bumpMap: moonBump,
@@ -241,16 +243,39 @@ AFRAME.registerComponent('starfield', {
       this.moonLight.position.add(illuminationDirection.multiplyScalar(100));
       this.moonLight.lookAt(this.moon.position);
 
-      // Orient the Moon to always face the same side to the Earth
-      const earthPosition = new THREE.Vector3(0, 0, 0); // Assuming Earth is at the center (0, 0, 0)
-      const moonPosition = this.moon.position.clone();
-      const moonToEarthDirection = earthPosition.sub(moonPosition).normalize();
-      this.moon.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), moonToEarthDirection);
+      // --- STABLE WORLD-SPACE LOOKAT (Tidal Lock) ---
+      // This method ensures the Moon's face always points to Earth (center of scene)
+      // while its spin axis stays aligned with the physical North Pole.
 
-      // Calculate and apply the Moon's orbital inclination
-      const moonLibration = Astronomy.Libration(simulationTime.toJSDate());
-      const inclinationAngle = moonLibration.mlat; // Inclination angle (relative to the ecliptic plane)
-      this.moon.rotateOnAxis(new THREE.Vector3(0, 0, 1), THREE.MathUtils.degToRad(inclinationAngle));
+      const date = simulationTime.toJSDate();
+
+      // 1. Get the physical North Pole in World Space
+      const pole = Astronomy.RotationAxis('Moon', date);
+      const poleJ2000 = new THREE.Vector3(pole.north.x, pole.north.y, pole.north.z);
+
+      // Map J2000 pole to current World space by applying parent's rotation
+      const parentQuat = new THREE.Quaternion();
+      this.moon.parent.getWorldQuaternion(parentQuat);
+      const poleWorld = poleJ2000.applyQuaternion(parentQuat);
+
+      // 2. Point Moon to Earth (0,0,0 in the scene)
+      this.moon.scale.set(1, 1, 1);
+      this.moon.up.copy(poleWorld); // Lock Green axis to physical North
+      this.moon.lookAt(0, 0, 0);    // Point -Z (Near Side) at Earth
+
+      // 3. Align Red Axis (+X) with Earth
+      // Currently -Z points at Earth, so rotate 90° around Y to bring +X to front.
+      this.moon.rotateY(Math.PI / 2);
+
+      // 4. Apply Physical Libration (Wobbles relative to Earth)
+      const lib = Astronomy.Libration(date);
+      // rotateY (around Green) for elon (Longitude wobble)
+      this.moon.rotateY(THREE.MathUtils.degToRad(-lib.elon));
+      // rotateZ (around Blue) for elat (Latitude wobble)
+      this.moon.rotateZ(THREE.MathUtils.degToRad(lib.elat));
+
+      // Libration handles the small physical wobbles.
+      // Final texture orientation is handled by geometry.rotateX in init().
     }
   },
   calculatePlanetsData: function () {
