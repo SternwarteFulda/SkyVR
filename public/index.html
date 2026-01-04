@@ -1407,6 +1407,11 @@
       const starRotationSpeed = 0.001;
       const joystickThreshold = 0.95;
 
+      let leftTriggerValue = 0;
+      leftController.addEventListener('triggerchanged', function (evt) {
+        leftTriggerValue = evt.detail.value;
+      });
+
       let lastJoystickTime = 0;
       leftController.addEventListener("thumbstickmoved", function (event) {
         const now = performance.now();
@@ -1414,9 +1419,18 @@
         lastJoystickTime = now;
 
         let needsSync = false;
+        // Check for max joystick deflection (approx > 0.9) to enable turbo
+        const isMaxDeflection = Math.abs(event.detail.x) > 0.9;
+
         if (Math.abs(event.detail.x) > 0.05) {
-          // Adjust TARGET time, not direct time
-          let timeAdjustment = Math.pow(event.detail.x, 3.0) * timeAdjustmentSpeed;
+          // Adjust TARGET time
+          // Multiplier: 1x to 10x based on trigger pressure, ONLY if joystick is maxed
+          let speedMultiplier = 1;
+          if (isMaxDeflection) {
+            speedMultiplier = 1 + (leftTriggerValue * 4);
+          }
+
+          let timeAdjustment = Math.pow(event.detail.x, 3.0) * timeAdjustmentSpeed * speedMultiplier;
           window.targetSimulationTime = window.targetSimulationTime.plus({ seconds: timeAdjustment });
 
           // Force simulationTime updates immediately for "snappier" feel? 
