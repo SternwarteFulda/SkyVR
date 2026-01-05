@@ -20,6 +20,11 @@ AFRAME.registerComponent('drawing', {
         this.strokeDistance = this.data.distance;
         this.precessionContainerEl = document.getElementById("precession-container");
     },
+    update: function (oldData) {
+        if (this.lineMaterial && this.data.color !== oldData.color) {
+            this.lineMaterial.color.set(this.data.color);
+        }
+    },
     startDrawing: function () {
         this.isDrawing = true;
         this.currentSegmentPoints = [];

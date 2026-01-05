@@ -85,6 +85,16 @@ AFRAME.registerComponent('player-info', {
             this.pointer.setAttribute('bottom-origin-cylinder', 'color', this.data.color);
         }
 
+        // Apply same color to laser ray (local only)
+        if (this.ownedByLocalUser && this.el.id === 'right-controller') {
+            if (this.el.hasAttribute('raycaster')) {
+                this.el.setAttribute('raycaster', 'lineColor', this.data.color);
+            }
+            if (this.el.hasAttribute('drawing')) {
+                this.el.setAttribute('drawing', 'color', this.data.color);
+            }
+        }
+
         // Handle Spawn Visibility & Effect
         if (this.data.spawned && !this.lastSpawned) {
             this.lastSpawned = true; // Mark as handled immediately to prevent multiple loops
