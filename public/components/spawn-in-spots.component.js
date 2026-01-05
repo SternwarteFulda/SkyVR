@@ -246,17 +246,30 @@ AFRAME.registerComponent('spawn-in-spots', {
         container.setAttribute('id', 'spawn-markers-container');
 
         const spots = this.generateSpots();
-        spots.forEach(spot => {
+        spots.forEach((spot, index) => {
             const marker = document.createElement('a-ring');
-            // marker.setAttribute('position', spot.position); // set below
             marker.setAttribute('rotation', '-90 0 0');
-            marker.setAttribute('radius-inner', '0.2');
-            marker.setAttribute('radius-outer', '0.25');
-            marker.setAttribute('color', '#ffffff');
-            marker.setAttribute('opacity', '0.3');
-            marker.setAttribute('shader', 'flat');
+            marker.setAttribute('radius-inner', '0.22');
+            marker.setAttribute('radius-outer', '0.28');
+            marker.setAttribute('color', '#00d4ff');
+            marker.setAttribute('opacity', '0.6');
+            marker.setAttribute('material', {
+                shader: 'flat',
+                transparent: true
+            });
             // Lift slightly to avoid z-fighting
             marker.setAttribute('position', { x: spot.position.x, y: 0.01, z: spot.position.z });
+
+            // Simple pulsing animation
+            marker.setAttribute('animation__pulse', {
+                property: 'opacity',
+                from: 0.3,
+                to: 0.8,
+                dur: 1500 + (index * 20), // Slight stagger
+                easing: 'easeInOutSine',
+                loop: true,
+                dir: 'alternate'
+            });
 
             container.appendChild(marker);
         });
