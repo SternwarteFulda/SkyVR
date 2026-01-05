@@ -1,66 +1,7 @@
-const CACHE_NAME = 'skyvr-cache-v62';
-
-const ASSETS_TO_CACHE = [
-    '/',
-    '/index.html',
-    '/lobby.html',
-    '/css/style.css',
-    '/css/fonts.css',
-    '/fonts/outfit-300.ttf',
-    '/fonts/outfit-400.ttf',
-    '/fonts/outfit-600.ttf',
-    '/js/astronomy-engine/astronomy.browser.min.js',
-    '/js/luxon/luxon.min.js',
-    '/js/custom-fogless-text.js',
-    '/components/skyvr-player-info-component.js',
-    '/components/skyvr-drawing-component.js',
-    '/components/aframe-environment-component.js',
-    '/js/aframe-extras/aframe-extras.primitives.min.js',
-    '/components/spawn-in-spots.component.js',
-    '/components/skyvr-high-res-component.js',
-    '/components/skyvr-starfield-component.js',
-    '/components/skyvr-constellation-component.js',
-    '/components/skyvr-cylinder-component.js',
-    '/components/skyvr-rounded-component.js',
-    '/components/skyvr-glow-effect-component.js',
-    '/components/skyvr-control-panel-component.js',
-    '/components/skyvr-switch-component.js',
-    '/components/skyvr-rig-follower-component.js',
-    '/components/skyvr-infobar-component.js',
-    '/components/skyvr-tooltip-component.js',
-    '/components/skyvr-constellation-pointer-component.js',
-    '/components/skyvr-networked-components.js',
-    '/assets/icons/door.svg',
-    '/assets/icons/mic-on.svg',
-    '/assets/icons/mic-off.svg',
-    '/assets/icons/draw.svg',
-    '/assets/icons/stamp.svg',
-    '/assets/icons/stickfigure.svg',
-    '/assets/icons/constellation.svg',
-
-    '/assets/arrow.svg',
-    '/assets/cosmic_background.png',
-    '/assets/gaia.png',
-    '/assets/halo.png',
-    '/assets/ldem_3_8bit.jpg',
-    '/assets/lroc_color_poles_1k.jpg',
-    '/assets/star.png',
-    '/assets/grid.png',
-    '/js/aframe/aframe.min.js',
-    '/js/networked-aframe/networked-aframe.min.js',
-    '/js/socket.io/socket.io.min.js',
-    '/data/hyglike_from_athyg_v31.csv',
-    '/data/ConstellationLines.csv'
-];
+const CACHE_NAME = 'skyvr-cache-v63';
 
 self.addEventListener('install', (event) => {
     self.skipWaiting();
-    event.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => {
-            console.log('Opened cache');
-            return cache.addAll(ASSETS_TO_CACHE);
-        })
-    );
 });
 
 self.addEventListener('activate', (event) => {
@@ -81,57 +22,61 @@ self.addEventListener('activate', (event) => {
     );
 });
 
+const pendingRequests = new Map();
+
 self.addEventListener('fetch', (event) => {
     // Only handle GET requests
     if (event.request.method !== 'GET') return;
 
-    const url = new URL(event.request.url);
+    const url = event.request.url;
 
-    // Check if it's one of our precached assets (matches by URL or pathname)
-    const isPrecached = ASSETS_TO_CACHE.some(asset => {
-        if (asset.startsWith('http')) {
-            return event.request.url === asset;
-        }
-        return url.pathname === asset;
-    });
-
-    // Strategy: Network First for HTML, Cache First for assets/data
-    if (url.pathname.endsWith('.html') || url.pathname === '/') {
+    // 1. Dedup: Check if there's already a pending request for this URL
+    if (pendingRequests.has(url)) {
         event.respondWith(
-            fetch(event.request)
-                .then((networkResponse) => {
-                    const responseToCache = networkResponse.clone();
-                    caches.open(CACHE_NAME).then((cache) => {
-                        cache.put(event.request, responseToCache);
-                    });
-                    return networkResponse;
-                })
-                .catch(() => caches.match(event.request, { ignoreSearch: true }))
+            pendingRequests.get(url).then(response => response.clone())
         );
         return;
     }
 
-    // Strategy: Cache First for assets, data, and precached scripts
-    if (isPrecached || url.pathname.startsWith('/assets/') || url.pathname.startsWith('/data/')) {
-        event.respondWith(
-            caches.match(event.request).then((response) => {
-                if (response) {
-                    return response;
-                }
+    // 2. Create the response promise (Strategy: Cache -> Network)
+    const responsePromise = caches.match(event.request).then((cachedResponse) => {
+        if (cachedResponse) {
+            console.log('Serving from cache:', url);
+            return cachedResponse;
+        }
 
-                return fetch(event.request).then((networkResponse) => {
-                    if (!networkResponse || networkResponse.status !== 200) {
-                        return networkResponse;
-                    }
+        return fetch(event.request).then((networkResponse) => {
+            // Check if we received a valid response
+            if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
+                return networkResponse;
+            }
 
-                    const responseToCache = networkResponse.clone();
-                    caches.open(CACHE_NAME).then((cache) => {
-                        cache.put(event.request, responseToCache);
-                    });
+            // Get content length
+            const contentLength = networkResponse.headers.get('content-length');
 
-                    return networkResponse;
+            // If content length is available and > 2MB (2 * 1024 * 1024 bytes)
+            if (contentLength && parseInt(contentLength) > 2 * 1024 * 1024) {
+                console.log(`Caching large file (${(parseInt(contentLength) / (1024 * 1024)).toFixed(2)} MB):`, url);
+                const responseToCache = networkResponse.clone();
+                caches.open(CACHE_NAME).then((cache) => {
+                    cache.put(event.request, responseToCache);
                 });
-            })
-        );
-    }
+            }
+
+            return networkResponse;
+        });
+    });
+
+    // 3. Save the promise to the map
+    pendingRequests.set(url, responsePromise);
+
+    // 4. Clean up when the promise settles (success or failure)
+    responsePromise.finally(() => {
+        pendingRequests.delete(url);
+    });
+
+    // 5. Respond with a CLONE of the master response, keeping the master valid for other potential subscribers
+    event.respondWith(
+        responsePromise.then(response => response.clone())
+    );
 });
