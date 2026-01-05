@@ -39,6 +39,7 @@
             this.previousMouseEvent = {};
             this.previousMagicWindowYaw = 0;
             this.previousMagicWindowPitch = 0;
+            this.activeKeys = {};
 
             this.setupMagicWindowControls();
 
@@ -103,13 +104,19 @@
             if (oldData && data.pointerLockEnabled !== oldData.pointerLockEnabled) {
                 this.removeEventListeners();
                 this.addEventListeners();
-                if (this.pointerLocked) { this.exitPointerLock(); }
+                if (this.pointerLocked) {
+                    this.exitPointerLock();
+                } else if (data.pointerLockEnabled) {
+                    // Automatically request lock when enabled via mode toggle
+                    this.requestPointerLock();
+                }
             }
         },
 
-        tick: function (t) {
+        tick: function (t, dt) {
             var data = this.data;
             if (!data.enabled) { return; }
+            this.updateKeyboardRotation(dt);
             this.updateOrientation();
         },
 
@@ -139,6 +146,8 @@
             this.onExitVR = this.onExitVR.bind(this);
             this.onPointerLockChange = this.onPointerLockChange.bind(this);
             this.onPointerLockError = this.onPointerLockError.bind(this);
+            this.onKeyDown = this.onKeyDown.bind(this);
+            this.onKeyUp = this.onKeyUp.bind(this);
         },
 
         setupMouseControls: function () {
@@ -169,6 +178,8 @@
                 document.addEventListener('mozpointerlockchange', this.onPointerLockChange, false);
                 document.addEventListener('pointerlockerror', this.onPointerLockError, false);
             }
+            window.addEventListener('keydown', this.onKeyDown, false);
+            window.addEventListener('keyup', this.onKeyUp, false);
         },
 
         removeEventListeners: function () {
@@ -186,6 +197,8 @@
             document.removeEventListener('pointerlockchange', this.onPointerLockChange, false);
             document.removeEventListener('mozpointerlockchange', this.onPointerLockChange, false);
             document.removeEventListener('pointerlockerror', this.onPointerLockError, false);
+            window.removeEventListener('keydown', this.onKeyDown, false);
+            window.removeEventListener('keyup', this.onKeyUp, false);
         },
 
         updateOrientation: function () {
@@ -223,6 +236,44 @@
             }
         },
 
+        updateKeyboardRotation: function (dt) {
+            if (!this.data.enabled || !this.data.mouseEnabled) { return; }
+
+            var speed = 0.02; // Rad per frame
+            var keys = this.activeKeys;
+            var moved = false;
+            var direction = this.data.reverseMouseDrag ? 1 : -1;
+
+            if (keys.ArrowLeft) {
+                this.yawObject.rotation.y += speed * direction;
+                moved = true;
+            }
+            if (keys.ArrowRight) {
+                this.yawObject.rotation.y -= speed * direction;
+                moved = true;
+            }
+            if (keys.ArrowUp) {
+                this.pitchObject.rotation.x += speed * direction;
+                moved = true;
+            }
+            if (keys.ArrowDown) {
+                this.pitchObject.rotation.x -= speed * direction;
+                moved = true;
+            }
+
+            if (moved) {
+                this.pitchObject.rotation.x = Math.max(-PI_2, Math.min(PI_2, this.pitchObject.rotation.x));
+            }
+        },
+
+        onKeyDown: function (evt) {
+            this.activeKeys[evt.key] = true;
+        },
+
+        onKeyUp: function (evt) {
+            this.activeKeys[evt.key] = false;
+        },
+
         onMouseMove: function (evt) {
             if (!this.data.enabled || (!this.mouseDown && !this.pointerLocked)) { return; }
 
@@ -248,10 +299,20 @@
             if (!this.data.enabled || !this.data.mouseEnabled || ((sceneEl.is('vr-mode') || sceneEl.is('ar-mode')) && sceneEl.checkHeadsetConnected())) { return; }
             if (evt.button !== 0) { return; }
 
+            // If we are in FPS mode (pointer locked), clicking should exit it
+            if (this.pointerLocked) {
+                this.exitPointerLock();
+                return;
+            }
+
             this.mouseDown = true;
             this.previousMouseEvent.screenX = evt.screenX;
             this.previousMouseEvent.screenY = evt.screenY;
-            this.showGrabbingCursor();
+
+            // Only show the grabbing cursor if we are in Grab Mode (Sky Move)
+            if (this.data.reverseMouseDrag) {
+                this.showGrabbingCursor();
+            }
 
             if (this.data.pointerLockEnabled && !this.pointerLocked) {
                 if (sceneEl.canvas.requestPointerLock) { sceneEl.canvas.requestPointerLock(); }
@@ -321,6 +382,11 @@
 
         onPointerLockChange: function () {
             this.pointerLocked = !!(document.pointerLockElement || document.mozPointerLockElement);
+            if (this.pointerLocked) {
+                document.body.classList.add('pointer-locked');
+            } else {
+                document.body.classList.remove('pointer-locked');
+            }
         },
 
         onPointerLockError: function () {
@@ -330,6 +396,13 @@
         exitPointerLock: function () {
             if (document.exitPointerLock) document.exitPointerLock();
             this.pointerLocked = false;
+        },
+
+        requestPointerLock: function () {
+            var canvasEl = this.el.sceneEl.canvas;
+            if (canvasEl && canvasEl.requestPointerLock) {
+                canvasEl.requestPointerLock();
+            }
         },
 
         updateGrabCursor: function (enabled) {

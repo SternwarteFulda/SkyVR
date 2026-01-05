@@ -308,10 +308,12 @@ AFRAME.registerComponent('skyvr-infobar', {
 
         const camera = document.getElementById('camera');
         if (camera) {
-            // Only toggle reverseMouseDrag on our custom component as requested.
-            // Touch remains at its default (false) specifically.
+            // Toggle reverseMouseDrag and pointerLockEnabled accordingly.
+            // Camera Move (window.reverseMouse = false) -> use pointer lock to hide cursor.
+            // Sky Move (window.reverseMouse = true) -> use standard grab cursor.
             camera.setAttribute('skyvr-look-controls', {
-                reverseMouseDrag: !!window.reverseMouse
+                reverseMouseDrag: !!window.reverseMouse,
+                pointerLockEnabled: !window.reverseMouse
             });
         }
 

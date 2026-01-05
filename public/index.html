@@ -717,7 +717,7 @@
       display: block;
     }
 
-    .infobar-2d-button:hover {
+    body:not(.pointer-locked) .infobar-2d-button:hover {
       background: rgba(138, 43, 226, 0.2);
       border-color: #8a2be2;
     }
@@ -1674,14 +1674,12 @@
           let timeAdjustment = Math.pow(event.detail.x, 3.0) * timeAdjustmentSpeed * speedMultiplier;
           window.targetSimulationTime = window.targetSimulationTime.plus({ seconds: timeAdjustment });
 
-          // Force simulationTime updates immediately for "snappier" feel? 
-          // No, user requested smooth interpolation. The tick loop will handle visual update.
-          needsSync = true;
+          needsSync = true; // stop smoothly
         }
         if (Math.abs(event.detail.y) >= joystickThreshold) {
           let latitudeAdjustment = -event.detail.y * latitudeAdjustmentSpeed;
           updateLatitude(latitude + latitudeAdjustment);
-          needsSync = true;
+          needsSync = true; // stop smoothly
         }
 
         if (needsSync) {
@@ -1943,7 +1941,6 @@
         }
       };
 
-      // Dedicated A and B button listeners as requested
       rightController.addEventListener('abuttondown', onAButtonDown);
       rightController.addEventListener('abuttonup', onAButtonUp);
       rightController.addEventListener('bbuttondown', onBButtonDown);
