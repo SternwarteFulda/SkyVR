@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+    <!-- Outer circle representing the sky/globe -->
+    <circle cx="12" cy="12" r="10" fill="none" stroke="white" stroke-width="1.5" stroke-dasharray="2 2" opacity="0.3"/>
+    <!-- Hand icon in the center -->
+    <path d="M18 11V7a2 2 0 0 0-4 0v3h-1V5a2 2 0 0 0-4 0v5h-1V6a2 2 0 0 0-4 0v9c0 3.31 2.69 6 6 6h4a6 6 0 0 0 6-6v-3a2 2 0 0 0-4 0z" fill="white"/>
+</svg>

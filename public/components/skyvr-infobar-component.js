@@ -8,7 +8,8 @@ AFRAME.registerComponent('skyvr-infobar', {
             draw: '#icon-draw',
             stamp: '#icon-stamp',
             stickfigure: '#icon-stickfigure',
-            constellation: '#icon-constellation'
+            constellation: '#icon-constellation',
+            mouseMove: '#icon-mouse-move'
         };
 
         // Layout Configuration
@@ -26,6 +27,50 @@ AFRAME.registerComponent('skyvr-infobar', {
         // Create container
         this.container = document.createElement('a-entity');
         this.el.appendChild(this.container);
+
+        // VR Mode Detection: Hide infobar by default, show only in VR
+        this.el.object3D.visible = false;
+
+        // Bind event handlers
+        this.onEnterVR = this.onEnterVR.bind(this);
+        this.onExitVR = this.onExitVR.bind(this);
+
+        // Listen for VR mode changes
+        this.el.sceneEl.addEventListener('enter-vr', this.onEnterVR);
+        this.el.sceneEl.addEventListener('exit-vr', this.onExitVR);
+
+        // --- 2D UI Hooks ---
+        this.ui2d = {
+            container: document.getElementById('infobar-2d'),
+            exit: document.getElementById('infobar-2d-exit'),
+            roomText: document.getElementById('infobar-2d-room-text'),
+            mic: document.getElementById('infobar-2d-mic'),
+            micIcon: document.getElementById('infobar-2d-mic-icon'),
+            modes: {
+                draw: document.getElementById('infobar-2d-draw'),
+                stickfigure: document.getElementById('infobar-2d-stickfigure'),
+                constellation: document.getElementById('infobar-2d-constellation')
+            },
+            mouseMove: document.getElementById('infobar-2d-mouse-move')
+        };
+
+        // Initialize 2D visibility: Only show if NOT on a 3D device and not immersive
+        if (this.ui2d.container) {
+            const isImmersive = !!(this.el.sceneEl.renderer.xr && this.el.sceneEl.renderer.xr.isPresenting);
+            const isVRDevice = AFRAME.utils.device.checkHeadsetConnected();
+            const shouldHide = isImmersive || isVRDevice;
+
+            this.ui2d.container.classList.toggle('hidden', shouldHide);
+            if (shouldHide) this.ui2d.container.style.display = 'none';
+
+            // Unhide A-Frame VR button for headsets
+            if (isVRDevice) {
+                document.body.classList.add('vr-device-detected');
+            }
+        }
+
+        this.setup2DListeners();
+
 
         // 1. Background (Rounded Glassmorphism style)
         this.bgEl = document.createElement('a-rounded');
@@ -56,8 +101,9 @@ AFRAME.registerComponent('skyvr-infobar', {
         this.container.appendChild(this.roomGroup);
 
         this.roomIcon = this.createIcon(this.ICONS.room, this.CONFIG.iconSize);
-        this.roomIcon.addEventListener('click', () => {
-            // 1. Play exit animation on the icon
+
+        const onExitClick = () => {
+            // 1. Play exit animation on the icon (3D)
             this.roomIcon.setAttribute('animation__exit', {
                 property: 'scale',
                 to: '0 0 0',
@@ -93,7 +139,11 @@ AFRAME.registerComponent('skyvr-infobar', {
                     window.location.href = 'lobby.html';
                 }
             }, 1000);
-        });
+        };
+
+        this.roomIcon.addEventListener('click', onExitClick);
+        if (this.ui2d.exit) this.ui2d.exit.addEventListener('click', onExitClick);
+
 
         const isStandalone = new URLSearchParams(window.location.search).get('room') === 'none';
         // Always show the door icon so users can exit
@@ -114,18 +164,25 @@ AFRAME.registerComponent('skyvr-infobar', {
         if (micEnabledParam) {
             this.micIcon = this.createIcon(this.ICONS.micOff, this.CONFIG.iconSize);
             this.micIcon.setAttribute('position', '0 0 0.001');
-            this.micIcon.addEventListener('click', () => {
+
+            const onMicClick = () => {
                 window.micEnabled = !window.micEnabled;
                 if (typeof NAF !== 'undefined' && NAF.connection && NAF.connection.adapter) {
                     NAF.connection.adapter.enableMicrophone(window.micEnabled);
                 }
-                const micBtnEle = document.getElementById('mic-btn');
-                if (micBtnEle) micBtnEle.textContent = window.micEnabled ? 'Mute Mic' : 'Unmute Mic';
-            });
+            };
+
+            this.micIcon.addEventListener('click', onMicClick);
+            if (this.ui2d.mic) this.ui2d.mic.addEventListener('click', onMicClick);
+
             this.container.appendChild(this.micIcon);
         } else {
-            console.log("Infobar: Mic disabled via URL param. Hiding mic icon.");
+            console.log("Infobar: Mic disabled (standalone or url param). Hiding icons.");
             this.micIcon = null;
+            // Hide 2D mic button
+            if (this.ui2d.mic) {
+                this.ui2d.mic.style.display = 'none';
+            }
         }
 
         // Mode Group (Right)
@@ -167,6 +224,7 @@ AFRAME.registerComponent('skyvr-infobar', {
         this.lastRoom = null;
         this.lastMode = null;
         this.lastConnected = false;
+        this.lastReverse = null;
 
         if (isStandalone) {
             this.roomText.setAttribute('value', 'Standalone Session');
@@ -178,7 +236,110 @@ AFRAME.registerComponent('skyvr-infobar', {
 
     remove: function () {
         window.removeEventListener('ybuttondown', this.onYButtonDown);
+        this.el.sceneEl.removeEventListener('enter-vr', this.onEnterVR);
+        this.el.sceneEl.removeEventListener('exit-vr', this.onExitVR);
     },
+
+    onEnterVR: function () {
+        // A-Frame triggers enter-vr for both immersive VR and fullscreen magic window.
+        // We only want to hide the 2D UI and show the 3D UI if we are actually presenting in a headset.
+        console.log('Infobar: onEnterVR event triggered');
+
+        // Check after a slightly longer delay to ensure Fullscreen API / WebXR state is stable
+        setTimeout(() => {
+            const isPresenting = !!(this.el.sceneEl.renderer.xr && this.el.sceneEl.renderer.xr.isPresenting);
+            const isFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement);
+            const isVRDevice = AFRAME.utils.device.checkHeadsetConnected();
+
+            console.log(`Infobar: State check - isPresenting: ${isPresenting}, isFullscreen: ${isFullscreen}, isVRDevice: ${isVRDevice}`);
+
+            if (isVRDevice) {
+                document.body.classList.add('vr-device-detected');
+            }
+
+            if (isPresenting) {
+                console.log('Infobar: Immersive mode detected. Showing 3D UI, hiding 2D UI.');
+                this.el.object3D.visible = true;
+                if (this.ui2d.container) {
+                    this.ui2d.container.classList.add('hidden');
+                    this.ui2d.container.style.display = 'none';
+                }
+            } else {
+                // If it's a VR device (headset connected but not presenting), we still might want to hide 2D HUD 
+                // but A-Frame button triggered 'fullscreenElement: body' logic previously.
+                // User said: "Remove 2D infobar on 3D devices completely"
+                if (isVRDevice) {
+                    this.el.object3D.visible = true; // Show 3D HUD by default on headsets
+                    if (this.ui2d.container) {
+                        this.ui2d.container.classList.add('hidden');
+                        this.ui2d.container.style.display = 'none';
+                    }
+                    return;
+                }
+
+                console.log('Infobar: Fullscreen/2D mode detected. Showing 2D UI, hiding 3D UI.');
+                this.el.object3D.visible = false;
+                if (this.ui2d.container) {
+                    this.ui2d.container.classList.remove('hidden');
+                    this.ui2d.container.style.display = 'flex';
+                    this.ui2d.container.style.visibility = 'visible';
+                }
+            }
+        }, 300);
+    },
+
+    onExitVR: function () {
+        console.log('Infobar: Exiting VR/Fullscreen - restoring 2D infobar');
+        const isVRDevice = AFRAME.utils.device.checkHeadsetConnected();
+        this.el.object3D.visible = isVRDevice;
+
+        if (this.ui2d.container && !isVRDevice) {
+            this.ui2d.container.classList.remove('hidden');
+            this.ui2d.container.style.display = 'flex';
+            this.ui2d.container.style.visibility = 'visible';
+        } else if (this.ui2d.container) {
+            this.ui2d.container.style.display = 'none';
+        }
+    },
+
+    toggleMouseDirection: function () {
+        window.reverseMouse = !window.reverseMouse;
+        console.log('Infobar: Toggling mouse direction. Mode:', window.reverseMouse ? 'Sky' : 'Camera');
+
+        const camera = document.getElementById('camera');
+        if (camera) {
+            // Only toggle reverseMouseDrag on our custom component as requested.
+            // Touch remains at its default (false) specifically.
+            camera.setAttribute('skyvr-look-controls', {
+                reverseMouseDrag: !!window.reverseMouse
+            });
+        }
+
+        // Update 2D button state
+        if (this.ui2d.mouseMove) {
+            this.ui2d.mouseMove.classList.toggle('active', !!window.reverseMouse);
+        }
+    },
+
+    setup2DListeners: function () {
+        // Mode buttons
+        Object.keys(this.ui2d.modes).forEach(modeId => {
+            const btn = this.ui2d.modes[modeId];
+            if (btn) {
+                btn.addEventListener('click', () => {
+                    window.currentMode = modeId;
+                });
+            }
+        });
+
+        // Mouse Move listener
+        if (this.ui2d.mouseMove) {
+            this.ui2d.mouseMove.addEventListener('click', () => {
+                this.toggleMouseDirection();
+            });
+        }
+    },
+
 
     createIcon: function (src, size) {
         const icon = document.createElement('a-plane');
@@ -351,6 +512,12 @@ AFRAME.registerComponent('skyvr-infobar', {
             const micSrc = currentMic ? this.ICONS.micOn : this.ICONS.micOff;
             this.updateIcon(this.micIcon, micSrc, currentMic ? '#ff0000' : 'white');
             this.borderEl.setAttribute('color', currentMic ? '#ff0000' : '#8a2be2');
+
+            // Update 2D Mic UI
+            if (this.ui2d.mic && this.ui2d.micIcon) {
+                this.ui2d.micIcon.src = currentMic ? 'assets/icons/mic-on.svg' : 'assets/icons/mic-off.svg';
+                this.ui2d.mic.classList.toggle('mic-on', currentMic);
+            }
         }
 
         // Mode updates (runs in both Standalone and Networked)
@@ -361,6 +528,14 @@ AFRAME.registerComponent('skyvr-infobar', {
                 const btn = this.modeButtons[id];
                 const isActive = id === currentMode;
                 btn.setAttribute('material', 'opacity', isActive ? 1.0 : 0.3);
+            });
+
+            // Update 2D Mode UI
+            Object.keys(this.ui2d.modes).forEach(id => {
+                const btn = this.ui2d.modes[id];
+                if (btn) {
+                    btn.classList.toggle('active', id === currentMode);
+                }
             });
 
             // Update B-button hint text dynamically
@@ -379,6 +554,26 @@ AFRAME.registerComponent('skyvr-infobar', {
                 bBg.setAttribute('position', `${-width / 2} -0.0125 0`);
             }
         }
+
+        // Mouse Move sync (if changed via other means, though currently only via this component)
+        const currentReverse = !!window.reverseMouse;
+        if (currentReverse !== this.lastReverse) {
+            this.lastReverse = currentReverse;
+            if (this.ui2d.mouseMove) {
+                this.ui2d.mouseMove.classList.toggle('active', currentReverse);
+            }
+        }
+
+        // Sync room text to 2D UI
+        if (this.ui2d.roomText && !isStandalone) {
+            const val = this.roomText.getAttribute('value');
+            if (this.ui2d.roomText.textContent !== val) {
+                this.ui2d.roomText.textContent = val;
+            }
+        } else if (this.ui2d.roomText && isStandalone) {
+            this.ui2d.roomText.textContent = 'Standalone Session';
+        }
     }
+
 });
 
