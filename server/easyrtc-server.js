@@ -118,7 +118,7 @@ if (!process.env.STUN_URL_1 && !process.env.TURN_URL_1) {
 console.log("Using ICE servers:", myIceServers.map(s => s.urls));
 
 easyrtc.setOption("appIceServers", myIceServers);
-easyrtc.setOption("logLevel", "debug");
+easyrtc.setOption("logLevel", "info");
 easyrtc.setOption("demosEnable", false);
 
 // Overriding the default easyrtcAuth listener, only so we can directly access its callback
@@ -137,19 +137,9 @@ easyrtc.events.on("easyrtcAuth", (socket, easyrtcid, msg, socketCallback, callba
 	});
 });
 
-// To test, lets print the credential to the console for every room join!
 easyrtc.events.on("roomJoin", (connectionObj, roomName, roomParameter, callback) => {
 	console.log("[" + connectionObj.getEasyrtcid() + "] Joining room: " + roomName);
 	easyrtc.events.defaultListeners.roomJoin(connectionObj, roomName, roomParameter, callback);
-});
-
-// Listener for client-reported ICE usage
-easyrtc.events.on("msg:logIceUsage", (connectionObj, msg, socketCallback, next) => {
-	// msg.msgData contains the report string or object
-	console.log(`[${connectionObj.getEasyrtcid()}] ICE Report:`, msg.msgData);
-	// Acknowledge receipt if needed
-	if (socketCallback) socketCallback({ msgType: 'ack' });
-	// We don't need to call next() for custom messages unless we want other handlers to see it
 });
 
 // Start EasyRTC server
