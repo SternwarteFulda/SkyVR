@@ -220,81 +220,68 @@ AFRAME.registerComponent('starfield', {
     this.moonLight.target = this.moon;
     this.moonLight.castShadow = false;
     el.object3D.add(this.moonLight);
+
+    // Initialize throttled functions
+    this.throttledUpdateMoon = AFRAME.utils.throttle(this.updateMoon, 50, this); // 20 fps
+    this.throttledUpdatePlanets = AFRAME.utils.throttle(this.updatePlanets, 1000, this); // 1 fps
   },
+
   update: function () {
-    const now = performance.now();
+    this.throttledUpdateMoon();
+    this.throttledUpdatePlanets();
+  },
 
-    // Timer init
-    if (!this.lastMoonUpdate) this.lastMoonUpdate = 0;
-    if (!this.lastPlanetUpdate) this.lastPlanetUpdate = 0;
+  updateMoon: function () {
+    if (!this.planetsData) this.calculatePlanetsData(); // Fallback init
+    const date = simulationTime.toJSDate();
 
-    let needsBufferUpdate = false;
+    // Update Moon Data (Index 0 is Moon)
+    this.updateBodyData('Moon', date, 0);
+    this.updatePlanetsPositions(); // Buffer update
 
-    // Fast Moon Update (~20Hz)
-    if (now - this.lastMoonUpdate > 50) {
-      if (!this.planetsData) this.calculatePlanetsData(); // Fallback init
+    // Update Moon 3D Object
+    const moonData = this.planetsData[0];
+    if (moonData) {
+      this.moon.position.set(moonData.position[0], moonData.position[1], moonData.position[2]);
 
-      const date = simulationTime.toJSDate();
+      const moonVector = new Astronomy.GeoVector('Moon', date, false);
+      const sunVector = new Astronomy.GeoVector('Sun', date, false);
+      const illuminationDirection = new THREE.Vector3(
+        sunVector.x - moonVector.x,
+        sunVector.y - moonVector.y,
+        sunVector.z - moonVector.z
+      ).normalize();
 
-      // Update Moon Data (Index 0 is Moon)
-      // We know Moon is index 0 from bodyList order in calculatePlanetsData/updateBodyData
-      this.updateBodyData('Moon', date, 0);
-      needsBufferUpdate = true;
-      this.lastMoonUpdate = now;
+      this.moonLight.position.copy(this.moon.position);
+      this.moonLight.position.add(illuminationDirection.multiplyScalar(100));
+      this.moonLight.lookAt(this.moon.position);
 
-      // Update Moon 3D Object
-      const moonData = this.planetsData[0];
-      if (moonData) {
-        this.moon.position.set(moonData.position[0], moonData.position[1], moonData.position[2]);
+      const pole = Astronomy.RotationAxis('Moon', date);
+      const poleJ2000 = new THREE.Vector3(pole.north.x, pole.north.y, pole.north.z);
+      const parentQuat = new THREE.Quaternion();
+      this.moon.parent.getWorldQuaternion(parentQuat);
+      const poleWorld = poleJ2000.applyQuaternion(parentQuat);
 
-        // --- STABLE WORLD-SPACE LOOKAT (Tidal Lock) ---
+      this.moon.scale.set(1, 1, 1);
+      this.moon.up.copy(poleWorld);
+      this.moon.lookAt(0, 0, 0);
+      this.moon.rotateY(Math.PI / 2);
 
-        const moonVector = new Astronomy.GeoVector('Moon', date, false);
-        const sunVector = new Astronomy.GeoVector('Sun', date, false);
-        const illuminationDirection = new THREE.Vector3(
-          sunVector.x - moonVector.x,
-          sunVector.y - moonVector.y,
-          sunVector.z - moonVector.z
-        ).normalize();
-
-        this.moonLight.position.copy(this.moon.position);
-        this.moonLight.position.add(illuminationDirection.multiplyScalar(100));
-        this.moonLight.lookAt(this.moon.position);
-
-        const pole = Astronomy.RotationAxis('Moon', date);
-        const poleJ2000 = new THREE.Vector3(pole.north.x, pole.north.y, pole.north.z);
-        const parentQuat = new THREE.Quaternion();
-        this.moon.parent.getWorldQuaternion(parentQuat);
-        const poleWorld = poleJ2000.applyQuaternion(parentQuat);
-
-        this.moon.scale.set(1, 1, 1);
-        this.moon.up.copy(poleWorld);
-        this.moon.lookAt(0, 0, 0);
-        this.moon.rotateY(Math.PI / 2);
-
-        const lib = Astronomy.Libration(date);
-        this.moon.rotateY(THREE.MathUtils.degToRad(-lib.elon));
-        this.moon.rotateZ(THREE.MathUtils.degToRad(lib.elat));
-      }
+      const lib = Astronomy.Libration(date);
+      this.moon.rotateY(THREE.MathUtils.degToRad(-lib.elon));
+      this.moon.rotateZ(THREE.MathUtils.degToRad(lib.elat));
     }
+  },
 
-    // Slow Planets Update (1Hz)
-    if (now - this.lastPlanetUpdate > 1000) {
-      if (!this.planetsData) this.calculatePlanetsData();
-
-      const date = simulationTime.toJSDate();
-      const bodyList = ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune'];
-      // Start index 1 since Moon is 0
-      for (let i = 0; i < bodyList.length; i++) {
-        this.updateBodyData(bodyList[i], date, i + 1);
-      }
-      needsBufferUpdate = true;
-      this.lastPlanetUpdate = now;
+  updatePlanets: function () {
+    if (!this.planetsData) this.calculatePlanetsData();
+    const date = simulationTime.toJSDate();
+    const bodyList = ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune'];
+    // Start index 1 since Moon is 0
+    for (let i = 0; i < bodyList.length; i++) {
+      this.updateBodyData(bodyList[i], date, i + 1);
     }
-
-    if (needsBufferUpdate) {
-      this.updatePlanetsPositions();
-    }
+    this.updatePlanetsPositions(); // Buffer update
   },
   calculatePlanetsData: function () {
     // Initial population of the planetsData array

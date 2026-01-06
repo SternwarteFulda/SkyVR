@@ -1703,12 +1703,7 @@
         leftTriggerValue = evt.detail.value;
       });
 
-      let lastJoystickTime = 0;
-      leftController.addEventListener("thumbstickmoved", function (event) {
-        const now = performance.now();
-        if (now - lastJoystickTime < 20) return; // Limit to ~50Hz
-        lastJoystickTime = now;
-
+      leftController.addEventListener("thumbstickmoved", AFRAME.utils.throttle(function (event) {
         let needsSync = false;
         // Check for max joystick deflection (approx > 0.9) to enable turbo
         const isMaxDeflection = Math.abs(event.detail.x) > 0.9;
@@ -1737,7 +1732,7 @@
           syncSky();
           // updateScene is handled by tick loop
         }
-      });
+      }, 20));
 
 
 
