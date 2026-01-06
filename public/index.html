@@ -368,7 +368,34 @@
               component: 'rotation',
               requiresNetworkUpdate: NAF.utils.vectorRequiresUpdate(0.5)
             },
-            'player-info'
+            {
+              selector: '.nametag',
+              component: 'position'
+            },
+            {
+              selector: '.mic-indicator',
+              component: 'position'
+            },
+            {
+              component: 'player-info',
+              property: 'name'
+            },
+            {
+              component: 'player-info',
+              property: 'color'
+            },
+            {
+              component: 'player-info',
+              property: 'spawned'
+            },
+            {
+              component: 'player-info',
+              property: 'spotId'
+            },
+            {
+              component: 'player-info',
+              property: 'micStatus'
+            }
           ]
         });
       }
@@ -396,7 +423,26 @@
               selector: '.pointer',
               component: 'rotation'
             },
-            'player-info'
+            {
+              component: 'player-info',
+              property: 'name'
+            },
+            {
+              component: 'player-info',
+              property: 'color'
+            },
+            {
+              component: 'player-info',
+              property: 'spawned'
+            },
+            {
+              component: 'player-info',
+              property: 'spotId'
+            },
+            {
+              component: 'player-info',
+              property: 'micStatus'
+            }
           ]
         });
       }
@@ -906,9 +952,13 @@
               rotation="20 0 0"></a-sphere>
           </a-entity>
 
+          <!-- mic indicator -->
+          <a-entity class="mic-indicator" position="0 0.35 0" visible="false">
+            <a-plane class="mic-icon" rotation="0 0 0" width="0.15" height="0.15"
+              material="src: assets/icons/mic-on.svg; transparent: true; shader: flat; fog: false"></a-plane>
+          </a-entity>
+
           <!-- here we add a text component for a nametag; the value will be updated by the player-info component -->
-          <a-text class="nametag" value="?" rotation="0 180 0" position="0 -.35 0" align="center" font="mozillavr"
-            side="front" scale=".5 .5 .5"></a-text>
           <a-text class="nametag" value="?" rotation="0 0 0" position="0 -.35 0" align="center" font="mozillavr"
             side="front" scale=".5 .5 .5"></a-text>
         </a-entity>

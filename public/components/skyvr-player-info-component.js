@@ -14,7 +14,8 @@ AFRAME.registerComponent('player-info', {
             default: window.ntExample.randomColor()
         },
         spawned: { type: 'boolean', default: false },
-        spotId: { type: 'int', default: -1 }
+        spotId: { type: 'int', default: -1 },
+        micStatus: { type: 'string', default: 'none' }
     },
 
     init: function () {
@@ -22,11 +23,14 @@ AFRAME.registerComponent('player-info', {
         this.nametags = this.el.querySelectorAll('.nametag');
         this.eyelids = this.el.querySelectorAll('.eyelid');
         this.pointer = this.el.querySelector('.pointer');
+        this.micIndicator = this.el.querySelector('.mic-indicator');
+        this.micIcons = this.el.querySelectorAll('.mic-icon');
 
         // Initial render order setup to fix "transparent sorting" (head occluding eyes)
         if (this.head) this.head.object3D.renderOrder = 10;
         this.el.querySelectorAll('.eye, .pupil, .eyelid').forEach(p => p.object3D.renderOrder = 12);
         this.nametags.forEach(p => p.object3D.renderOrder = 15);
+        if (this.micIcons) this.micIcons.forEach(p => p.object3D.renderOrder = 16);
 
         // Track initialization time to distinguish pre-existing players from new ones
         this.initTime = performance.now();
@@ -67,6 +71,78 @@ AFRAME.registerComponent('player-info', {
         if (time > this.nextBlink) {
             this.blink();
         }
+
+        // Update local mic status
+        if (this.ownedByLocalUser && this.el.id === 'camera') {
+            const urlParams = new URLSearchParams(window.location.search);
+            const micAllowed = urlParams.get('mic') !== 'false' && (urlParams.get('room') !== 'none');
+
+            let currentStatus = 'none';
+            if (micAllowed) {
+                currentStatus = window.micEnabled ? 'unmuted' : 'muted';
+            }
+
+            if (this.data.micStatus !== currentStatus) {
+                this.el.setAttribute('player-info', 'micStatus', currentStatus);
+            }
+        }
+
+        // Remote Player Logic: Billboarding (Nametags & Mic)
+        if (!this.ownedByLocalUser && this.data.spawned) {
+            this.updateBillboarding();
+        }
+    },
+
+    updateBillboarding: function () {
+        // Ensure we have children
+        if (!this.nametags || this.nametags.length === 0) {
+            this.nametags = this.el.querySelectorAll('.nametag');
+        }
+        if (!this.micIndicator) {
+            this.micIndicator = this.el.querySelector('.mic-indicator');
+        }
+
+        const scene = this.el.sceneEl;
+        if (!scene || !scene.camera) return;
+
+        const camera = scene.camera;
+        if (!this._tmp) {
+            this._tmp = {
+                camPos: new THREE.Vector3(),
+                avatarPos: new THREE.Vector3(),
+                objPos: new THREE.Vector3(),
+                target: new THREE.Vector3()
+            };
+        }
+
+        // Get world positions of interest
+        camera.getWorldPosition(this._tmp.camPos);
+        this.el.object3D.getWorldPosition(this._tmp.avatarPos);
+
+        const apply = (el, offset) => {
+            if (!el || !el.object3D || !el.object3D.parent) return;
+
+            // 1. POSITION: Stay centered vertically relative to the avatar root (ignoring head tilt/rotation)
+            // Desired position is directly above/below the avatar world position
+            this._tmp.target.set(this._tmp.avatarPos.x, this._tmp.avatarPos.y + offset, this._tmp.avatarPos.z);
+
+            // Convert this world target back to local space of the parent (the head/camera entity)
+            // This ensures that even if the head tilts, the label stays at the absolute vertical offset.
+            el.object3D.parent.worldToLocal(this._tmp.target);
+            el.object3D.position.copy(this._tmp.target);
+
+            // 2. FACING: Billboard to face the local user's camera (Yaw only)
+            // lookAt ensures the object rotates such that its front (+Z) faces the target
+            this._tmp.target.set(this._tmp.camPos.x, this._tmp.avatarPos.y + offset, this._tmp.camPos.z);
+            el.object3D.lookAt(this._tmp.target);
+        };
+
+        if (this.nametags) {
+            this.nametags.forEach(n => apply(n, -0.35));
+        }
+        if (this.micIndicator) {
+            apply(this.micIndicator, 0.35);
+        }
     },
 
     update: function (oldData) {
@@ -83,6 +159,32 @@ AFRAME.registerComponent('player-info', {
         }
         if (this.pointer) {
             this.pointer.setAttribute('bottom-origin-cylinder', 'color', this.data.color);
+        }
+
+        // Handle mic indicator visuals
+        if (this.micIndicator) {
+            const status = this.data.micStatus;
+
+            if (status === 'none') {
+                this.micIndicator.setAttribute('visible', false);
+            } else {
+                this.micIndicator.setAttribute('visible', true);
+                let micSrc, micColor;
+                if (status === 'muted') {
+                    micSrc = 'assets/icons/mic-off.svg';
+                    micColor = '#888'; // Gray for muted
+                } else {
+                    micSrc = 'assets/icons/mic-on.svg';
+                    micColor = '#ff0000'; // Red for unmuted
+                }
+
+                if (this.micIcons) {
+                    this.micIcons.forEach(icon => {
+                        icon.setAttribute('material', 'src', micSrc);
+                        icon.setAttribute('material', 'color', micColor);
+                    });
+                }
+            }
         }
 
         // Apply same color to laser ray (local only)
@@ -152,7 +254,7 @@ AFRAME.registerComponent('player-info', {
 
     setAvatarOpacity: function (opacity) {
         // Find all parts that should fade
-        const parts = this.el.querySelectorAll('.head, .eye, .pupil, .eyelid, .nametag');
+        const parts = this.el.querySelectorAll('.head, .eye, .pupil, .eyelid, .nametag, .mic-icon');
         parts.forEach(part => {
             if (part.tagName.toLowerCase() === 'a-text') {
                 part.setAttribute('opacity', opacity);
@@ -225,7 +327,7 @@ AFRAME.registerComponent('player-info', {
             // BEAM VISIBILITY CHECK:
             // Only show 'in' beams if this is a remote player.
             if (mode === 'in' && this.ownedByLocalUser) {
-                const avatarParts = el.querySelectorAll('.head, .eye, .pupil, .eyelid, .nametag');
+                const avatarParts = el.querySelectorAll('.head, .eye, .pupil, .eyelid, .nametag, .mic-icon');
                 avatarParts.forEach(part => {
                     const isText = part.tagName.toLowerCase() === 'a-text';
                     const property = isText ? 'opacity' : 'material.opacity';
@@ -268,7 +370,7 @@ AFRAME.registerComponent('player-info', {
 
             if (mode === 'in') {
                 // Fade in original avatar components
-                const parts = el.querySelectorAll('.head, .eye, .pupil, .eyelid, .nametag');
+                const parts = el.querySelectorAll('.head, .eye, .pupil, .eyelid, .nametag, .mic-icon');
                 parts.forEach(part => {
                     const isText = part.tagName.toLowerCase() === 'a-text';
                     const property = isText ? 'opacity' : 'material.opacity';
@@ -280,7 +382,7 @@ AFRAME.registerComponent('player-info', {
             } else {
                 // Create phantom avatar for 'out' effect
                 // We only query the top-level parts we want to clone.
-                const visuals = el.querySelectorAll('.head, .face, .nametag');
+                const visuals = el.querySelectorAll('.head, .face, .nametag, .mic-indicator');
                 visuals.forEach(v => {
                     const clone = v.cloneNode(true);
 
