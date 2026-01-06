@@ -301,24 +301,40 @@ AFRAME.registerComponent('starfield', {
   },
 
   updateBodyData: function (bodyName, date, index) {
-    let equ_2000 = Astronomy.Equator(bodyName, date, observer, false, false);
+    const equ_2000 = Astronomy.Equator(bodyName, date, observer, false, false);
     let mag = Astronomy.Illumination(bodyName, date).mag;
     if (bodyName === "Moon") {
       mag = -26.77;
     }
-    let raDegrees = (equ_2000.ra / 24) * 360;
-    let decDegrees = equ_2000.dec;
+
+    // Performance Optimization: Use radians directly and cache common trig
+    const raRad = (equ_2000.ra / 24) * 6.283185307179586; // 2 * PI
+    const decRad = equ_2000.dec * 0.017453292519943295; // PI / 180
+    const cosDec = Math.cos(decRad);
+
     const distance = bodyName === "Moon" ? 398 : 400;
-    const x = distance * Math.cos((decDegrees * Math.PI) / 180) * Math.cos((raDegrees * Math.PI) / 180);
-    const y = distance * Math.cos((decDegrees * Math.PI) / 180) * Math.sin((raDegrees * Math.PI) / 180);
-    const z = distance * Math.sin((decDegrees * Math.PI) / 180);
+    const x = distance * cosDec * Math.cos(raRad);
+    const y = distance * cosDec * Math.sin(raRad);
+    const z = distance * Math.sin(decRad);
+
     const size = mapRange(mag, -5.0, 5.5, 14.0, 0.9);
 
     const data = this.planetsData[index];
-    data.position = [x, y, z];
+    if (!data) return; // Safety check
+
+    // Initialize arrays if they don't exist
+    if (!data.position) data.position = [0, 0, 0];
+    if (!data.color) data.color = [1.0, 1.0, 1.0];
+
+    // REUSE array references for zero garbage collection
+    data.position[0] = x;
+    data.position[1] = y;
+    data.position[2] = z;
     data.size = bodyName === "Moon" ? 0.0 : size;
     data.haloSize = bodyName === "Moon" ? 0.0 : size;
-    data.color = [1.0, 1.0, 1.0];
+    data.color[0] = 1.0;
+    data.color[1] = 1.0;
+    data.color[2] = 1.0;
   },
   createPlanetsObjects: function (type) {
     const planetsGeometry = new THREE.BufferGeometry();

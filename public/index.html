@@ -164,6 +164,11 @@
         this.targetLatitude = null;
         this.targetLongitude = null;
         this.lerpSpeed = 5.0; // Moderate speed (catch up in ~200ms)
+
+        // Velocity tracking for predictive interpolation
+        this.lastReceivedTime = null;
+        this.lastReceivedTimestamp = 0;
+        this.timeVelocity = 0; // seconds per second
       },
       remove: function () {
         if (this.checkInterval) clearInterval(this.checkInterval);
@@ -219,32 +224,38 @@
         }
       },
       tick: function (t, dt) {
+        if (!window.interpolationEnabled) {
+          if (!NAF.utils.isMine(this.el) && this.targetTime) {
+            window.simulationTime = this.targetTime;
+            this.targetTime = null;
+            updateScene();
+          }
+          return;
+        }
         if (!NAF.utils.isMine(this.el) && this.targetTime && window.simulationTime) {
-          // Only interpolate if the difference is reasonable (e.g. < 1 hour)
-          // If it's a huge jump (reset/preset), snap immediately.
-          const diffSeconds = this.targetTime.diff(window.simulationTime, 'seconds').seconds;
+          const currentTimeSecs = window.simulationTime.toMillis() / 1000;
+          const targetTimeSecs = this.targetTime.toMillis() / 1000;
+          const diffSeconds = targetTimeSecs - currentTimeSecs;
+          const dtSec = dt / 1000;
+
+          // Decay predicted velocity if we haven't received an update in a while
+          const timeSinceLastUpdate = (performance.now() - this.lastReceivedTimestamp) / 1000;
+          if (timeSinceLastUpdate > 0.2) {
+            this.timeVelocity *= Math.exp(-10.0 * dtSec); // Smooth decay
+          }
 
           if (Math.abs(diffSeconds) > 3600) {
-            // Huge jump, snap
             window.simulationTime = this.targetTime;
-            this.targetTime = null; // Done
-          } else if (Math.abs(diffSeconds) > 0.1) {
-            // Smooth Lerp
-            // dt is ms, so dt/1000 is seconds.
-            // frameStep = error * speed * dt
-            const step = diffSeconds * this.lerpSpeed * (dt / 1000);
-            window.simulationTime = window.simulationTime.plus({ seconds: step });
+            this.targetTime = null;
+            this.timeVelocity = 0;
+          } else if (Math.abs(diffSeconds) > 0.05 || Math.abs(this.timeVelocity) > 0.1) {
+            const step = (diffSeconds + (this.timeVelocity * dtSec)) * this.lerpSpeed * dtSec;
+            window.simulationTime = luxon.DateTime.fromMillis((currentTimeSecs + step) * 1000);
           } else {
-            // Close enough
             window.simulationTime = this.targetTime;
+            this.timeVelocity = 0;
           }
-          // Also smooth Latitude/Longitude if needed? usually only Time is "scrubbed".
-          // Let's stick to time for now as it's the main stutter source.
-
-          // IMPORTANT: Must call updateScene to reflect the interpolated time
           updateScene();
-
-          // Also keep local target in sync so if we TAKE ownership, we start from here
           if (window.targetSimulationTime) {
             window.targetSimulationTime = window.simulationTime;
           }
@@ -276,14 +287,29 @@
         if (isRemote) {
           if (this.data.time && this.data.time !== oldData.time) {
             if (!incomingIsInit) {
-              // Instead of setting simulationTime directly, set a target
-              this.targetTime = luxon.DateTime.fromISO(this.data.time);
+              const newTargetTime = luxon.DateTime.fromISO(this.data.time);
 
-              // If this is the FIRST update or a huge jump, snap instantly to avoid weird glide
-              // But if we are just drifting slightly, let the Lerp handle it.
+              // Calculate velocity for predictive interpolation
+              const now = performance.now();
+              if (this.lastReceivedTime && this.lastReceivedTimestamp) {
+                const timeDelta = newTargetTime.diff(this.lastReceivedTime, 'seconds').seconds;
+                const realTimeDelta = (now - this.lastReceivedTimestamp) / 1000;
+
+                if (realTimeDelta > 0 && Math.abs(timeDelta) < 3600) {
+                  // Calculate velocity (simulation seconds per real second)
+                  this.timeVelocity = timeDelta / realTimeDelta;
+                }
+              }
+
+              this.lastReceivedTime = newTargetTime;
+              this.lastReceivedTimestamp = now;
+              this.targetTime = newTargetTime;
+
+              // If this is the FIRST update or a huge jump, snap instantly
               if (!window.simulationTime || Math.abs(this.targetTime.diff(window.simulationTime, 'seconds').seconds) > 3600) {
                 window.simulationTime = this.targetTime;
                 this.targetTime = null;
+                this.timeVelocity = 0;
               }
             }
           }
@@ -1342,9 +1368,23 @@
 
       // Initialize a base date/time for the simulation.
       window.simulationTime = luxon.DateTime.now(); // Current local date and time
+      window.interpolationEnabled = true; // TOGGLE THIS FOR TESTING
+
+      // Velocity-based interpolation state
+      window.targetTimeVelocity = 0; // seconds per second
+      window.currentTimeVelocity = 0;
+      window.lastJoystickTime = 0;
+      window.simTimeMs = window.simulationTime.toMillis();
+
       console.log(simulationTime.zoneName);
 
       let observer = new Astronomy.Observer(latitude, longitude, elevation);
+
+      // Cache for astronomical calculations
+      window._astroCache = {
+        sunRaDec: null,
+        lastAstroUpdate: 0
+      };
 
       let isRightControllerGripDown = false;
       window.micEnabled = false;
@@ -1399,6 +1439,7 @@
             showCardinalPoints: document.getElementById('cardinal-points')?.getAttribute('visible') || false,
             showCelestialPoles: document.getElementById('ncp')?.getAttribute('visible') || false,
             activeConstellations: constellationData || 'INIT',
+            velocity: window.currentTimeVelocity,
             heartbeat: performance.now()
           };
 
@@ -1424,41 +1465,37 @@
           }
         },
         tick: function (t, dt) {
-          // If we are the owner (or alone), we smoothly interpolate towards our own target
-          // If we are a client, the sky-state component handles interpolation from network data.
+          if (!window.interpolationEnabled) {
+            window.currentTimeVelocity = 0;
+            return;
+          }
+
           const isSolo = new URLSearchParams(window.location.search).get('room') === 'none';
           const skyState = document.getElementById('sky-master');
           const isMine = isSolo || (skyState && NAF.utils.isMine(skyState));
 
-          if (isMine && window.targetSimulationTime && window.simulationTime) {
-            const diffSeconds = window.targetSimulationTime.diff(window.simulationTime, 'seconds').seconds;
+          if (isMine) {
+            const dtSec = dt / 1000;
+            const now = performance.now();
 
-            // If barely any difference, sync exact and stop
-            if (Math.abs(diffSeconds) < 0.01) {
-              if (diffSeconds !== 0) {
-                window.simulationTime = window.targetSimulationTime;
-                updateScene();
-                // Broadcast final state
-                syncSky();
-              }
-              return;
+            // 1. Safety: Reset target velocity if no joystick events for 300ms
+            if (now - window.lastJoystickTime > 300) {
+              window.targetTimeVelocity = 0;
             }
 
-            // Huge jump logic (reset/preset)
-            if (Math.abs(diffSeconds) > 3600) {
-              window.simulationTime = window.targetSimulationTime;
-            } else {
-              // Smooth Lerp
-              const step = diffSeconds * this.lerpSpeed * (dt / 1000);
-              window.simulationTime = window.simulationTime.plus({ seconds: step });
-            }
-            updateScene();
+            // 2. Smoothly interpolate velocity for that "butter" glide (k=5.0)
+            window.currentTimeVelocity += (window.targetTimeVelocity - window.currentTimeVelocity) * 5.0 * dtSec;
 
-            // CRITICAL: We MUST broadcast the interpolated state if we are moving,
-            // otherwise remote clients stop receiving updates the moment joystick stops,
-            // missing the "tail" of the glide.
-            // We throttle this inside syncSky (100ms) so it's safe to call every frame here.
-            syncSky();
+            // 3. Apply velocity shift using numeric timestamp
+            if (Math.abs(window.currentTimeVelocity) > 0.05) { // Stop threshold
+              window.simTimeMs += window.currentTimeVelocity * 1000 * dtSec;
+              window.simulationTime = luxon.DateTime.fromMillis(window.simTimeMs);
+              updateScene();
+              syncSky();
+            } else if (window.targetTimeVelocity === 0 && window.currentTimeVelocity !== 0) {
+              window.currentTimeVelocity = 0;
+              syncSky(); // Broadcast final stop
+            }
           }
         }
       });
@@ -1488,6 +1525,15 @@
       let lastUIUpdateTime = 0;
       let lastLightUpdateTime = 0;
 
+      // Pre-calculate constants for performance
+      const DEG_TO_RAD = Math.PI / 180;
+      const RAD_TO_DEG = 180 / Math.PI;
+      const PRECESSION_RATE = 360 / 25750; // degrees per year
+      const DISTANCE_SUN = 400;
+
+      // Cache for expensive calculations
+      let cachedLongitudeDeg15 = longitude / 15;
+
       // Function to update the scene
       function updateScene() {
         if (!sceneEl) sceneEl = document.querySelector('a-scene');
@@ -1503,53 +1549,69 @@
 
         const jsDate = simulationTime.toJSDate();
         const astroTime = Astronomy.MakeTime(jsDate);
-        let lst = calculateLocalSiderealTime(astroTime, longitude);
-        let lstDegrees = lst * 15; // Convert LST from hours to degrees
 
-        // Update scene elements based on the new simulation time or latitude
+        // Optimized LST calculation using cached value
+        const GAST = Astronomy.SiderealTime(astroTime);
+        const LAST = GAST + cachedLongitudeDeg15;
+        const lstDegrees = -(LAST % 24) * 15;
+
+        // Update scene elements - direct Object3D manipulation
         if (eqContainer) {
-          // Use direct Object3D manipulation for better performance
-          eqContainer.object3D.rotation.set(
-            THREE.MathUtils.degToRad(latitude - 180),
-            0,
-            THREE.MathUtils.degToRad(lstDegrees - 90)
-          );
+          const rot = eqContainer.object3D.rotation;
+          rot.x = (latitude - 180) * DEG_TO_RAD;
+          rot.y = 0;
+          rot.z = (lstDegrees - 90) * DEG_TO_RAD;
         }
 
-        let currentYear = simulationTime.year;
-        let precessionDegrees = (currentYear - 2000) * 360 / 25750; // Simplified precession effect
+        // Optimized precession calculation
         if (precessionContainer) {
-          precessionContainer.object3D.rotation.set(
-            THREE.MathUtils.degToRad(23.43619),
-            0,
-            THREE.MathUtils.degToRad(precessionDegrees)
-          );
+          const rot = precessionContainer.object3D.rotation;
+          rot.x = 23.43619 * DEG_TO_RAD;
+          rot.y = 0;
+          rot.z = (simulationTime.year - 2000) * PRECESSION_RATE * DEG_TO_RAD;
         }
 
         const now = performance.now();
 
-        // Use persistent variables for Sun caching if they don't exist
+        // Use persistent variables for Sun caching
         if (!window._skyCache) window._skyCache = { sunAltAz: { altitude: -10, azimuth: 0 }, lastSunUpdateTime: 0 };
 
         // Ensure observer exists and is up to date
         if (typeof observer === 'undefined' || observer.latitude !== latitude || observer.longitude !== longitude) {
           observer = new Astronomy.Observer(latitude, longitude, elevation);
+          cachedLongitudeDeg15 = longitude / 15; // Update cache when longitude changes
         }
 
-        const sunRaDec = Astronomy.Equator('Sun', astroTime, observer, false, false);
-        window._skyCache.sunAltAz = Astronomy.Horizon(astroTime, observer, sunRaDec.ra, sunRaDec.dec, false);
-        const sunAltAz = window._skyCache.sunAltAz;
-
-        const distance = 400;
-        const x = -distance * Math.cos((sunAltAz.altitude * Math.PI) / 180) * Math.sin((sunAltAz.azimuth * Math.PI) / 180);
-        const y = distance * Math.sin((sunAltAz.altitude * Math.PI) / 180);
-        const z = distance * Math.cos((sunAltAz.altitude * Math.PI) / 180) * Math.cos((sunAltAz.azimuth * Math.PI) / 180);
-
-        if (sceneEl) {
-          sceneEl.setAttribute('environment', 'lightPosition', `${x} ${y} ${z}`);
+        // Optimized Sun: Throttle the heavy Equator solving to 1Hz
+        if (!window._astroCache.sunRaDec || (now - window._astroCache.lastAstroUpdate > 1000)) {
+          window._astroCache.sunRaDec = Astronomy.Equator('Sun', astroTime, observer, false, false);
+          window._astroCache.lastAstroUpdate = now;
         }
 
-        let skyBrightness = mapSunAltitudeToSkyBrightness(sunAltAz.altitude, 0.0);
+        // Horizontal conversion is lighter than full solving
+        const sunAltAz = Astronomy.Horizon(astroTime, observer, window._astroCache.sunRaDec.ra, window._astroCache.sunRaDec.dec, false);
+
+        const altRad = sunAltAz.altitude * DEG_TO_RAD;
+        const azRad = sunAltAz.azimuth * DEG_TO_RAD;
+        const cosAlt = Math.cos(altRad);
+
+        const x = -DISTANCE_SUN * cosAlt * Math.sin(azRad);
+        const y = DISTANCE_SUN * Math.sin(altRad);
+        const z = DISTANCE_SUN * cosAlt * Math.cos(azRad);
+
+        if (sceneEl && sceneEl.components.environment) {
+          const env = sceneEl.components.environment;
+          if (env.lighting) {
+            env.lighting.position.set(x, y, z);
+            // We might need to refresh the light if the component expects setAttribute
+            // But usually direct Three.js manipulation works for lights.
+          } else {
+            // Fallback if lighting is not yet initialized
+            sceneEl.setAttribute('environment', 'lightPosition', `${x} ${y} ${z}`);
+          }
+        }
+
+        const skyBrightness = mapSunAltitudeToSkyBrightness(sunAltAz.altitude, 0.0);
         if (typeof starShaderMaterial !== 'undefined' && starShaderMaterial.uniforms.skyBrightness) {
           starShaderMaterial.uniforms.skyBrightness.value = skyBrightness;
         }
@@ -1711,17 +1773,28 @@
         const isMaxDeflection = Math.abs(event.detail.x) > 0.9;
 
         if (Math.abs(event.detail.x) > 0.05) {
-          // Adjust TARGET time
-          // Multiplier: 1x to 10x based on trigger pressure, ONLY if joystick is maxed
           let speedMultiplier = 1;
           if (isMaxDeflection) {
             speedMultiplier = 1 + (leftTriggerValue * 4);
           }
 
-          let timeAdjustment = Math.pow(event.detail.x, 3.0) * timeAdjustmentSpeed * speedMultiplier;
-          window.targetSimulationTime = window.targetSimulationTime.plus({ seconds: timeAdjustment });
+          // Drive VELOCITY directly
+          const requestedVelocity = Math.pow(event.detail.x, 3.0) * timeAdjustmentSpeed * speedMultiplier * 50;
+          window.lastJoystickTime = performance.now();
 
-          needsSync = true; // stop smoothly
+          if (window.interpolationEnabled) {
+            window.targetTimeVelocity = requestedVelocity;
+          } else {
+            window.simTimeMs += requestedVelocity * (20 / 1000) * 1000;
+            window.simulationTime = luxon.DateTime.fromMillis(window.simTimeMs);
+            updateScene();
+          }
+
+          needsSync = true;
+        } else {
+          window.targetTimeVelocity = 0;
+          window.lastJoystickTime = performance.now();
+          needsSync = true;
         }
         if (Math.abs(event.detail.y) >= joystickThreshold) {
           let latitudeAdjustment = -event.detail.y * latitudeAdjustmentSpeed;
