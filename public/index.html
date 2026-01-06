@@ -199,8 +199,8 @@
           const timeDrift = Math.abs(window.simulationTime.diff(sharedTime, 'seconds').seconds);
           const latDrift = Math.abs(window.latitude - this.data.latitude);
 
-          if (timeDrift > 5 || latDrift > 0.01) {
-            console.log("sky-state: Watchdog detected drift from master. Pulling state...");
+          if ((timeDrift > 5 || latDrift > 0.01) && !this.targetTime) {
+            console.log("sky-state: Watchdog detected drift from master (and no interpolation active). Pulling state...");
             // Instead of just update(), let's explicitly copy the data to our locals
             window.simulationTime = sharedTime;
             // CRITICAL: Update local target to match to prevent jump-back on interaction
@@ -280,8 +280,10 @@
               this.targetTime = luxon.DateTime.fromISO(this.data.time);
 
               // If this is the FIRST update or a huge jump, snap instantly to avoid weird glide
+              // But if we are just drifting slightly, let the Lerp handle it.
               if (!window.simulationTime || Math.abs(this.targetTime.diff(window.simulationTime, 'seconds').seconds) > 3600) {
                 window.simulationTime = this.targetTime;
+                this.targetTime = null;
               }
             }
           }
