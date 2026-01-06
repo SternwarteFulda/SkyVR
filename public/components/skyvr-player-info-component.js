@@ -141,7 +141,7 @@ AFRAME.registerComponent('player-info', {
             this.nametags.forEach(n => apply(n, -0.35));
         }
         if (this.micIndicator) {
-            apply(this.micIndicator, 0.35);
+            apply(this.micIndicator, 0.42);
         }
     },
 
