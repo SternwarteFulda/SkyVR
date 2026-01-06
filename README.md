@@ -31,6 +31,12 @@
     ```
     *Note: This will automatically run a postinstall patch for the A-Frame environment component.*
 
+3.  Set up environment variables:
+    ```bash
+    cp .env.example .env
+    ```
+    Edit `.env` to add your TURN server credentials (if needed for production NAT traversal) and optionally configure custom Imprint/Privacy Policy URLs.
+
 ### Running locally
 
 Start the server:

@@ -85,36 +85,37 @@ const webServer = http.createServer(app);
 
 // Start Socket.io so it attaches itself to Express server
 const socketServer = socketIo(webServer, { "log level": 1 });
-const myIceServers = [
-	{ "urls": "stun:stun1.l.google.com:19302" },
-	{ "urls": "stun:stun2.l.google.com:19302" },
-	{ "urls": "stun:stun.relay.metered.ca:80" },
-	{
-		"urls": "turn:turn.sternwarte-fulda.de:3478",
-		"username": process.env.TURN_USER_HNS,
-		"credential": process.env.TURN_CRED_HNS,
-	},
-	{
-		"urls": "turn:standard.relay.metered.ca:80",
-		"username": process.env.TURN_USER_METEREDCA,
-		"credential": process.env.TURN_CRED_METEREDCA,
-	},
-	{
-		"urls": "turn:standard.relay.metered.ca:80?transport=tcp",
-		"username": process.env.TURN_USER_METEREDCA,
-		"credential": process.env.TURN_CRED_METEREDCA,
-	},
-	{
-		"urls": "turn:standard.relay.metered.ca:443",
-		"username": process.env.TURN_USER_METEREDCA,
-		"credential": process.env.TURN_CRED_METEREDCA,
-	},
-	{
-		"urls": "turns:standard.relay.metered.ca:443?transport=tcp",
-		"username": process.env.TURN_USER_METEREDCA,
-		"credential": process.env.TURN_CRED_METEREDCA,
-	},
-];
+const myIceServers = [];
+
+// Load defaults if no environment variables are set
+if (!process.env.STUN_URL_1 && !process.env.TURN_URL_1) {
+	myIceServers.push(
+		{ "urls": "stun:stun1.l.google.com:19302" },
+		{ "urls": "stun:stun2.l.google.com:19302" }
+	);
+} else {
+	// Loop through possible indices (limit to 10 to prevent infinite loops)
+	for (let i = 1; i <= 10; i++) {
+		// STUN
+		if (process.env[`STUN_URL_${i}`]) {
+			myIceServers.push({ "urls": process.env[`STUN_URL_${i}`] });
+		}
+
+		// TURN
+		if (process.env[`TURN_URL_${i}`]) {
+			const turnServer = {
+				"urls": process.env[`TURN_URL_${i}`]
+			};
+			if (process.env[`TURN_USER_${i}`] && process.env[`TURN_CRED_${i}`]) {
+				turnServer.username = process.env[`TURN_USER_${i}`];
+				turnServer.credential = process.env[`TURN_CRED_${i}`];
+			}
+			myIceServers.push(turnServer);
+		}
+	}
+}
+
+console.log("Using ICE servers:", myIceServers.map(s => s.urls));
 
 easyrtc.setOption("appIceServers", myIceServers);
 easyrtc.setOption("logLevel", "debug");
@@ -138,8 +139,17 @@ easyrtc.events.on("easyrtcAuth", (socket, easyrtcid, msg, socketCallback, callba
 
 // To test, lets print the credential to the console for every room join!
 easyrtc.events.on("roomJoin", (connectionObj, roomName, roomParameter, callback) => {
-	console.log("[" + connectionObj.getEasyrtcid() + "] Credential retrieved!", connectionObj.getFieldValueSync("credential"));
+	console.log("[" + connectionObj.getEasyrtcid() + "] Joining room: " + roomName);
 	easyrtc.events.defaultListeners.roomJoin(connectionObj, roomName, roomParameter, callback);
+});
+
+// Listener for client-reported ICE usage
+easyrtc.events.on("msg:logIceUsage", (connectionObj, msg, socketCallback, next) => {
+	// msg.msgData contains the report string or object
+	console.log(`[${connectionObj.getEasyrtcid()}] ICE Report:`, msg.msgData);
+	// Acknowledge receipt if needed
+	if (socketCallback) socketCallback({ msgType: 'ack' });
+	// We don't need to call next() for custom messages unless we want other handlers to see it
 });
 
 // Start EasyRTC server
