@@ -367,8 +367,8 @@
                 </li>
                 <li>
                     <div class="asset-info">
-                        <a href="https://johanmeuris.eu/work/stellarium-constellation-art/" class="asset-name" target="_blank"
-                            rel="noopener noreferrer">Constellation Art</a>
+                        <a href="https://johanmeuris.eu/work/stellarium-constellation-art/" class="asset-name"
+                            target="_blank" rel="noopener noreferrer">Constellation Art</a>
                         <span class="asset-credit">Johan Meuris (Jomejome)</span>
                     </div>
                     <a href="http://artlibre.org/licence/lal/en/" class="license-badge" target="_blank"
@@ -376,8 +376,8 @@
                 </li>
                 <li>
                     <div class="asset-info">
-                        <a href="https://codeberg.org/astronexus/athyg" class="asset-name"
-                            target="_blank" rel="noopener noreferrer">Star Data (ATHYG)</a>
+                        <a href="https://codeberg.org/astronexus/athyg" class="asset-name" target="_blank"
+                            rel="noopener noreferrer">Star Data (ATHYG)</a>
                         <span class="asset-credit">David Nash / Astronexus</span>
                     </div>
                     <a href="https://creativecommons.org/licenses/by/4.0/" class="license-badge" target="_blank"
@@ -488,10 +488,47 @@
             <a href="/lobby.html" class="btn-back">← Back to Lobby</a>
 
             <div class="footer">
+                <div id="legal-links" style="margin-bottom: 0.5rem; display: none;">
+                    <a id="imprint-link" href="#" target="_blank" rel="noopener noreferrer"
+                        style="color: inherit; text-decoration: none; margin: 0 10px;">Imprint</a>
+                    <span style="opacity: 0.5;">|</span>
+                    <a id="privacy-link" href="#" target="_blank" rel="noopener noreferrer"
+                        style="color: inherit; text-decoration: none; margin: 0 10px;">Privacy Policy</a>
+                </div>
                 Built with stars and web standards.
             </div>
         </div>
     </div>
+    <script>
+        fetch('/config')
+            .then(response => response.json())
+            .then(config => {
+                const legalLinks = document.getElementById('legal-links');
+                const imprintLink = document.getElementById('imprint-link');
+                const privacyLink = document.getElementById('privacy-link');
+                let hasLink = false;
+
+                if (config.imprintUrl) {
+                    imprintLink.href = config.imprintUrl;
+                    hasLink = true;
+                } else {
+                    imprintLink.style.display = 'none';
+                    if (privacyLink) privacyLink.nextElementSibling && (privacyLink.nextElementSibling.style.display = 'none'); // Hide separator if needed, simpler to just show row if any exists
+                }
+
+                if (config.privacyPolicyUrl) {
+                    privacyLink.href = config.privacyPolicyUrl;
+                    hasLink = true;
+                } else {
+                    privacyLink.style.display = 'none';
+                }
+
+                if (hasLink) {
+                    legalLinks.style.display = 'block';
+                }
+            })
+            .catch(err => console.error('Error fetching config:', err));
+    </script>
 </body>
 
 </html>

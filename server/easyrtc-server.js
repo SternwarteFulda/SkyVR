@@ -57,6 +57,13 @@ app.get('/js/aframe/aframe.min.js', (req, res) => {
 });
 app.use('/js/aframe', express.static(path.resolve(__dirname, "..", "node_modules", "aframe", "dist")));
 
+app.get('/config', (req, res) => {
+	res.json({
+		imprintUrl: process.env.IMPRINT_URL,
+		privacyPolicyUrl: process.env.PRIVACY_POLICY_URL
+	});
+});
+
 app.use('/js/luxon', express.static(path.resolve(__dirname, "..", "node_modules", "luxon", "build", "global")));
 app.use('/js/socket.io', express.static(path.resolve(__dirname, "..", "node_modules", "socket.io", "client-dist")));
 app.use('/js/networked-aframe', express.static(path.resolve(__dirname, "..", "node_modules", "networked-aframe", "dist")));

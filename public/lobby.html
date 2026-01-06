@@ -751,6 +751,12 @@
         </svg>
     </a>
 
+    <div id="legal-links-lobby" class="legal-links-fixed" style="display: none;">
+        <a id="imprint-link-lobby" href="#" target="_blank" rel="noopener noreferrer">Imprint</a>
+        <span class="separator">|</span>
+        <a id="privacy-link-lobby" href="#" target="_blank" rel="noopener noreferrer">Privacy</a>
+    </div>
+
     <style>
         .info-btn {
             position: fixed;
@@ -771,7 +777,64 @@
             background: rgba(255, 255, 255, 0.1);
             transform: scale(1.1);
         }
+
+        .legal-links-fixed {
+            position: fixed;
+            bottom: 2rem;
+            left: 2rem;
+            z-index: 10;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .legal-links-fixed a {
+            color: inherit;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .legal-links-fixed a:hover {
+            color: white;
+            text-decoration: underline;
+        }
+
+        .legal-links-fixed .separator {
+            margin: 0 5px;
+            opacity: 0.5;
+        }
     </style>
+
+    <script>
+        // Fetch config for legal links
+        fetch('/config')
+            .then(response => response.json())
+            .then(config => {
+                const legalLinks = document.getElementById('legal-links-lobby');
+                const imprintLink = document.getElementById('imprint-link-lobby');
+                const privacyLink = document.getElementById('privacy-link-lobby');
+                let hasLink = false;
+
+                if (config.imprintUrl) {
+                    imprintLink.href = config.imprintUrl;
+                    hasLink = true;
+                } else {
+                    imprintLink.style.display = 'none';
+                    if (privacyLink) privacyLink.nextElementSibling && (privacyLink.nextElementSibling.style.display = 'none');
+                }
+
+                if (config.privacyPolicyUrl) {
+                    privacyLink.href = config.privacyPolicyUrl;
+                    hasLink = true;
+                } else {
+                    privacyLink.style.display = 'none';
+                }
+
+                if (hasLink) {
+                    legalLinks.style.display = 'block';
+                }
+            })
+            .catch(err => console.error('Error fetching config:', err));
+    </script>
 </body>
 
 </html>
