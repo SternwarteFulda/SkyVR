@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SkyVR - About & Attribution</title>
+    <link rel="stylesheet" type="text/css" href="/css/fonts.css" />
+    <style>
+        :root {
+            --primary: #8a2be2;
+            --secondary: #4b0082;
+            --text: #ffffff;
+            --glass: rgba(255, 255, 255, 0.08);
+            --glass-border: rgba(255, 255, 255, 0.15);
+            --accent: #a855f7;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+            background: #050510 url('assets/cosmic_background.png') no-repeat center center fixed;
+            background-size: cover;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text);
+            overflow-y: auto;
+        }
+
+        /* Ambient overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle at center, transparent 0%, rgba(0, 0, 0, 0.6) 100%);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 800px;
+            padding: 2rem;
+            margin: 2rem;
+        }
+
+        .info-card {
+            background: var(--glass);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            border: 1px solid var(--glass-border);
+            border-radius: 32px;
+            padding: 3rem;
+            box-shadow: 0 15px 45px rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        h1 {
+            font-weight: 600;
+            font-size: 2.5rem;
+            margin: 0 0 0.5rem 0;
+            background: linear-gradient(135deg, #fff 30%, var(--accent) 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            opacity: 0.6;
+            margin-bottom: 2rem;
+            font-weight: 300;
+            font-size: 1.1rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--glass-border);
+            padding-bottom: 1rem;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+            color: var(--accent);
+        }
+
+        h3 {
+            font-size: 1.1rem;
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        p {
+            line-height: 1.6;
+            opacity: 0.8;
+            margin-bottom: 1rem;
+        }
+
+        ul {
+            list-style: none;
+            padding: 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        li {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--glass-border);
+            padding: 1rem;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+        }
+
+        li:hover {
+            background: rgba(255, 255, 255, 0.07);
+            transform: translateY(-2px);
+        }
+
+        .lib-name {
+            font-weight: 600;
+            display: block;
+            margin-bottom: 0.2rem;
+            color: #fff;
+        }
+
+        .lib-license {
+            font-size: 0.8rem;
+            opacity: 0.6;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-back {
+            display: inline-block;
+            margin-top: 2rem;
+            padding: 12px 24px;
+            background: transparent;
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            color: white;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn-back:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: white;
+            transform: translateX(-4px);
+        }
+
+        .license-box {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 1.5rem;
+            border-radius: 12px;
+            font-family: monospace;
+            font-size: 0.9rem;
+            overflow-x: auto;
+            border: 1px solid var(--glass-border);
+            margin-bottom: 1rem;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .footer {
+            margin-top: 2rem;
+            text-align: center;
+            font-size: 0.9rem;
+            opacity: 0.4;
+        }
+
+        a.lib-link {
+            text-decoration: none;
+            color: inherit;
+        }
+
+        a.lib-link:hover .lib-name {
+            color: var(--accent);
+            text-decoration: underline;
+        }
+
+        a.license-link {
+            text-decoration: none;
+            color: inherit;
+        }
+
+        a.license-link:hover .lib-license {
+            color: var(--accent);
+            text-decoration: underline;
+            opacity: 1;
+        }
+
+        .credit-block {
+            margin-bottom: 2rem;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 1.5rem;
+        }
+
+        .credit-block h3 {
+            margin-top: 0;
+            font-size: 1.2rem;
+            color: var(--text);
+        }
+
+        .credit-block p {
+            font-size: 0.95rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .credit-block a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .credit-block a:hover {
+            text-decoration: underline;
+        }
+
+        .credit-license {
+            font-size: 0.8rem;
+            opacity: 0.5;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 1rem;
+        }
+    </style>
+
+<body>
+    <div class="container">
+        <div class="info-card">
+            <h1>About SkyVR</h1>
+            <div class="subtitle">License & Attributions</div>
+
+            <p>
+                SkyVR is a multi-user virtual reality experience under the sky, enabling users to explore celestial data
+                together.
+            </p>
+
+            <h2>Project License</h2>
+            <p>This project is open source software licensed under the <strong>GNU Affero General Public License
+                    v3.0</strong>.</p>
+            <div class="license-box">
+                Copyright (C) 2024 SkyVR Contributors<br><br>
+                This program is free software: you can redistribute it and/or modify it under the terms of the GNU
+                Affero General Public License as published by the Free Software Foundation, either version 3 of the
+                License, or (at your option) any later version.
+            </div>
+            <p><a href="https://www.gnu.org/licenses/agpl-3.0.en.html" target="_blank"
+                    style="color: var(--accent);">View Full License</a></p>
+
+            <h2>Software Libraries</h2>
+            <ul class="asset-list">
+                <li>
+                    <div class="asset-info">
+                        <a href="https://aframe.io/" class="asset-name" target="_blank"
+                            rel="noopener noreferrer">A-Frame</a>
+                        <span class="asset-credit">Supermedium / A-Frame Authors</span>
+                    </div>
+                    <a href="https://opensource.org/licenses/MIT" class="license-badge" target="_blank"
+                        rel="noopener noreferrer">MIT</a>
+                </li>
+                <li>
+                    <div class="asset-info">
+                        <a href="https://github.com/networked-aframe/networked-aframe" class="asset-name"
+                            target="_blank" rel="noopener noreferrer">Networked-Aframe</a>
+                        <span class="asset-credit">Mozilla MR / Hayden Lee</span>
+                    </div>
+                    <a href="https://www.mozilla.org/en-US/MPL/2.0/" class="license-badge" target="_blank"
+                        rel="noopener noreferrer">MPL 2.0</a>
+                </li>
+                <li>
+                    <div class="asset-info">
+                        <a href="https://github.com/c-frame/aframe-extras" class="asset-name" target="_blank"
+                            rel="noopener noreferrer">A-Frame Extras</a>
+                        <span class="asset-credit">Don McCurdy / C-Frame</span>
+                    </div>
+                    <a href="https://opensource.org/licenses/MIT" class="license-badge" target="_blank"
+                        rel="noopener noreferrer">MIT</a>
+                </li>
+                <li>
+                    <div class="asset-info">
+                        <a href="https://github.com/supermedium/aframe-environment-component" class="asset-name"
+                            target="_blank" rel="noopener noreferrer">A-Frame Environment</a>
+                        <span class="asset-credit">Diego F. Gobbo / Supermedium</span>
+                    </div>
+                    <a href="https://opensource.org/licenses/MIT" class="license-badge" target="_blank"
+                        rel="noopener noreferrer">MIT</a>
+                </li>
+                <li>
+                    <div class="asset-info">
+                        <a href="https://github.com/cosinekitty/astronomy" class="asset-name" target="_blank"
+                            rel="noopener noreferrer">Astronomy Engine</a>
+                        <span class="asset-credit">Don Cross (CosineKitty)</span>
+                    </div>
+                    <a href="https://opensource.org/licenses/MIT" class="license-badge" target="_blank"
+                        rel="noopener noreferrer">MIT</a>
+                </li>
+                <li>
+                    <div class="asset-info">
+                        <a href="https://socket.io/" class="asset-name" target="_blank"
+                            rel="noopener noreferrer">Socket.IO</a>
+                        <span class="asset-credit">Automattic</span>
+                    </div>
+                    <a href="https://opensource.org/licenses/MIT" class="license-badge" target="_blank"
+                        rel="noopener noreferrer">MIT</a>
+                </li>
+                <li>
+                    <div class="asset-info">
+                        <a href="https://moment.github.io/luxon/" class="asset-name" target="_blank"
+                            rel="noopener noreferrer">Luxon</a>
+                        <span class="asset-credit">Moment.js Team</span>
+                    </div>
+                    <a href="https://opensource.org/licenses/MIT" class="license-badge" target="_blank"
+                        rel="noopener noreferrer">MIT</a>
+                </li>
+            </ul>
+
+            <h2>Data & Assets</h2>
+            <ul class="asset-list">
+                <li>
+                    <div class="asset-info">
+                        <a href="https://www.cosmos.esa.int/web/gaia/" class="asset-name" target="_blank"
+                            rel="noopener noreferrer">Gaia Sky Map</a>
+                        <span class="asset-credit">ESA / Gaia / DPAC</span>
+                    </div>
+                    <a href="https://www.cosmos.esa.int/web/gaia/credits" class="license-badge" target="_blank"
+                        rel="noopener noreferrer">CC BY-SA 3.0 IGO</a>
+                </li>
+                <li>
+                    <div class="asset-info">
+                        <a href="https://svs.gsfc.nasa.gov/4720" class="asset-name" target="_blank"
+                            rel="noopener noreferrer">Moon Textures</a>
+                        <span class="asset-credit">NASA's Scientific Visualization Studio</span>
+                    </div>
+                    <a href="https://www.nasa.gov/nasa-brand-center/images-and-media/" class="license-badge"
+                        target="_blank" rel="noopener noreferrer">Public Domain</a>
+                </li>
+                <li>
+                    <div class="asset-info">
+                        <a href="https://fonts.google.com/specimen/Outfit" class="asset-name" target="_blank"
+                            rel="noopener noreferrer">Outfit Font</a>
+                        <span class="asset-credit">Jeremy Tribby</span>
+                    </div>
+                    <a href="https://scripts.sil.org/OFL" class="license-badge" target="_blank"
+                        rel="noopener noreferrer">OFL</a>
+                </li>
+                <li>
+                    <div class="asset-info">
+                        <a href="https://johanmeuris.eu/work/stellarium-constellation-art/" class="asset-name" target="_blank"
+                            rel="noopener noreferrer">Constellation Art</a>
+                        <span class="asset-credit">Johan Meuris (Jomejome)</span>
+                    </div>
+                    <a href="http://artlibre.org/licence/lal/en/" class="license-badge" target="_blank"
+                        rel="noopener noreferrer">Free Art License</a>
+                </li>
+                <li>
+                    <div class="asset-info">
+                        <a href="https://codeberg.org/astronexus/athyg" class="asset-name"
+                            target="_blank" rel="noopener noreferrer">Star Data (ATHYG)</a>
+                        <span class="asset-credit">David Nash / Astronexus</span>
+                    </div>
+                    <a href="https://creativecommons.org/licenses/by/4.0/" class="license-badge" target="_blank"
+                        rel="noopener noreferrer">CC BY 4.0</a>
+                </li>
+            </ul>
+
+            <h2>Icons</h2>
+            <ul class="asset-list">
+                <li>
+                    <div class="asset-info">
+                        <span class="asset-name">Mic On/Off, Fullscreen</span>
+                        <span class="asset-credit">Google Material Design Icons</span>
+                    </div>
+                    <a href="https://www.apache.org/licenses/LICENSE-2.0" class="license-badge" target="_blank"
+                        rel="noopener noreferrer">Apache 2.0</a>
+                </li>
+                <li>
+                    <div class="asset-info">
+                        <span class="asset-name">Door, Stamp, Arrow</span>
+                        <span class="asset-credit">SkyVR Contributors</span>
+                    </div>
+                    <a href="https://www.gnu.org/licenses/agpl-3.0.en.html" class="license-badge" target="_blank"
+                        rel="noopener noreferrer">AGPLv3</a>
+                </li>
+                <li>
+                    <div class="asset-info">
+                        <span class="asset-name">Constellation, Draw, Cursor</span>
+                        <span class="asset-credit">SkyVR Contributors</span>
+                    </div>
+                    <a href="https://www.gnu.org/licenses/agpl-3.0.en.html" class="license-badge" target="_blank"
+                        rel="noopener noreferrer">AGPLv3</a>
+                </li>
+            </ul>
+
+            <style>
+                .asset-list {
+                    list-style: none;
+                    padding: 0;
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                    gap: 1rem;
+                    margin-bottom: 2rem;
+                }
+
+                .asset-list li {
+                    background: rgba(255, 255, 255, 0.03);
+                    border: 1px solid var(--glass-border);
+                    padding: 1.2rem;
+                    border-radius: 16px;
+                    transition: all 0.3s ease;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    gap: 1rem;
+                }
+
+                .asset-list li:hover {
+                    background: rgba(255, 255, 255, 0.07);
+                    transform: translateY(-2px);
+                    border-color: rgba(255, 255, 255, 0.3);
+                }
+
+                .asset-info {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.2rem;
+                }
+
+                .asset-name {
+                    font-weight: 600;
+                    color: white;
+                    text-decoration: none;
+                    font-size: 1.05rem;
+                }
+
+                a.asset-name:hover {
+                    color: var(--accent);
+                    text-decoration: underline;
+                }
+
+                .asset-credit {
+                    font-size: 0.85rem;
+                    opacity: 0.6;
+                }
+
+                .license-badge {
+                    font-size: 0.75rem;
+                    padding: 4px 8px;
+                    background: rgba(168, 85, 247, 0.15);
+                    border: 1px solid rgba(168, 85, 247, 0.3);
+                    color: var(--accent);
+                    border-radius: 6px;
+                    text-decoration: none;
+                    white-space: nowrap;
+                    transition: all 0.2s;
+                    font-weight: 500;
+                    letter-spacing: 0.5px;
+                }
+
+                .license-badge:hover {
+                    background: var(--accent);
+                    color: white;
+                    border-color: var(--accent);
+                }
+            </style>
+
+            <a href="/lobby.html" class="btn-back">← Back to Lobby</a>
+
+            <div class="footer">
+                Built with stars and web standards.
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
