@@ -236,27 +236,42 @@
           const targetTimeSecs = this.targetTime.toMillis() / 1000;
           const diffSeconds = targetTimeSecs - currentTimeSecs;
 
-          // Dynamic snap threshold: 1 hour base, or 2x the current velocity to allow fast scrubbing
-          const snapThreshold = Math.max(3600, Math.abs(this.data.velocity) * 2);
-          if (Math.abs(diffSeconds) > snapThreshold) {
-            updateSimulationTime(this.targetTime);
+          // 1. Snappy matching: Receive the owner's already-smoothed velocity (k=10.0)
+          // Reduced from 30.0 to dampen network jitter during high-speed scrubbing.
+          this.timeVelocity += (this.data.velocity - this.timeVelocity) * 10.0 * dtSec;
+
+          const snapThreshold = 7200; // 2 hours
+          // RESILIENCY FIX: If we are drastically behind but the master IS moving (scrubbing),
+          // DO NOT snap-freeze. Just increase the catch-up gain (kCorrection) below.
+          const isOwnerMovingFast = Math.abs(this.data.velocity) > 10;
+
+          if (Math.abs(diffSeconds) > snapThreshold && !isOwnerMovingFast) {
+            updateSimulationTime(this.targetTime, false);
             this.targetTime = null;
             this.timeVelocity = 0;
             updateScene();
             return;
           }
 
-          // 1. Snappy matching: Receive the owner's already-smoothed velocity (k=30.0)
-          this.timeVelocity += (this.data.velocity - this.timeVelocity) * 30.0 * dtSec;
-
           // 2. Integration + Gap correction
-          // While moving, maintain a tight lock (k=5.0). While stopped, settle very lazily (k=0.5).
-          const isMoving = Math.abs(this.data.velocity) > 0.1;
-          const kCorrection = isMoving ? 5.0 : 0.5;
+          // While moving fast, trust the velocity and only correct large drifts (>1s) lazily.
+          // While stopped or moving slowly, use tighter locking for precision.
+          const isMovingFast = Math.abs(this.data.velocity) > 10;
+          let kCorrection = 5.0;
+
+          if (isMovingFast) {
+            // Trust velocity prediction. Only pull back toward target if we are > 2s off.
+            kCorrection = (Math.abs(diffSeconds) > 2.0) ? 2.0 : 0.1;
+          } else {
+            // Precise settling for slow or static states
+            kCorrection = (Math.abs(diffSeconds) > 0.5) ? 5.0 : 0.5;
+          }
+
           const correction = diffSeconds * kCorrection;
           let effectiveVel = this.timeVelocity + correction;
 
           // 3. Anti-Overshoot: If the owner has stopped, do not allow reverse "creeping" to fix tiny errors.
+          const isMoving = Math.abs(this.data.velocity) > 0.1;
           if (!isMoving && Math.abs(diffSeconds) < 1.0) {
             // If local time is ahead of target (diffSeconds < 0) and we were moving forward,
             // or local time is behind and we were moving backward, just stop.
@@ -278,7 +293,7 @@
             }
           }
 
-          if (window.targetSimulationTime) {
+          if (window.targetSimulationTime && !isOwnerMovingFast) {
             window.targetSimulationTime = window.simulationTime;
           }
         }
@@ -837,6 +852,354 @@
         padding: 0 16px;
       }
     }
+
+    @media (max-width: 600px) {
+      .infobar-2d {
+        min-width: 90%;
+        bottom: 10px;
+        height: 50px;
+        padding: 0 12px;
+      }
+    }
+
+    /* 2D Control Panel Styles */
+    .control-panel-2d {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 420px;
+      max-width: 90vw;
+      background: rgba(8, 8, 20, 0.95);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(138, 43, 226, 0.4);
+      border-radius: 16px;
+      z-index: 1000000;
+      color: white;
+      font-family: 'Outfit', sans-serif;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+
+    .control-panel-2d.hidden {
+      display: none !important;
+      opacity: 0;
+      transform: translate(-50%, -45%);
+      pointer-events: none;
+    }
+
+    .control-panel-2d-header {
+      padding: 16px 20px;
+      background: rgba(138, 43, 226, 0.1);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .control-panel-2d-header h3 {
+      margin: 0;
+      font-size: 1.1rem;
+      letter-spacing: 0.5px;
+      font-weight: 500;
+      background: linear-gradient(135deg, #fff 0%, #a855f7 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .control-panel-2d-close {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: rgba(255, 255, 255, 0.7);
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      transition: all 0.2s;
+    }
+
+    .control-panel-2d-close:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+    }
+
+    .control-panel-2d-content {
+      padding: 20px;
+      max-height: 80vh;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: #8a2be2 transparent;
+    }
+
+    .control-panel-2d-content::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .control-panel-2d-content::-webkit-scrollbar-thumb {
+      background: #8a2be2;
+      border-radius: 10px;
+    }
+
+    .control-panel-2d-section {
+      margin-bottom: 24px;
+    }
+
+    .control-panel-2d-section h4 {
+      margin: 0 0 12px 2px;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: rgba(255, 255, 255, 0.3);
+      font-weight: 700;
+    }
+
+    .toggle-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .toggle-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 10px 14px;
+      border-radius: 10px;
+      transition: background 0.2s;
+    }
+
+    .toggle-item:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .toggle-item span {
+      font-size: 0.9rem;
+      color: rgba(255, 255, 255, 0.9);
+    }
+
+    .switch-2d {
+      position: relative;
+      display: inline-block;
+      width: 36px;
+      height: 20px;
+    }
+
+    .switch-2d input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider-2d {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #2a2a3a;
+      transition: .3s;
+      border-radius: 20px;
+    }
+
+    .slider-2d:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: #ccc;
+      transition: .3s;
+      border-radius: 50%;
+    }
+
+    input:checked+.slider-2d {
+      background-color: #8a2be2;
+    }
+
+    input:checked+.slider-2d:before {
+      transform: translateX(16px);
+      background-color: white;
+    }
+
+    .adjuster-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .adjuster-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 12px 14px;
+      border-radius: 10px;
+    }
+
+    .adjuster-item .label {
+      font-size: 0.9rem;
+      color: rgba(255, 255, 255, 0.9);
+      flex: 1;
+    }
+
+    .adjuster-controls {
+      display: grid;
+      grid-template-columns: 32px 90px 38px 32px;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .adjuster-controls .input-container.wide-input {
+      grid-column: span 2;
+    }
+
+    .toggle-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(138, 43, 226, 0.3);
+      color: #a855f7;
+      width: 34px;
+      height: 32px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      font-weight: 700;
+      transition: all 0.2s;
+    }
+
+    .toggle-btn:hover {
+      background: rgba(138, 43, 226, 0.2);
+      border-color: #8a2be2;
+    }
+
+    .timezone-display {
+      font-size: 0.8rem;
+      color: rgba(255, 255, 255, 0.4);
+      margin-top: 4px;
+      text-align: right;
+    }
+
+    .adjuster-controls button {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: white;
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      transition: all 0.2s;
+    }
+
+    .adjuster-controls button:hover {
+      background: #8a2be2;
+      border-color: #a855f7;
+    }
+
+    .input-container {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      transition: all 0.2s;
+      width: 100%;
+      height: 32px;
+    }
+
+    .value-input {
+      width: 100%;
+      text-align: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9rem;
+      color: #00ffaa;
+      background: transparent;
+      border: none;
+      padding: 0;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .input-suffix {
+      position: absolute;
+      right: 6px;
+      color: #00ffaa;
+      font-size: 0.9rem;
+      pointer-events: none;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .toggle-spacer {
+      width: 38px;
+    }
+
+    .input-container:focus-within {
+      border-color: #8a2be2;
+      background: rgba(0, 0, 0, 0.6);
+      box-shadow: 0 0 10px rgba(138, 43, 226, 0.3);
+    }
+
+    /* Hide arrows on number input */
+    .value-input::-webkit-outer-spin-button,
+    .value-input::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      appearance: none;
+      margin: 0;
+    }
+
+    .value-input[type=number] {
+      -moz-appearance: textfield;
+      appearance: textfield;
+    }
+
+    .time-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+
+    .now-btn {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #8a2be2 0%, #4b0082 100%);
+      border: none;
+      border-radius: 10px;
+      color: white;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 600;
+      cursor: pointer;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      font-size: 0.85rem;
+      transition: all 0.3s;
+      box-shadow: 0 4px 15px rgba(138, 43, 226, 0.4);
+      margin-top: 10px;
+    }
+
+    .now-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(138, 43, 226, 0.6);
+      filter: brightness(1.1);
+    }
   </style>
 
   <script>
@@ -910,6 +1273,9 @@
       <button id="infobar-2d-mouse-move" class="infobar-2d-button" title="Switch Mouse Direction (Camera vs Sky)">
         <img src="assets/icons/mouse-move.svg">
       </button>
+      <button id="infobar-2d-settings" class="infobar-2d-button" title="Open Settings">
+        <img src="assets/icons/settings.svg">
+      </button>
     </div>
 
     <div class="infobar-2d-section infobar-2d-modes">
@@ -922,6 +1288,146 @@
       <button id="infobar-2d-constellation" class="infobar-2d-button" title="Constellation" data-mode="constellation">
         <img src="assets/icons/constellation.svg">
       </button>
+    </div>
+  </div>
+
+  <!-- 2D Control Panel Overlay -->
+  <div id="control-panel-2d" class="control-panel-2d hidden">
+    <div class="control-panel-2d-header">
+      <h3>Astronomy Controls</h3>
+      <button id="control-panel-2d-close" class="control-panel-2d-close" title="Close">
+        <span>&times;</span>
+      </button>
+    </div>
+    <div class="control-panel-2d-content">
+      <div class="control-panel-2d-section">
+        <h4>Visibility</h4>
+        <div class="toggle-grid">
+          <div class="toggle-item">
+            <span>Meridian</span>
+            <label class="switch-2d">
+              <input type="checkbox" id="toggle-2d-meridian" onclick="onTogglerClick('toggleMeridian')">
+              <span class="slider-2d"></span>
+            </label>
+          </div>
+          <div class="toggle-item">
+            <span>Equator</span>
+            <label class="switch-2d">
+              <input type="checkbox" id="toggle-2d-equator" onclick="onTogglerClick('toggleEquator')">
+              <span class="slider-2d"></span>
+            </label>
+          </div>
+          <div class="toggle-item">
+            <span>Ecliptic</span>
+            <label class="switch-2d">
+              <input type="checkbox" id="toggle-2d-ecliptic" onclick="onTogglerClick('toggleEcliptic')">
+              <span class="slider-2d"></span>
+            </label>
+          </div>
+          <div class="toggle-item">
+            <span>Cardinal Points</span>
+            <label class="switch-2d">
+              <input type="checkbox" id="toggle-2d-cardinal" onclick="onTogglerClick('toggleCardinalPoints')" checked>
+              <span class="slider-2d"></span>
+            </label>
+          </div>
+          <div class="toggle-item">
+            <span>Celestial Poles</span>
+            <label class="switch-2d">
+              <input type="checkbox" id="toggle-2d-poles" onclick="onTogglerClick('toggleNCP')">
+              <span class="slider-2d"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="control-panel-2d-section">
+        <h4>Location</h4>
+        <div class="adjuster-group">
+          <div class="adjuster-item">
+            <span class="label">Latitude</span>
+            <div class="adjuster-controls">
+              <button>&minus;</button>
+              <div class="input-container">
+                <input type="number" id="input-2d-lat" class="value-input" step="0.1" title="Latitude">
+                <span class="input-suffix">&thinsp;°</span>
+              </div>
+              <button id="toggle-2d-ns" class="toggle-btn" title="Toggle North/South">N</button>
+              <button>&plus;</button>
+            </div>
+          </div>
+          <div class="adjuster-item">
+            <span class="label">Longitude</span>
+            <div class="adjuster-controls">
+              <button>&minus;</button>
+              <div class="input-container">
+                <input type="number" id="input-2d-lon" class="value-input" step="0.1" title="Longitude">
+                <span class="input-suffix">&thinsp;°</span>
+              </div>
+              <button id="toggle-2d-ew" class="toggle-btn" title="Toggle East/West">E</button>
+              <button>&plus;</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="control-panel-2d-section">
+        <h4>Time Shift</h4>
+        <div id="timezone-2d-display" class="timezone-display">UTC+00:00</div>
+        <div class="time-grid">
+          <div class="adjuster-item">
+            <span class="label">Year</span>
+            <div class="adjuster-controls">
+              <button>&minus;</button>
+              <div class="input-container wide-input">
+                <input type="number" id="input-2d-year" class="value-input" title="Year">
+              </div>
+              <button>&plus;</button>
+            </div>
+          </div>
+          <div class="adjuster-item">
+            <span class="label">Month</span>
+            <div class="adjuster-controls">
+              <button>&minus;</button>
+              <div class="input-container wide-input">
+                <input type="number" id="input-2d-month" class="value-input" title="Month">
+              </div>
+              <button>&plus;</button>
+            </div>
+          </div>
+          <div class="adjuster-item">
+            <span class="label">Day</span>
+            <div class="adjuster-controls">
+              <button>&minus;</button>
+              <div class="input-container wide-input">
+                <input type="number" id="input-2d-day" class="value-input" title="Day">
+              </div>
+              <button>&plus;</button>
+            </div>
+          </div>
+          <div class="adjuster-item">
+            <span class="label">Hour</span>
+            <div class="adjuster-controls">
+              <button>&minus;</button>
+              <div class="input-container wide-input">
+                <input type="number" id="input-2d-hour" class="value-input" title="Hour">
+              </div>
+              <button>&plus;</button>
+            </div>
+          </div>
+          <div class="adjuster-item">
+            <span class="label">Minute</span>
+            <div class="adjuster-controls">
+              <button>&minus;</button>
+              <div class="input-container wide-input">
+                <input type="number" id="input-2d-minute" class="value-input" title="Minute">
+              </div>
+              <button>&plus;</button>
+            </div>
+          </div>
+        </div>
+        <button class="now-btn" onclick="setNow()">Set to NOW</button>
+      </div>
     </div>
   </div>
 
@@ -1391,10 +1897,22 @@
       // Helper to keep both Luxon and numeric time in sync
       window.updateSimulationTime = function (newTime, updateTarget = true) {
         if (!newTime) return;
-        window.simulationTime = newTime;
-        window.simTimeMs = newTime.toMillis();
+
+        // If jump is > 2 hours, force an instant snap even if interpolation is enabled
+        const diffMs = Math.abs(newTime.toMillis() - window.simTimeMs);
+        const shouldSnap = diffMs > 7200000; // 2 hours in ms
+
         if (updateTarget) {
           window.targetSimulationTime = newTime;
+        } else {
+          if (!window.targetSimulationTime) window.targetSimulationTime = newTime;
+        }
+
+        // If interpolation is disabled or we are jumping WITHOUT interpolation, snap instantly.
+        // Also snap if the jump is very large.
+        if (!window.interpolationEnabled || !updateTarget || shouldSnap) {
+          window.simulationTime = newTime;
+          window.simTimeMs = newTime.toMillis();
         }
       };
 
@@ -1413,8 +1931,8 @@
 
       let lastSyncTime = 0;
       function syncSky(silent = false) {
-        // Dynamic throttle: 10Hz for idle, 20Hz (50ms) during active scrubbing for smoothness
-        const throttleLimit = (Math.abs(window.currentTimeVelocity) > 10) ? 50 : 100;
+        // Standardize 50ms (20Hz) sync rate for responsive UI and smooth motion.
+        const throttleLimit = 50;
         const now = performance.now();
         if (!silent && (now - lastSyncTime < throttleLimit)) return;
 
@@ -1507,14 +2025,42 @@
             window.currentTimeVelocity += (window.targetTimeVelocity - window.currentTimeVelocity) * 5.0 * dtSec;
 
             // 3. Apply velocity shift using numeric timestamp
-            if (Math.abs(window.currentTimeVelocity) > 0.05) { // Stop threshold
+            if (Math.abs(window.currentTimeVelocity) > 0.05) {
               window.simTimeMs += window.currentTimeVelocity * 1000 * dtSec;
               window.simulationTime = luxon.DateTime.fromMillis(window.simTimeMs);
+
+              // CRITICAL: While moving via velocity (scrubbing), target follows current 
+              // to prevent the Gap Correction (Part 4) from pulling us back.
+              window.targetSimulationTime = window.simulationTime;
+
               updateScene();
               syncSky();
             } else if (window.targetTimeVelocity === 0 && window.currentTimeVelocity !== 0) {
               window.currentTimeVelocity = 0;
               syncSky(); // Broadcast final stop
+            }
+
+            // 4. Smoothly catch up to targetSimulationTime (Gap Correction for Master)
+            const targetMs = window.targetSimulationTime.toMillis();
+            const diffMs = targetMs - window.simTimeMs;
+            const diffSec = diffMs / 1000;
+
+            if (Math.abs(diffSec) > 0.05) {
+              // Smooth approach (k=5.0) for soft start/stop
+              const step = diffSec * 5.0 * dtSec;
+              window.simTimeMs += step * 1000;
+              window.simulationTime = luxon.DateTime.fromMillis(window.simTimeMs);
+              updateScene();
+              syncSky(true); // Throttled sync while gliding
+            } else if (Math.abs(diffSec) > 0 && Math.abs(diffSec) <= 0.05) {
+              // Snap for perfect finish
+              window.simTimeMs = targetMs;
+              window.simulationTime = window.targetSimulationTime;
+              updateScene();
+              syncSky(true);
+            } else if (window.targetTimeVelocity === 0 && Math.abs(diffSec) === 0) {
+              // Ensure we broadcast one last time when absolutely still
+              syncSky(true);
             }
           }
         }

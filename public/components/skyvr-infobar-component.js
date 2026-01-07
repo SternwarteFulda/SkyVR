@@ -9,7 +9,8 @@ AFRAME.registerComponent('skyvr-infobar', {
             stamp: '#icon-stamp',
             stickfigure: '#icon-stickfigure',
             constellation: '#icon-constellation',
-            mouseMove: '#icon-mouse-move'
+            mouseMove: '#icon-mouse-move',
+            settings: 'assets/icons/settings.svg'
         };
 
         // Layout Configuration
@@ -51,8 +52,33 @@ AFRAME.registerComponent('skyvr-infobar', {
                 stickfigure: document.getElementById('infobar-2d-stickfigure'),
                 constellation: document.getElementById('infobar-2d-constellation')
             },
-            mouseMove: document.getElementById('infobar-2d-mouse-move')
+            mouseMove: document.getElementById('infobar-2d-mouse-move'),
+            settings: document.getElementById('infobar-2d-settings'),
+            controlPanel: {
+                container: document.getElementById('control-panel-2d'),
+                close: document.getElementById('control-panel-2d-close'),
+                toggles: {
+                    meridian: document.getElementById('toggle-2d-meridian'),
+                    equator: document.getElementById('toggle-2d-equator'),
+                    ecliptic: document.getElementById('toggle-2d-ecliptic'),
+                    cardinal: document.getElementById('toggle-2d-cardinal'),
+                    poles: document.getElementById('toggle-2d-poles'),
+                    ns: document.getElementById('toggle-2d-ns'),
+                    ew: document.getElementById('toggle-2d-ew')
+                },
+                displays: {
+                    lat: document.getElementById('input-2d-lat'),
+                    lon: document.getElementById('input-2d-lon'),
+                    year: document.getElementById('input-2d-year'),
+                    month: document.getElementById('input-2d-month'),
+                    day: document.getElementById('input-2d-day'),
+                    hour: document.getElementById('input-2d-hour'),
+                    minute: document.getElementById('input-2d-minute'),
+                    timezone: document.getElementById('timezone-2d-display')
+                }
+            }
         };
+        this.controlPanel2DVisible = false;
 
         // Initialize 2D visibility: Only show if NOT on a 3D device and not immersive
         if (this.ui2d.container) {
@@ -340,6 +366,161 @@ AFRAME.registerComponent('skyvr-infobar', {
                 this.toggleMouseDirection();
             });
         }
+
+        // Settings button listener
+        if (this.ui2d.settings) {
+            this.ui2d.settings.addEventListener('click', () => {
+                this.controlPanel2DVisible = !this.controlPanel2DVisible;
+                if (this.ui2d.controlPanel.container) {
+                    this.ui2d.controlPanel.container.classList.toggle('hidden', !this.controlPanel2DVisible);
+                }
+                this.ui2d.settings.classList.toggle('active', this.controlPanel2DVisible);
+            });
+        }
+
+        // Control Panel Close listener
+        if (this.ui2d.controlPanel.close) {
+            this.ui2d.controlPanel.close.addEventListener('click', () => {
+                this.controlPanel2DVisible = false;
+                if (this.ui2d.controlPanel.container) {
+                    this.ui2d.controlPanel.container.classList.add('hidden');
+                }
+                if (this.ui2d.settings) {
+                    this.ui2d.settings.classList.remove('active');
+                }
+            });
+        }
+
+        // --- Keyboard Input Listeners ---
+        const displays = this.ui2d.controlPanel.displays;
+        const toggles = this.ui2d.controlPanel.toggles;
+
+        const handleCoordChange = (type, e, force = false) => {
+            const val = Math.abs(parseFloat(e.target.value));
+            if (!isNaN(val)) {
+                if (type === 'latitude') {
+                    const sign = window.latitude >= 0 ? 1 : -1;
+                    window.latitude = Math.max(-90, Math.min(90, val * sign));
+                } else {
+                    const sign = window.longitude >= 0 ? 1 : -1;
+                    let lon = val * sign;
+                    while (lon > 180) lon -= 360;
+                    while (lon < -180) lon += 360;
+                    window.longitude = lon;
+                }
+                if (typeof syncSky === 'function') syncSky(force);
+                if (typeof updateScene === 'function') updateScene();
+            }
+        };
+
+        const handleTimeChange = (unit, e, force = false) => {
+            let val = parseInt(e.target.value);
+            if (!isNaN(val)) {
+                if (!window.simulationTime) return;
+                const baseTime = window.targetSimulationTime || window.simulationTime;
+                const currentVal = baseTime[unit];
+                const diff = val - currentVal;
+                if (diff === 0) return;
+
+                const newTime = baseTime.plus({ [unit]: diff });
+                if (typeof updateSimulationTime === 'function') {
+                    updateSimulationTime(newTime);
+                }
+
+                // Roll-over fix: Immediately sync all inputs 
+                // This resets "60" back to "0" and prevents cumulative hour increases
+                this.syncTimeUI(true);
+
+                if (typeof syncSky === 'function') syncSky(force);
+                if (typeof updateScene === 'function') updateScene();
+            }
+        };
+
+        // Attach listeners to both 'input' (for arrows/live) and 'change' (for blur/enter)
+        const inputs = [
+            { el: displays.lat, type: 'lat' },
+            { el: displays.lon, type: 'lon' },
+            { el: displays.year, type: 'year' },
+            { el: displays.month, type: 'month' },
+            { el: displays.day, type: 'day' },
+            { el: displays.hour, type: 'hour' },
+            { el: displays.minute, type: 'minute' }
+        ];
+
+        inputs.forEach(item => {
+            if (!item.el) return;
+            const handler = (item.type === 'lat' || item.type === 'lon') ?
+                (e, force) => handleCoordChange(item.type === 'lat' ? 'latitude' : 'longitude', e, force) :
+                (e, force) => handleTimeChange(item.type, e, force);
+
+            // 'input' fires continuously during holding/key-repeat - use throttled sync
+            item.el.addEventListener('input', (e) => handler(e, false));
+            // 'change' fires on Enter or focus lost - use forced sync to ensure the final state is locked in
+            item.el.addEventListener('change', (e) => handler(e, true));
+        });
+
+        // Hemisphere Toggles
+        if (toggles.ns) {
+            toggles.ns.addEventListener('click', () => {
+                window.latitude = -window.latitude;
+                this.syncTimeUI(true);
+                if (typeof syncSky === 'function') syncSky(true);
+                if (typeof updateScene === 'function') updateScene();
+            });
+        }
+        if (toggles.ew) {
+            toggles.ew.addEventListener('click', () => {
+                window.longitude = -window.longitude;
+                this.syncTimeUI(true);
+                if (typeof syncSky === 'function') syncSky(true);
+                if (typeof updateScene === 'function') updateScene();
+            });
+        }
+
+        // --- Button Repeat Handling ---
+        const setupRepeat = (btn, action) => {
+            let interval = null;
+            const start = () => {
+                action();
+                interval = setInterval(action, 100);
+            };
+            const stop = () => {
+                if (interval) clearInterval(interval);
+                interval = null;
+            };
+            btn.addEventListener('mousedown', start);
+            btn.addEventListener('mouseup', stop);
+            btn.addEventListener('mouseleave', stop);
+            btn.addEventListener('touchstart', (e) => { e.preventDefault(); start(); });
+            btn.addEventListener('touchend', stop);
+        };
+
+        // Coordinates Buttons
+        const coordBtns = document.getElementById('control-panel-2d').querySelectorAll('.adjuster-item .adjuster-controls button:not(.toggle-btn)');
+        coordBtns.forEach(btn => {
+            const isLat = btn.closest('.adjuster-item').textContent.includes('Latitude');
+            const isPlus = btn.textContent === '+';
+            const type = isLat ? 'latitude' : 'longitude';
+            const amount = isPlus ? 0.1 : -0.1;
+            setupRepeat(btn, () => {
+                if (typeof adjustCoordinate === 'function') adjustCoordinate(type, amount);
+            });
+        });
+
+        // Time Buttons
+        const timeRows = document.getElementById('control-panel-2d').querySelectorAll('.time-grid .adjuster-item');
+        timeRows.forEach(row => {
+            const label = row.querySelector('.label').textContent.toLowerCase();
+            const unitMap = { 'year': 'years', 'month': 'months', 'day': 'days', 'hour': 'hours', 'minute': 'minutes' };
+            const unit = unitMap[label];
+            const btns = row.querySelectorAll('button');
+            btns.forEach(btn => {
+                const amount = btn.textContent === '+' ? 1 : -1;
+                setupRepeat(btn, () => {
+                    if (typeof adjustTime === 'function') adjustTime(unit, amount);
+                });
+            });
+        });
     },
 
 
@@ -575,6 +756,72 @@ AFRAME.registerComponent('skyvr-infobar', {
         } else if (this.ui2d.roomText && isStandalone) {
             this.ui2d.roomText.textContent = 'Standalone Session';
         }
+
+        // Sync 2D Control Panel Values
+        this.syncTimeUI(false);
+
+        // Force hide tooltips in 2D mode
+        if (!this.el.sceneEl.is('vr-mode')) {
+            const hints = document.querySelectorAll('.controller-hint');
+            hints.forEach(h => {
+                if (h.getAttribute('visible')) h.setAttribute('visible', false);
+            });
+        }
+    },
+
+    syncTimeUI: function (force = false) {
+        if (!this.controlPanel2DVisible || !this.ui2d || !this.ui2d.controlPanel) return;
+
+        const displays = this.ui2d.controlPanel.displays;
+        const toggles = this.ui2d.controlPanel.toggles;
+
+        if (!displays || !displays.lat) return;
+
+        // Coordinates - only update if not focused or forced
+        if (displays.lat && (force || document.activeElement !== displays.lat)) {
+            displays.lat.value = Math.abs(window.latitude).toFixed(1);
+        }
+        if (toggles.ns) toggles.ns.textContent = window.latitude >= 0 ? 'N' : 'S';
+
+        if (displays.lon && (force || document.activeElement !== displays.lon)) {
+            displays.lon.value = Math.abs(window.longitude).toFixed(1);
+        }
+        if (toggles.ew) toggles.ew.textContent = window.longitude >= 0 ? 'E' : 'W';
+
+        // Time
+        if (window.simulationTime) {
+            const clock = window.targetSimulationTime || window.simulationTime;
+
+            const updateInput = (el, val, pad = true) => {
+                if (el && (force || document.activeElement !== el)) {
+                    const strVal = pad ? val.toString().padStart(2, '0') : val.toString();
+                    if (el.value !== strVal) el.value = val;
+                }
+            };
+
+            updateInput(displays.year, clock.year, false);
+            updateInput(displays.month, clock.month);
+            updateInput(displays.day, clock.day);
+            updateInput(displays.hour, clock.hour);
+            updateInput(displays.minute, clock.minute);
+
+            if (displays.timezone) {
+                displays.timezone.textContent = clock.offsetNameLong || clock.zoneName;
+            }
+        }
+
+        // Sync local checkboxes with sky state visibility
+        const meridian = document.getElementById('meridian');
+        const equator = document.getElementById('equator');
+        const ecliptic = document.getElementById('ecliptic');
+        const cardinal = document.getElementById('cardinal-points');
+        const ncp = document.getElementById('ncp');
+
+        if (toggles.meridian && meridian) toggles.meridian.checked = meridian.getAttribute('visible');
+        if (toggles.equator && equator) toggles.equator.checked = equator.getAttribute('visible');
+        if (toggles.ecliptic && ecliptic) toggles.ecliptic.checked = ecliptic.getAttribute('visible');
+        if (toggles.cardinal && cardinal) toggles.cardinal.checked = cardinal.getAttribute('visible');
+        if (toggles.poles && ncp) toggles.poles.checked = ncp.getAttribute('visible');
     }
 
 });

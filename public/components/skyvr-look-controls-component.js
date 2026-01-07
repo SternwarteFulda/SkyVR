@@ -267,6 +267,10 @@
         },
 
         onKeyDown: function (evt) {
+            // Disable movement if typing in an input
+            if (document.activeElement && document.activeElement.tagName === 'INPUT') {
+                return;
+            }
             this.activeKeys[evt.key] = true;
         },
 
