@@ -209,12 +209,7 @@
           if ((timeDrift > driftThreshold || latDrift > 0.01) && !this.targetTime) {
             console.log("sky-state: Watchdog detected drift from master (and no interpolation active). Pulling state...");
             // Instead of just update(), let's explicitly copy the data to our locals
-            window.simulationTime = sharedTime;
-            // CRITICAL: Update local target to match to prevent jump-back on interaction
-            if (window.targetSimulationTime) window.targetSimulationTime = sharedTime;
-
-            window.latitude = this.data.latitude;
-            window.longitude = this.data.longitude;
+            updateSimulationTime(sharedTime);
             updateScene();
 
             const incomingIsInit = (this.data.activeConstellations === 'INIT');
@@ -228,7 +223,7 @@
       tick: function (t, dt) {
         if (!window.interpolationEnabled) {
           if (!NAF.utils.isMine(this.el) && this.targetTime) {
-            window.simulationTime = this.targetTime;
+            updateSimulationTime(this.targetTime);
             this.targetTime = null;
             updateScene();
           }
@@ -244,7 +239,7 @@
           // Dynamic snap threshold: 1 hour base, or 2x the current velocity to allow fast scrubbing
           const snapThreshold = Math.max(3600, Math.abs(this.data.velocity) * 2);
           if (Math.abs(diffSeconds) > snapThreshold) {
-            window.simulationTime = this.targetTime;
+            updateSimulationTime(this.targetTime);
             this.targetTime = null;
             this.timeVelocity = 0;
             updateScene();
@@ -272,12 +267,12 @@
 
           if (Math.abs(effectiveVel) > 0.05 || Math.abs(diffSeconds) > 0.1) {
             const step = effectiveVel * dtSec;
-            window.simulationTime = luxon.DateTime.fromMillis((currentTimeSecs + step) * 1000);
+            updateSimulationTime(luxon.DateTime.fromMillis((currentTimeSecs + step) * 1000), false);
             updateScene();
           } else {
             // Perfect settle
             if (!isMoving && Math.abs(diffSeconds) < 0.1) {
-              window.simulationTime = this.targetTime;
+              updateSimulationTime(this.targetTime);
               this.timeVelocity = 0;
               updateScene();
             }
@@ -323,7 +318,7 @@
 
               // If this is the FIRST update or a huge jump, snap instantly
               if (!window.simulationTime || Math.abs(this.targetTime.toMillis() - window.simulationTime.toMillis()) > 3600000) {
-                window.simulationTime = this.targetTime;
+                updateSimulationTime(this.targetTime);
                 this.targetTime = null;
                 this.timeVelocity = 0;
               }
@@ -1384,13 +1379,24 @@
 
       // Initialize a base date/time for the simulation.
       window.simulationTime = luxon.DateTime.now(); // Current local date and time
-      window.interpolationEnabled = true; // TOGGLE THIS FOR TESTING
+      window.simTimeMs = window.simulationTime.toMillis();
+      window.targetSimulationTime = window.simulationTime;
+      window.interpolationEnabled = true;
 
       // Velocity-based interpolation state
       window.targetTimeVelocity = 0; // seconds per second
       window.currentTimeVelocity = 0;
       window.lastJoystickTime = 0;
-      window.simTimeMs = window.simulationTime.toMillis();
+
+      // Helper to keep both Luxon and numeric time in sync
+      window.updateSimulationTime = function (newTime, updateTarget = true) {
+        if (!newTime) return;
+        window.simulationTime = newTime;
+        window.simTimeMs = newTime.toMillis();
+        if (updateTarget) {
+          window.targetSimulationTime = newTime;
+        }
+      };
 
       console.log(simulationTime.zoneName);
 
@@ -1465,7 +1471,7 @@
       }
 
       function setNow() {
-        simulationTime = luxon.DateTime.now();
+        updateSimulationTime(luxon.DateTime.now());
         syncSky();
         updateScene();
       }
@@ -1477,9 +1483,6 @@
       AFRAME.registerComponent('local-time-interpolator', {
         init: function () {
           this.lerpSpeed = 5.0;
-          if (!window.targetSimulationTime && window.simulationTime) {
-            window.targetSimulationTime = window.simulationTime;
-          }
         },
         tick: function (t, dt) {
           if (!window.interpolationEnabled) {
@@ -1520,9 +1523,9 @@
       document.querySelector('a-scene').setAttribute('local-time-interpolator', '');
 
       function adjustTime(unit, amount) {
-        window.targetSimulationTime = window.targetSimulationTime.plus({ [unit]: amount });
-        // We do NOT call updateScene() here efficiently anymore, the tick loop handles it.
-        // But we DO need to broadcast eventual state.
+        const newTime = window.targetSimulationTime.plus({ [unit]: amount });
+        updateSimulationTime(newTime);
+        updateScene();
         syncSky();
       }
 
@@ -1802,8 +1805,7 @@
           if (window.interpolationEnabled) {
             window.targetTimeVelocity = requestedVelocity;
           } else {
-            window.simTimeMs += requestedVelocity * (20 / 1000) * 1000;
-            window.simulationTime = luxon.DateTime.fromMillis(window.simTimeMs);
+            updateSimulationTime(luxon.DateTime.fromMillis(window.simTimeMs));
             updateScene();
           }
 
