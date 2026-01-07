@@ -1,4 +1,4 @@
-const CACHE_NAME = 'skyvr-cache-v63';
+const CACHE_NAME = 'skyvr-cache-v64';
 
 self.addEventListener('install', (event) => {
     self.skipWaiting();
@@ -30,7 +30,12 @@ self.addEventListener('fetch', (event) => {
 
     const url = event.request.url;
 
-    // 1. Dedup: Check if there's already a pending request for this URL
+    // 1. Bypass Service Worker for socket.io and dynamic routes
+    if (url.includes('/socket.io/') || url.includes('/easyrtc/') || url.includes('/config')) {
+        return;
+    }
+
+    // 2. Dedup: Check if there's already a pending request for this URL
     if (pendingRequests.has(url)) {
         event.respondWith(
             pendingRequests.get(url).then(response => response.clone())

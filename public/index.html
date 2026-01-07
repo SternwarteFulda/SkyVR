@@ -123,11 +123,20 @@
     // Safety fallback
     setInterval(checkLoadingComplete, 1000);
 
-    // Network connection timeout fallback (e.g. for mic rejection)
+    // Network connection timeout fallback
     setTimeout(() => {
-      if (!window.loadingStatus.network && urlParams.get('mic') !== 'false') {
+      if (!window.loadingStatus.network) {
         const fallbackMsg = document.getElementById('network-fallback');
         if (fallbackMsg) {
+          const micDisabled = urlParams.get('mic') === 'false';
+          const p = fallbackMsg.querySelector('p');
+          const btn = fallbackMsg.querySelector('button');
+          if (p && micDisabled) {
+            p.textContent = "Taking longer than usual? The connection might be unstable.";
+          }
+          if (btn && micDisabled) {
+            btn.textContent = "Enter Solo Mode";
+          }
           fallbackMsg.style.display = 'block';
         }
       }
@@ -135,7 +144,12 @@
 
     window.joinWithoutAudio = function () {
       const url = new URL(window.location.href);
-      url.searchParams.set('mic', 'false');
+      if (url.searchParams.get('mic') === 'false') {
+        // If we already tried without mic and it still fails, offer Solo Mode
+        url.searchParams.set('room', 'none');
+      } else {
+        url.searchParams.set('mic', 'false');
+      }
       window.location.href = url.toString();
     };
   </script>
