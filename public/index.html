@@ -153,6 +153,7 @@
         showCardinalPoints: { type: 'boolean', default: true },
         showCelestialPoles: { type: 'boolean', default: false },
         activeConstellations: { type: 'string', default: 'INIT' },
+        velocity: { type: 'number', default: 0 },
         heartbeat: { type: 'number', default: 0 }
       },
       init: function () {
@@ -204,7 +205,8 @@
           const timeDrift = Math.abs(window.simulationTime.diff(sharedTime, 'seconds').seconds);
           const latDrift = Math.abs(window.latitude - this.data.latitude);
 
-          if ((timeDrift > 5 || latDrift > 0.01) && !this.targetTime) {
+          const driftThreshold = (Math.abs(this.data.velocity) > 10) ? 60 : 5; // Relax during movement
+          if ((timeDrift > driftThreshold || latDrift > 0.01) && !this.targetTime) {
             console.log("sky-state: Watchdog detected drift from master (and no interpolation active). Pulling state...");
             // Instead of just update(), let's explicitly copy the data to our locals
             window.simulationTime = sharedTime;
@@ -232,30 +234,55 @@
           }
           return;
         }
+
         if (!NAF.utils.isMine(this.el) && this.targetTime && window.simulationTime) {
+          const dtSec = dt / 1000;
           const currentTimeSecs = window.simulationTime.toMillis() / 1000;
           const targetTimeSecs = this.targetTime.toMillis() / 1000;
           const diffSeconds = targetTimeSecs - currentTimeSecs;
-          const dtSec = dt / 1000;
 
-          // Decay predicted velocity if we haven't received an update in a while
-          const timeSinceLastUpdate = (performance.now() - this.lastReceivedTimestamp) / 1000;
-          if (timeSinceLastUpdate > 0.2) {
-            this.timeVelocity *= Math.exp(-10.0 * dtSec); // Smooth decay
-          }
-
-          if (Math.abs(diffSeconds) > 3600) {
+          // Dynamic snap threshold: 1 hour base, or 2x the current velocity to allow fast scrubbing
+          const snapThreshold = Math.max(3600, Math.abs(this.data.velocity) * 2);
+          if (Math.abs(diffSeconds) > snapThreshold) {
             window.simulationTime = this.targetTime;
             this.targetTime = null;
             this.timeVelocity = 0;
-          } else if (Math.abs(diffSeconds) > 0.05 || Math.abs(this.timeVelocity) > 0.1) {
-            const step = (diffSeconds + (this.timeVelocity * dtSec)) * this.lerpSpeed * dtSec;
-            window.simulationTime = luxon.DateTime.fromMillis((currentTimeSecs + step) * 1000);
-          } else {
-            window.simulationTime = this.targetTime;
-            this.timeVelocity = 0;
+            updateScene();
+            return;
           }
-          updateScene();
+
+          // 1. Snappy matching: Receive the owner's already-smoothed velocity (k=30.0)
+          this.timeVelocity += (this.data.velocity - this.timeVelocity) * 30.0 * dtSec;
+
+          // 2. Integration + Gap correction
+          // While moving, maintain a tight lock (k=5.0). While stopped, settle very lazily (k=0.5).
+          const isMoving = Math.abs(this.data.velocity) > 0.1;
+          const kCorrection = isMoving ? 5.0 : 0.5;
+          const correction = diffSeconds * kCorrection;
+          let effectiveVel = this.timeVelocity + correction;
+
+          // 3. Anti-Overshoot: If the owner has stopped, do not allow reverse "creeping" to fix tiny errors.
+          if (!isMoving && Math.abs(diffSeconds) < 1.0) {
+            // If local time is ahead of target (diffSeconds < 0) and we were moving forward,
+            // or local time is behind and we were moving backward, just stop.
+            if ((diffSeconds < 0 && this.timeVelocity >= 0) || (diffSeconds > 0 && this.timeVelocity <= 0)) {
+              effectiveVel = 0;
+            }
+          }
+
+          if (Math.abs(effectiveVel) > 0.05 || Math.abs(diffSeconds) > 0.1) {
+            const step = effectiveVel * dtSec;
+            window.simulationTime = luxon.DateTime.fromMillis((currentTimeSecs + step) * 1000);
+            updateScene();
+          } else {
+            // Perfect settle
+            if (!isMoving && Math.abs(diffSeconds) < 0.1) {
+              window.simulationTime = this.targetTime;
+              this.timeVelocity = 0;
+              updateScene();
+            }
+          }
+
           if (window.targetSimulationTime) {
             window.targetSimulationTime = window.simulationTime;
           }
@@ -287,26 +314,15 @@
         if (isRemote) {
           if (this.data.time && this.data.time !== oldData.time) {
             if (!incomingIsInit) {
-              const newTargetTime = luxon.DateTime.fromISO(this.data.time);
+              const rawTargetTime = luxon.DateTime.fromISO(this.data.time);
 
-              // Calculate velocity for predictive interpolation
-              const now = performance.now();
-              if (this.lastReceivedTime && this.lastReceivedTimestamp) {
-                const timeDelta = newTargetTime.diff(this.lastReceivedTime, 'seconds').seconds;
-                const realTimeDelta = (now - this.lastReceivedTimestamp) / 1000;
-
-                if (realTimeDelta > 0 && Math.abs(timeDelta) < 3600) {
-                  // Calculate velocity (simulation seconds per real second)
-                  this.timeVelocity = timeDelta / realTimeDelta;
-                }
-              }
-
-              this.lastReceivedTime = newTargetTime;
-              this.lastReceivedTimestamp = now;
-              this.targetTime = newTargetTime;
+              // Latency Compensation: 30ms look-ahead to stay on top of the owner
+              const latencySec = (this.data.velocity === 0) ? 0 : 0.03;
+              this.targetTime = rawTargetTime.plus({ seconds: (this.data.velocity || 0) * latencySec });
+              this.lastReceivedTimestamp = performance.now();
 
               // If this is the FIRST update or a huge jump, snap instantly
-              if (!window.simulationTime || Math.abs(this.targetTime.diff(window.simulationTime, 'seconds').seconds) > 3600) {
+              if (!window.simulationTime || Math.abs(this.targetTime.toMillis() - window.simulationTime.toMillis()) > 3600000) {
                 window.simulationTime = this.targetTime;
                 this.targetTime = null;
                 this.timeVelocity = 0;
@@ -1391,9 +1407,10 @@
 
       let lastSyncTime = 0;
       function syncSky(silent = false) {
-        // Throttle network updates to ~10Hz unless it's a critical (non-silent) update
+        // Dynamic throttle: 10Hz for idle, 20Hz (50ms) during active scrubbing for smoothness
+        const throttleLimit = (Math.abs(window.currentTimeVelocity) > 10) ? 50 : 100;
         const now = performance.now();
-        if (!silent && (now - lastSyncTime < 100)) return;
+        if (!silent && (now - lastSyncTime < throttleLimit)) return;
 
         const skyMaster = document.getElementById('sky-master');
         if (skyMaster && NAF.connection && NAF.connection.adapter && NAF.connection.isConnected()) {
