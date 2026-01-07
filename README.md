@@ -63,7 +63,7 @@ SkyVR stands on the shoulders of giants. We gratefully acknowledge the use of da
 
 *   **Star Data (ATHYG)**: ATHYG database by David Nash / Astronexus. (CC BY 4.0)
 *   **Constellation Art**: Created by Johan Meuris (Jomejome). (Free Art License)
-*   **Gaia Sky Map**: Data from the European Space Agency (ESA) mission Gaia, processed by the Gaia Data Processing and Analysis Consortium (DPAC). (CC BY-SA 3.0 IGO)
+*   **Gaia Milky Way**: Data from the European Space Agency (ESA) mission Gaia, processed by the Gaia Data Processing and Analysis Consortium (DPAC). (CC BY-SA 3.0 IGO)
 *   **Moon Textures**: NASA's Scientific Visualization Studio. (Public Domain)
 *   **Font**: 'Outfit' by Jeremy Tribby. (OFL)
 *   **Icons**:
