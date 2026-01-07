@@ -1077,7 +1077,6 @@
       align-items: center;
       justify-content: center;
       font-size: 0.85rem;
-      font-weight: 700;
       transition: all 0.2s;
     }
 
@@ -1406,6 +1405,14 @@
             </div>
           </div>
           <div class="adjuster-item">
+            <span class="label">Sidereal Day</span>
+            <div class="adjuster-controls">
+              <button>&minus;</button>
+              <div style="grid-column: span 2;"></div>
+              <button>&plus;</button>
+            </div>
+          </div>
+          <div class="adjuster-item">
             <span class="label">Hour</span>
             <div class="adjuster-controls">
               <button>&minus;</button>
@@ -1426,7 +1433,7 @@
             </div>
           </div>
         </div>
-        <button class="now-btn" onclick="setNow()">Set to NOW</button>
+        <button class="now-btn" onclick="setNow()">now</button>
       </div>
     </div>
   </div>
@@ -1741,19 +1748,27 @@
             text="value: +; align: center; width: 0.5" class="control-panel-button" data-raycastable
             onclick="adjustTime('days', 1)"></a-rounded>
 
-          <a-text value="Hour" position="-0.15 -0.14 0" width="0.3" color="white" align="left"></a-text>
+          <a-text value="Sid. Day" position="-0.15 -0.14 0" width="0.3" color="white" align="left"></a-text>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 -0.14 0.001" color="#444"
             text="value: -; align: center; width: 0.5" class="control-panel-button" data-raycastable
-            onclick="adjustTime('hours', -1)"></a-rounded>
+            onclick="adjustTime('sidereal', -1)"></a-rounded>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 -0.14 0.001" color="#444"
+            text="value: +; align: center; width: 0.5" class="control-panel-button" data-raycastable
+            onclick="adjustTime('sidereal', 1)"></a-rounded>
+
+          <a-text value="Hour" position="-0.15 -0.18 0" width="0.3" color="white" align="left"></a-text>
+          <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 -0.18 0.001" color="#444"
+            text="value: -; align: center; width: 0.5" class="control-panel-button" data-raycastable
+            onclick="adjustTime('hours', -1)"></a-rounded>
+          <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 -0.18 0.001" color="#444"
             text="value: +; align: center; width: 0.5" class="control-panel-button" data-raycastable
             onclick="adjustTime('hours', 1)"></a-rounded>
 
-          <a-text value="Minute" position="-0.15 -0.18 0" width="0.3" color="white" align="left"></a-text>
-          <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 -0.18 0.001" color="#444"
+          <a-text value="Minute" position="-0.15 -0.22 0" width="0.3" color="white" align="left"></a-text>
+          <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 -0.22 0.001" color="#444"
             text="value: -; align: center; width: 0.5" class="control-panel-button" data-raycastable
             onclick="adjustTime('minutes', -1)"></a-rounded>
-          <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 -0.18 0.001" color="#444"
+          <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 -0.22 0.001" color="#444"
             text="value: +; align: center; width: 0.5" class="control-panel-button" data-raycastable
             onclick="adjustTime('minutes', 1)"></a-rounded>
         </a-control-panel>
@@ -1913,6 +1928,8 @@
         if (!window.interpolationEnabled || !updateTarget || shouldSnap) {
           window.simulationTime = newTime;
           window.simTimeMs = newTime.toMillis();
+          // Clear astro cache to force a fresh RA/Dec recalculation on the next frame/updateScene
+          if (window._astroCache) window._astroCache.sunRaDec = null;
         }
       };
 
@@ -2069,7 +2086,19 @@
       document.querySelector('a-scene').setAttribute('local-time-interpolator', '');
 
       function adjustTime(unit, amount) {
-        const newTime = window.targetSimulationTime.plus({ [unit]: amount });
+        let newTime;
+        if (unit === 'sidereal') {
+          // 1 Sidereal Day = 86164.0905 seconds (360° star rotation)
+          newTime = window.targetSimulationTime.plus({ seconds: 86164.0905 * amount });
+        } else if (unit === 'days' || unit === 'day') {
+          // 1 Solar Day = 24 absolute hours. 
+          // We use absolute hours to compensate for DST shifts; this ensures 
+          // that the sky orientation (Sun position) remains consistent 
+          // even if the local wall clock jumps by an hour.
+          newTime = window.targetSimulationTime.plus({ hours: 24 * amount });
+        } else {
+          newTime = window.targetSimulationTime.plus({ [unit]: amount });
+        }
         updateSimulationTime(newTime);
         updateScene();
         syncSky();
@@ -2148,11 +2177,10 @@
           cachedLongitudeDeg15 = longitude / 15; // Update cache when longitude changes
         }
 
-        // Optimized Sun: Throttle the heavy Equator solving to 1Hz
-        if (!window._astroCache.sunRaDec || (now - window._astroCache.lastAstroUpdate > 1000)) {
-          window._astroCache.sunRaDec = Astronomy.Equator('Sun', astroTime, observer, false, false);
-          window._astroCache.lastAstroUpdate = now;
-        }
+        // Sun RA/Dec solving: Removed 1Hz throttle to eliminate "jump-back" artifacts 
+        // during time interpolation or jumps. RA/Dec for a single body is high-performance.
+        window._astroCache.sunRaDec = Astronomy.Equator('Sun', astroTime, observer, false, false);
+        window._astroCache.lastAstroUpdate = now;
 
         // Horizontal conversion is lighter than full solving
         const sunAltAz = Astronomy.Horizon(astroTime, observer, window._astroCache.sunRaDec.ra, window._astroCache.sunRaDec.dec, false);

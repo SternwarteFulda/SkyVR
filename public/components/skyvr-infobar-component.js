@@ -422,7 +422,14 @@ AFRAME.registerComponent('skyvr-infobar', {
                 const diff = val - currentVal;
                 if (diff === 0) return;
 
-                const newTime = baseTime.plus({ [unit]: diff });
+                let newTime;
+                if (unit === 'day') {
+                    // Use absolute 24-hour steps to compensate for DST shifts
+                    newTime = baseTime.plus({ hours: 24 * diff });
+                } else {
+                    newTime = baseTime.plus({ [unit]: diff });
+                }
+
                 if (typeof updateSimulationTime === 'function') {
                     updateSimulationTime(newTime);
                 }
@@ -480,26 +487,51 @@ AFRAME.registerComponent('skyvr-infobar', {
         // --- Button Repeat Handling ---
         const setupRepeat = (btn, action) => {
             let interval = null;
-            const start = () => {
-                action();
-                interval = setInterval(action, 100);
+            let initialDelay = null;
+            const start = (e) => {
+                if (e.type === 'mousedown' && e.button !== 0) return; // Only left click
+
+                action(); // Initial click
+
+                // Set a delay (400ms) before auto-repeat starts, matching standard OS behavior.
+                // This prevents "stutter clicks" from firing multiple times.
+                initialDelay = setTimeout(() => {
+                    interval = setInterval(action, 100);
+                }, 400);
             };
             const stop = () => {
+                if (initialDelay) clearTimeout(initialDelay);
                 if (interval) clearInterval(interval);
+                initialDelay = null;
                 interval = null;
             };
             btn.addEventListener('mousedown', start);
             btn.addEventListener('mouseup', stop);
             btn.addEventListener('mouseleave', stop);
-            btn.addEventListener('touchstart', (e) => { e.preventDefault(); start(); });
+            btn.addEventListener('touchstart', (e) => { e.preventDefault(); start(e); });
             btn.addEventListener('touchend', stop);
+
+            // Accessibility: Handle Enter and Space for clicking/repeating
+            btn.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    if (e.repeat) return; // Prevent double-triggering from OS repeat
+                    e.preventDefault(); // Prevent scrolling with space
+                    start(e);
+                }
+            });
+            btn.addEventListener('keyup', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    stop();
+                }
+            });
         };
 
         // Coordinates Buttons
-        const coordBtns = document.getElementById('control-panel-2d').querySelectorAll('.adjuster-item .adjuster-controls button:not(.toggle-btn)');
+        // SPECIFIC SELECTOR to avoid overlapping with Time buttons
+        const coordBtns = document.getElementById('control-panel-2d').querySelectorAll('.adjuster-group .adjuster-item .adjuster-controls button:not(.toggle-btn)');
         coordBtns.forEach(btn => {
             const isLat = btn.closest('.adjuster-item').textContent.includes('Latitude');
-            const isPlus = btn.textContent === '+';
+            const isPlus = btn.textContent === '+' || btn.innerHTML.includes('&plus;');
             const type = isLat ? 'latitude' : 'longitude';
             const amount = isPlus ? 0.1 : -0.1;
             setupRepeat(btn, () => {
@@ -510,9 +542,17 @@ AFRAME.registerComponent('skyvr-infobar', {
         // Time Buttons
         const timeRows = document.getElementById('control-panel-2d').querySelectorAll('.time-grid .adjuster-item');
         timeRows.forEach(row => {
-            const label = row.querySelector('.label').textContent.toLowerCase();
-            const unitMap = { 'year': 'years', 'month': 'months', 'day': 'days', 'hour': 'hours', 'minute': 'minutes' };
+            const label = row.querySelector('.label').textContent.toLowerCase().trim();
+            const unitMap = {
+                'year': 'years',
+                'month': 'months',
+                'day': 'days',
+                'sidereal day': 'sidereal',
+                'hour': 'hours',
+                'minute': 'minutes'
+            };
             const unit = unitMap[label];
+            if (!unit) return;
             const btns = row.querySelectorAll('button');
             btns.forEach(btn => {
                 const amount = btn.textContent === '+' ? 1 : -1;
