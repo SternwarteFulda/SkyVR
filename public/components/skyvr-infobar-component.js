@@ -54,7 +54,8 @@ AFRAME.registerComponent('skyvr-infobar', {
             modes: {
                 draw: document.getElementById('infobar-2d-draw'),
                 stickfigure: document.getElementById('infobar-2d-stickfigure'),
-                constellation: document.getElementById('infobar-2d-constellation')
+                constellation: document.getElementById('infobar-2d-constellation'),
+                pointer: document.getElementById('infobar-2d-pointer')
             },
             mouseMove: document.getElementById('infobar-2d-mouse-move'),
             settings: document.getElementById('infobar-2d-settings'),
@@ -400,6 +401,11 @@ AFRAME.registerComponent('skyvr-infobar', {
         // Update 2D button state
         if (this.ui2d.mouseMove) {
             this.ui2d.mouseMove.classList.toggle('active', !!window.reverseMouse);
+        }
+
+        // If switching to Camera Move (FPS), deactivate pointer mode
+        if (!window.reverseMouse && window.currentMode === 'pointer') {
+            window.currentMode = 'none';
         }
     },
 
@@ -884,6 +890,7 @@ AFRAME.registerComponent('skyvr-infobar', {
                 else if (currentMode === 'stamp') { label = "Stamp (B)"; width = 0.12; }
                 else if (currentMode === 'stickfigure') { label = "Add stick figure (B)"; width = 0.22; }
                 else if (currentMode === 'constellation') { label = "Add Illustration (B)"; width = 0.22; }
+                else if (currentMode === 'pointer') { label = "Pointer Active"; width = 0.15; }
 
                 bText.setAttribute('value', label);
                 bBg.setAttribute('width', width);

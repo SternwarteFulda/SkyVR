@@ -213,7 +213,7 @@
             // Lock camera rotation if drawing or erasing
             const drawComp = this.el.components.drawing;
             const isDrawing = window.currentMode === 'draw' && drawComp && drawComp.isDrawing;
-            if (isDrawing || window.isErasing) {
+            if (isDrawing || window.isErasing || window.isPointerActive) {
                 return;
             }
 
@@ -250,7 +250,7 @@
             // Lock keyboard rotation if drawing
             const drawComp = this.el.components.drawing;
             const isDrawing = window.currentMode === 'draw' && drawComp && drawComp.isDrawing;
-            if (isDrawing || window.isErasing) {
+            if (isDrawing || window.isErasing || window.isPointerActive) {
                 return;
             }
 
@@ -300,7 +300,7 @@
             const drawComp = this.el.components.drawing;
             const isDrawing = window.currentMode === 'draw' && drawComp && drawComp.isDrawing;
 
-            if (isDrawing || window.isErasing) {
+            if (isDrawing || window.isErasing || window.isPointerActive) {
                 // Update previous coordinates so we don't jump when we resume
                 this.previousMouseEvent.screenX = evt.screenX;
                 this.previousMouseEvent.screenY = evt.screenY;
@@ -335,7 +335,7 @@
                 return;
             }
 
-            if (window.currentMode === 'draw') { return; }
+            if (window.currentMode === 'draw' || window.currentMode === 'pointer') { return; }
 
             this.mouseDown = true;
             this.previousMouseEvent.screenX = evt.screenX;

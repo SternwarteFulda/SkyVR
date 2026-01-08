@@ -600,7 +600,12 @@
             },
             {
               selector: '.pointer',
-              component: 'rotation'
+              component: 'bottom-origin-cylinder',
+              property: 'rotation'
+            },
+            {
+              selector: '.pointer',
+              property: 'position'
             },
             {
               component: 'player-info',
@@ -1020,6 +1025,7 @@
   <script src="js/custom-fogless-text.js"></script>
   <script src="components/skyvr-player-info-component.js"></script>
   <script src="components/skyvr-drawing-component.js"></script>
+  <script src="components/skyvr-pointer-2d-component.js"></script>
   <link rel="stylesheet" type="text/css" href="/css/style.css" />
   <link rel="stylesheet" type="text/css" href="/css/fonts.css" />
   <style>
@@ -1673,6 +1679,10 @@
           </button>
         </div>
       </div>
+
+      <button id="infobar-2d-pointer" class="infobar-2d-button" title="Pointer Mode" data-mode="pointer">
+        <img src="assets/icons/laser.svg">
+      </button>
     </div>
   </div>
 
@@ -1857,6 +1867,7 @@
       gridColor: #39d2f2;
       shadow: false" networked-scene="
       adapter: easyrtc;
+      broadcastInterval: 2;
       onConnect: onConnect;">
 
     <!-- 2D Infobar Overlay (Inside scene allows it to stay visible during A-Frame's internal fullscreen mode) -->
@@ -1987,7 +1998,7 @@
       spawn-in-spots="radius:4" position="0 0 0" rotation="0 0 0">
       <a-entity id="camera" player-info networked="template:#camera-template;attachTemplateToLocal:false;"
         camera="near: 0.1; far: 3600" skyvr-look-controls="reverseMouseDrag: true; reverseTouchDrag: false"
-        constellation-pointer-2d drawing="pointerMode: 2d" position="0 1.6 0">
+        constellation-pointer-2d skyvr-pointer-2d drawing="pointerMode: 2d" position="0 1.6 0">
         <a-sphere class="head" visible="false" random-color></a-sphere>
       </a-entity>
       <!-- Infobar placed in front of user, visible when looking down -->
