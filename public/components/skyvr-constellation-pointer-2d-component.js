@@ -164,6 +164,9 @@ AFRAME.registerComponent('constellation-pointer-2d', {
 
 
     tick: function () {
+        // Skip if in VR mode to prevent conflict with 3D controller pointer
+        if (this.el.sceneEl.is('vr-mode')) return;
+
         if (window.currentMode !== 'constellation' || !this.renderer || !this.renderer.loadingComplete) {
             // Ensure preview is removed when not in mode
             if (this.renderer && this.renderer.previewIllustration) {

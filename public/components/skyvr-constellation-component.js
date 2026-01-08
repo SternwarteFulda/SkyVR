@@ -205,8 +205,20 @@ AFRAME.registerComponent('constellation-renderer', {
         const localRayOrigin = raycaster.ray.origin.clone().applyMatrix4(worldToLocal);
         const localRayDirection = raycaster.ray.direction.clone().transformDirection(worldToLocal).normalize();
 
-        // 2. Project local ray direction onto the sphere (since user is roughly at center)
-        const hitPoint = localRayDirection.clone().multiplyScalar(this.data.radius);
+        // 2. Ray-Sphere Intersection (radius = this.data.radius)
+        // Ray: P = O + t*D. Sphere: |P|^2 = R^2
+        // (O + t*D).(O + t*D) = R^2  => t^2 + 2t(O.D) + (O.O - R^2) = 0
+        const R = this.data.radius;
+        const b = localRayOrigin.dot(localRayDirection);
+        const c = localRayOrigin.dot(localRayOrigin) - R * R;
+        const disc = b * b - c;
+
+        if (disc < 0) return null; // Ray doesn't hit the sphere
+
+        // We want the intersection point in front of the ray. 
+        // If inside the sphere, one root is positive, one is negative.
+        const t = -b + Math.sqrt(disc);
+        const hitPoint = localRayOrigin.clone().add(localRayDirection.clone().multiplyScalar(t));
 
         // 3. Direction from center to hit point is what we compare with stars
         const hitDir = hitPoint.clone().normalize();
