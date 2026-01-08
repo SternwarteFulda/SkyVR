@@ -600,11 +600,21 @@
             },
             {
               selector: '.pointer',
+              component: 'bottom-origin-cylinder',
+              property: 'opacity'
+            },
+            {
+              selector: '.pointer',
               component: 'rotation'
             },
             {
               selector: '.pointer-arrow',
               component: 'visible'
+            },
+            {
+              selector: '.arrow-mesh',
+              component: 'material',
+              property: 'color'
             },
             {
               selector: '.pointer-arrow',
@@ -1935,8 +1945,8 @@
             bottom-origin-cylinder="height: 400; radius: 0.009; color: red; opacity: 0.6;" rotation="53.53 8.87 0"
             visible="false" shadow="cast: false; receive: false">
             <a-entity class="pointer-arrow" position="0 -390 0" visible="false">
-              <a-entity geometry="primitive: cone; radiusBottom: 4; height: 16"
-                material="color: white; shader: flat; fog: false; transparent: true; opacity: 1; depthTest: false; side: double"
+              <a-entity class="arrow-mesh" geometry="primitive: cone; radiusBottom: 4; height: 16"
+                material="color: white; shader: flat; fog: false; transparent: true; opacity: 1; depthTest: true; side: double"
                 position="0 -8 0" rotation="0 0 0"></a-entity>
             </a-entity>
           </a-entity>
@@ -2030,8 +2040,8 @@
           bottom-origin-cylinder="height: 400; radius: 0.009; color: red; opacity: 0.6;" rotation="53.53 8.87 0"
           visible="false" shadow="cast: false; receive: false">
           <a-entity class="pointer-arrow" position="0 -390 0" visible="false">
-            <a-entity geometry="primitive: cone; radiusBottom: 4; height: 16"
-              material="color: white; shader: flat; fog: false; transparent: true; opacity: 1; depthTest: false; side: double"
+            <a-entity class="arrow-mesh" geometry="primitive: cone; radiusBottom: 4; height: 16"
+              material="color: white; shader: flat; fog: false; transparent: true; opacity: 1; depthTest: true; side: double"
               position="0 -8 0" rotation="0 0 0"></a-entity>
           </a-entity>
         </a-entity>
@@ -3139,62 +3149,135 @@
 
       let pointerMode = 'beam'; // 'beam' or 'arrow'
 
-      function updateVisuals() {
+      // Persistent handlers to allowing valid removal
+      const onBeamHidden = () => {
+        // Beam finished hiding. 
+        // Check if we should hide the parent pointer?
+        // Only if Arrow is ALSO effectively hidden/inactive.
         const pointer = document.getElementById("pointer");
         if (!pointer) return;
         const arrow = pointer.querySelector('.pointer-arrow');
 
-        // Ensure parent is visible (opacity/scale will handle actual visibility)
-        if (!pointer.getAttribute('visible')) pointer.setAttribute('visible', true);
+        // Check if arrow is visible (scale > 0.01)
+        const arrowVisible = arrow && arrow.object3D && arrow.object3D.visible && arrow.object3D.scale.x > 0.01;
+
+        if (!arrowVisible) {
+          // Safe to hide parent
+          pointer.setAttribute('visible', false);
+        }
+      };
+
+      const onArrowHidden = () => {
+        const pointer = document.getElementById("pointer");
+        if (!pointer) return;
+
+        // Check if Beam is visible (opacity > 0.01)
+        const cylinderComp = pointer.components['bottom-origin-cylinder'];
+        let beamVisible = false;
+        if (cylinderComp && cylinderComp.cylinderMesh && cylinderComp.cylinderMesh.visible) {
+          if (cylinderComp.cylinderMesh.material.opacity > 0.01) beamVisible = true;
+        }
+
+        if (!beamVisible) {
+          pointer.setAttribute('visible', false);
+          const arrow = pointer.querySelector('.pointer-arrow');
+          if (arrow) arrow.setAttribute('visible', false);
+        } else {
+          // Even if beam is visible, the arrow itself should be hidden now
+          const arrow = pointer.querySelector('.pointer-arrow');
+          if (arrow) arrow.setAttribute('visible', false);
+        }
+      };
+
+      function updateVisuals() {
+        const pointer = document.getElementById("pointer");
+        if (!pointer) return;
+        const arrow = pointer.querySelector('.pointer-arrow');
+        const cylinder = pointer.components['bottom-origin-cylinder'];
+        // Helper to get current opacity safely
+        const currentBeamOpacity = (cylinder && cylinder.cylinderMesh && cylinder.cylinderMesh.material) ? cylinder.cylinderMesh.material.opacity : 0;
+
+        // 0. CLEANUP Handlers
+        // Important: We must remove them to prevent them from firing if we suddenly decided to show something again.
+        pointer.removeEventListener('animationcomplete__beam', onBeamHidden);
+        if (arrow) arrow.removeEventListener('animationcomplete__scale', onArrowHidden);
 
         const showBeam = isRightControllerGripDown && pointerMode === 'beam';
         const showArrow = isRightControllerGripDown && pointerMode === 'arrow';
 
+        // Use a flag to track if we expect animations to run that require hiding the parent later
+        let waitingForBeamHide = false;
+        let waitingForArrowHide = false;
+
+        // Ensure parent is visible immediately if we are showing or about to show something
+        if ((showBeam || showArrow) && !pointer.getAttribute('visible')) {
+          pointer.setAttribute('visible', true);
+        }
+
         // 1. BEAM ANIMATION
-        // Animate the component property 'opacity'
-        pointer.removeAttribute('animation__beam'); // Reset to ensure restart
+        // Check if beam is currently visible (before applying new animation)
+        const beamWasVisible = currentBeamOpacity > 0.01;
+
+        pointer.removeAttribute('animation__beam');
         pointer.setAttribute('animation__beam', {
           property: 'bottom-origin-cylinder.opacity',
           to: showBeam ? 0.6 : 0.0,
-          dur: 100, // Faster
+          dur: 100,
           easing: 'linear'
         });
 
+        // Only listen for hide compliance if we are transitioning From Visible -> Hidden
+        if (!showBeam && beamWasVisible) {
+          pointer.addEventListener('animationcomplete__beam', onBeamHidden);
+          waitingForBeamHide = true;
+        }
+
         // 2. ARROW ANIMATION
         if (arrow) {
-          if (!arrow.getAttribute('visible')) arrow.setAttribute('visible', true);
+          // Check if arrow is currently visible (before applying new animation)
+          const arrowWasVisible = arrow.object3D && arrow.object3D.visible && arrow.object3D.scale.x > 0.01;
+          if (showArrow && !arrow.getAttribute('visible')) arrow.setAttribute('visible', true);
 
-          // Animate scale 0->1 or 1->0
           arrow.removeAttribute('animation__scale');
           arrow.setAttribute('animation__scale', {
             property: 'scale',
             to: showArrow ? '1 1 1' : '0 0 0',
-            dur: 150, // Faster
+            dur: 150,
             easing: showArrow ? 'easeOutBack' : 'easeInBack'
           });
 
+          // Only listen for hide compliance if transitioning From Visible -> Hidden
+          if (!showArrow && arrowWasVisible) {
+            arrow.addEventListener('animationcomplete__scale', onArrowHidden);
+            waitingForArrowHide = true;
+          }
+
           if (showArrow) {
-            // Apply Rotation & Color immediately when revealing
+            // Apply Rotation
             arrow.setAttribute('rotation', { x: 90, y: lastArrowAngle - 90, z: 0 });
 
-            const child = arrow.querySelector('a-entity');
+            // Apply Color
+            const child = arrow.querySelector('.arrow-mesh');
             const mesh = child ? child.getObject3D('mesh') : null;
-            if (mesh) {
-              mesh.renderOrder = 20000;
-              if (mesh.material) {
-                mesh.material.depthTest = false;
-                mesh.material.depthWrite = false;
-                const camera = document.getElementById('camera');
-                const playerInfo = camera ? camera.components['player-info'] : null;
-                if (playerInfo && playerInfo.data.color) {
-                  mesh.material.color.set(playerInfo.data.color);
-                }
+            if (mesh && mesh.material) {
+              mesh.material.depthTest = true;
+              mesh.material.depthWrite = false;
+              const camera = document.getElementById('camera');
+              const playerInfo = camera ? camera.components['player-info'] : null;
+              if (playerInfo && playerInfo.data.color) {
+                mesh.material.color.set(playerInfo.data.color);
+                child.setAttribute('material', 'color', playerInfo.data.color);
               }
             }
           }
         }
-      }
 
+        // Fallback: If we want to hide everything, but no animations are "waiting" (e.g. they were already hidden),
+        // we must hide parent immediately or we'll be stuck visible.
+        if (!showBeam && !showArrow && !waitingForBeamHide && !waitingForArrowHide) {
+          pointer.setAttribute('visible', false);
+        }
+      }
       rightController.addEventListener("thumbstickdown", function () {
         // Toggle Mode
         pointerMode = (pointerMode === 'beam') ? 'arrow' : 'beam';
