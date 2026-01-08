@@ -6,19 +6,7 @@ AFRAME.registerComponent('drawing-stroke', {
     },
 
     init: function () {
-        // Ensure networked strokes are in the precession container for correct celestial alignment
-        const container = document.getElementById('precession-container');
-        if (container && this.el.parentNode !== container) {
-            if (!NAF.utils.isMine(this.el)) {
-                setTimeout(() => {
-                    if (container && this.el.parentNode !== container) {
-                        container.appendChild(this.el);
-                    }
-                }, 50);
-            } else {
-                container.appendChild(this.el);
-            }
-        }
+        this.el.classList.add('networked-stroke');
 
         this.lineMaterial = new THREE.LineBasicMaterial({
             color: this.data.color,
@@ -32,6 +20,9 @@ AFRAME.registerComponent('drawing-stroke', {
     },
 
     update: function (oldData) {
+        if (this.data.color !== oldData.color) {
+            this.lineMaterial.color.set(this.data.color);
+        }
         if (JSON.stringify(oldData.points) !== JSON.stringify(this.data.points)) {
             this.updateLine();
         }
@@ -39,7 +30,7 @@ AFRAME.registerComponent('drawing-stroke', {
 
     updateLine: function () {
         if (this.mesh) {
-            this.el.object3D.remove(this.mesh);
+            if (this.mesh.parent) this.mesh.parent.remove(this.mesh);
             this.mesh.geometry.dispose();
         }
 
@@ -59,15 +50,21 @@ AFRAME.registerComponent('drawing-stroke', {
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
         this.mesh = new THREE.Line(geometry, this.lineMaterial);
         this.mesh.renderOrder = 100; // Above stars (20) and illustrations (10)
-        this.el.object3D.add(this.mesh);
+
+        const container = document.getElementById('precession-container');
+        if (container) {
+            container.object3D.add(this.mesh);
+        } else {
+            this.el.object3D.add(this.mesh);
+        }
     },
 
     remove: function () {
         if (this.mesh) {
-            this.el.object3D.remove(this.mesh);
+            if (this.mesh.parent) this.mesh.parent.remove(this.mesh);
             this.mesh.geometry.dispose();
         }
-        this.lineMaterial.dispose();
+        if (this.lineMaterial) this.lineMaterial.dispose();
     }
 });
 

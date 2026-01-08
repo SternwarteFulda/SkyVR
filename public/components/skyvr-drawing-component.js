@@ -17,6 +17,9 @@ AFRAME.registerComponent('drawing', {
         this.currentSegmentPoints = [];
         this.currentSegmentMesh = null;
         this.completedSegmentMeshes = [];
+        this.completedSegmentEntities = [];
+        this.activeStrokeEntity = null;
+        this.lastSyncPointCount = 0;
         this.isDrawing = false;
         this.strokeDistance = this.data.distance;
         this.precessionContainerEl = document.getElementById("precession-container");
@@ -180,41 +183,46 @@ AFRAME.registerComponent('drawing', {
         if (mode === 'all' || mode === 'strokes') {
             const radius = 5; // Erase radius in world units
             const toRemove = [];
+            const entitiesToRemove = [];
 
+            // 1a. Local Meshes
             this.completedSegmentMeshes.forEach(mesh => {
-                if (!mesh.geometry) return;
-                const positions = mesh.geometry.attributes.position.array;
-                let hit = false;
-
-                // Check bounding sphere first
-                if (mesh.geometry.boundingSphere) {
-                    const sphere = mesh.geometry.boundingSphere.clone();
-                    sphere.applyMatrix4(mesh.matrixWorld);
-                    if (ray.distanceToPoint(sphere.center) > (sphere.radius + radius)) {
-                        return; // Too far
-                    }
+                if (this.checkMeshHit(mesh, ray, radius)) {
+                    toRemove.push(mesh);
                 }
+            });
 
-                // Check distance to each segment (more accurate than points)
-                const v1 = new THREE.Vector3();
-                const v2 = new THREE.Vector3();
-                for (let i = 0; i < positions.length - 3; i += 3) {
-                    v1.set(positions[i], positions[i + 1], positions[i + 2]).applyMatrix4(mesh.matrixWorld);
-                    v2.set(positions[i + 3], positions[i + 4], positions[i + 5]).applyMatrix4(mesh.matrixWorld);
-
-                    if (ray.distanceSqToSegment(v1, v2) < (radius * radius)) {
-                        hit = true;
-                        break;
-                    }
+            // 1b. Networked Strokes
+            const networkedStrokes = document.querySelectorAll('[drawing-stroke]');
+            networkedStrokes.forEach(el => {
+                const comp = el.components['drawing-stroke'];
+                if (!comp || !comp.mesh) return;
+                if (this.checkMeshHit(comp.mesh, ray, radius)) {
+                    entitiesToRemove.push(el);
                 }
-
-                if (hit) toRemove.push(mesh);
             });
 
             toRemove.forEach(mesh => {
                 if (mesh.parent) mesh.parent.remove(mesh);
                 const idx = this.completedSegmentMeshes.indexOf(mesh);
                 if (idx > -1) this.completedSegmentMeshes.splice(idx, 1);
+            });
+
+            entitiesToRemove.forEach(el => {
+                if (NAF.utils.isMine(el)) {
+                    if (el.parentNode) el.parentNode.removeChild(el);
+                } else {
+                    NAF.utils.takeOwnership(el);
+                    // Try to remove after a short delay to allow ownership sync
+                    setTimeout(() => {
+                        if (el.parentNode) el.parentNode.removeChild(el);
+                    }, 50);
+                }
+                // Also remove from our local tracking if present
+                if (this.completedSegmentEntities) {
+                    const idx = this.completedSegmentEntities.indexOf(el);
+                    if (idx > -1) this.completedSegmentEntities.splice(idx, 1);
+                }
             });
         }
 
@@ -302,17 +310,94 @@ AFRAME.registerComponent('drawing', {
     startDrawing: function () {
         this.isDrawing = true;
         this.currentSegmentPoints = [];
+        this.lastSyncPointCount = 0;
+        this.activeStrokeEntity = null;
+
         // Per-stroke jitter to prevent Z-fighting
         this.strokeDistance = this.data.distance + (Math.random() * 0.1);
+
+        // Immediate networked spawn for live sync
+        const isRoomed = typeof roomParam !== 'undefined' && roomParam !== 'none';
+        const isConnected = typeof NAF !== 'undefined' && NAF.connection && NAF.connection.isConnected();
+
+        if (isRoomed && isConnected) {
+            const entity = document.createElement('a-entity');
+            entity.setAttribute('networked', {
+                template: '#drawing-stroke-template'
+            });
+
+            entity.setAttribute('drawing-stroke', {
+                points: [],
+                color: this.data.color,
+                width: this.data.width
+            });
+
+            if (this.precessionContainerEl) {
+                this.precessionContainerEl.appendChild(entity);
+            } else {
+                this.el.sceneEl.appendChild(entity);
+            }
+            this.activeStrokeEntity = entity;
+            if (!this.completedSegmentEntities) this.completedSegmentEntities = [];
+            this.completedSegmentEntities.push(entity);
+        }
     },
     stopDrawing: function () {
+        if (!this.isDrawing) return;
         this.isDrawing = false;
-        if (this.currentSegmentMesh && this.currentSegmentPoints.length > 1) {
-            this.completedSegmentMeshes.push(this.currentSegmentMesh);
+
+        if (this.currentSegmentPoints.length > 1) {
+            if (this.activeStrokeEntity) {
+                // Final point sync
+                this.syncStrokeToNetwork(true);
+
+                // Keep the local mesh alive briefly for smooth handoff
+                const tempMesh = this.currentSegmentMesh;
+                const container = this.precessionContainerEl;
+                if (tempMesh && container) {
+                    setTimeout(() => {
+                        if (container.object3D) {
+                            container.object3D.remove(tempMesh);
+                            if (tempMesh.geometry) tempMesh.geometry.dispose();
+                        }
+                    }, 150);
+                }
+            } else {
+                // Solo / Offline mode fallback
+                if (this.currentSegmentMesh) {
+                    this.completedSegmentMeshes.push(this.currentSegmentMesh);
+                }
+            }
+        } else if (this.activeStrokeEntity) {
+            // Clean up empty/single-point strokes
+            if (this.activeStrokeEntity.parentNode) {
+                this.activeStrokeEntity.parentNode.removeChild(this.activeStrokeEntity);
+            }
+            const idx = this.completedSegmentEntities.indexOf(this.activeStrokeEntity);
+            if (idx > -1) this.completedSegmentEntities.splice(idx, 1);
         }
+
         this.currentSegmentMesh = null;
+        this.activeStrokeEntity = null;
+    },
+
+    syncStrokeToNetwork: function (force = false) {
+        if (!this.activeStrokeEntity) return;
+
+        // Throttle: Only sync if we've added a significant number of points or force=true
+        // This prevents network flooding while maintaining a "live" feel
+        const pointCount = this.currentSegmentPoints.length;
+        if (!force && pointCount - this.lastSyncPointCount < 5) return;
+
+        const pointStrings = this.currentSegmentPoints.map(p =>
+            `${p.x.toFixed(4)} ${p.y.toFixed(4)} ${p.z.toFixed(4)}`
+        );
+
+        this.activeStrokeEntity.setAttribute('drawing-stroke', 'points', pointStrings);
+        this.lastSyncPointCount = pointCount;
     },
     clearDrawing: function () {
+        // Clear local meshes
         this.completedSegmentMeshes.forEach(mesh => {
             if (mesh && this.precessionContainerEl) {
                 this.precessionContainerEl.object3D.remove(mesh);
@@ -320,6 +405,21 @@ AFRAME.registerComponent('drawing', {
             }
         });
         this.completedSegmentMeshes = [];
+
+        // Clear all strokes in the room (we take ownership if needed)
+        const allStrokes = document.querySelectorAll('[drawing-stroke]');
+        allStrokes.forEach(el => {
+            if (NAF.utils.isMine(el)) {
+                if (el.parentNode) el.parentNode.removeChild(el);
+            } else {
+                NAF.utils.takeOwnership(el);
+                setTimeout(() => {
+                    if (el.parentNode) el.parentNode.removeChild(el);
+                }, 50);
+            }
+        });
+        this.completedSegmentEntities = [];
+
         if (this.currentSegmentMesh && this.precessionContainerEl) {
             this.precessionContainerEl.object3D.remove(this.currentSegmentMesh);
             this.currentSegmentMesh.geometry.dispose();
@@ -328,6 +428,16 @@ AFRAME.registerComponent('drawing', {
         this.currentSegmentPoints = [];
     },
     clearLastSegment: function () {
+        // 1. Try local entities first
+        if (this.completedSegmentEntities && this.completedSegmentEntities.length > 0) {
+            const lastEntity = this.completedSegmentEntities.pop();
+            if (lastEntity && lastEntity.parentNode) {
+                lastEntity.parentNode.removeChild(lastEntity);
+                return;
+            }
+        }
+
+        // 2. Fallback to local meshes (solo mode)
         if (this.completedSegmentMeshes.length > 0) {
             const lastSegment = this.completedSegmentMeshes.pop();
             if (lastSegment && this.precessionContainerEl) {
@@ -335,6 +445,32 @@ AFRAME.registerComponent('drawing', {
                 lastSegment.geometry.dispose();
             }
         }
+    },
+    checkMeshHit: function (mesh, ray, radius) {
+        if (!mesh || !mesh.geometry) return false;
+        const positions = mesh.geometry.attributes.position.array;
+
+        // Check bounding sphere first
+        if (mesh.geometry.boundingSphere) {
+            const sphere = mesh.geometry.boundingSphere.clone();
+            sphere.applyMatrix4(mesh.matrixWorld);
+            if (ray.distanceToPoint(sphere.center) > (sphere.radius + radius)) {
+                return false; // Too far
+            }
+        }
+
+        // Check distance to each segment
+        const v1 = new THREE.Vector3();
+        const v2 = new THREE.Vector3();
+        for (let i = 0; i < positions.length - 3; i += 3) {
+            v1.set(positions[i], positions[i + 1], positions[i + 2]).applyMatrix4(mesh.matrixWorld);
+            v2.set(positions[i + 3], positions[i + 4], positions[i + 5]).applyMatrix4(mesh.matrixWorld);
+
+            if (ray.distanceSqToSegment(v1, v2) < (radius * radius)) {
+                return true;
+            }
+        }
+        return false;
     },
     updateCursor: function () {
         const canvas = this.el.sceneEl.canvas;
@@ -454,6 +590,11 @@ AFRAME.registerComponent('drawing', {
                 this.currentSegmentMesh = new THREE.Line(geometry, this.lineMaterial);
                 this.currentSegmentMesh.renderOrder = 100;
                 this.precessionContainerEl.object3D.add(this.currentSegmentMesh);
+            }
+
+            // Sync to network if active
+            if (this.activeStrokeEntity) {
+                this.syncStrokeToNetwork();
             }
         }
         if (this.data.pointerMode === '2d' || window.isErasing) {
