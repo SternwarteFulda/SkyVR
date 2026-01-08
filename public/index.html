@@ -267,29 +267,19 @@
             return;
           }
 
+          // 1. Snappy matching: Filter the incoming master velocity
+          this.timeVelocity += (this.data.velocity - this.timeVelocity) * 10.0 * dtSec;
+
           // 2. Integration + Gap correction
-          // While moving fast, trust the velocity and only correct large drifts (>1s) lazily.
-          // While stopped or moving slowly, use tighter locking for precision.
-          const isMovingFast = Math.abs(this.data.velocity) > 10;
-          let kCorrection = 5.0;
+          // Follow at a moderate speed (k=3.0). It's better to be slightly behind than overshot.
+          let effectiveVel = this.timeVelocity + (diffSeconds * 3.0);
 
-          if (isMovingFast) {
-            // Trust velocity prediction. Only pull back toward target if we are > 2s off.
-            kCorrection = (Math.abs(diffSeconds) > 2.0) ? 2.0 : 0.1;
-          } else {
-            // Precise settling for slow or static states
-            kCorrection = (Math.abs(diffSeconds) > 0.5) ? 5.0 : 0.5;
-          }
-
-          const correction = diffSeconds * kCorrection;
-          let effectiveVel = this.timeVelocity + correction;
-
-          // 3. Anti-Overshoot: If the owner has stopped, do not allow reverse "creeping" to fix tiny errors.
-          const isMoving = Math.abs(this.data.velocity) > 0.1;
-          if (!isMoving && Math.abs(diffSeconds) < 1.0) {
-            // If local time is ahead of target (diffSeconds < 0) and we were moving forward,
-            // or local time is behind and we were moving backward, just stop.
-            if ((diffSeconds < 0 && this.timeVelocity >= 0) || (diffSeconds > 0 && this.timeVelocity <= 0)) {
+          // 3. Anti-Overshoot / Anti-Creep:
+          // If the master has stopped, prevent any reverse movement to correct minor overshoots.
+          if (this.data.velocity === 0 && Math.abs(diffSeconds) < 0.5) {
+            // If we are ahead (diffSeconds < 0) and were moving forward (timeVelocity > 0),
+            // or ahead (diffSeconds > 0) and were moving backward (timeVelocity < 0)...
+            if ((diffSeconds < 0 && this.timeVelocity > -0.1) || (diffSeconds > 0 && this.timeVelocity < 0.1)) {
               effectiveVel = 0;
             }
           }
@@ -299,11 +289,9 @@
             updateSimulationTime(luxon.DateTime.fromMillis((currentTimeSecs + step) * 1000), false);
             updateScene();
           } else {
-            // Perfect settle
-            if (!isMoving && Math.abs(diffSeconds) < 0.1) {
-              updateSimulationTime(this.targetTime);
+            // Settle silently (no snaps)
+            if (this.data.velocity === 0 && Math.abs(diffSeconds) < 0.1) {
               this.timeVelocity = 0;
-              updateScene();
             }
           }
 
@@ -340,9 +328,8 @@
             if (!incomingIsInit) {
               const rawTargetTime = luxon.DateTime.fromISO(this.data.time);
 
-              // Latency Compensation: 30ms look-ahead to stay on top of the owner
-              const latencySec = (this.data.velocity === 0) ? 0 : 0.03;
-              this.targetTime = rawTargetTime.plus({ seconds: (this.data.velocity || 0) * latencySec });
+              // Remove Look-Ahead: Accept slight lag to ensure no overshoot.
+              this.targetTime = rawTargetTime;
               this.lastReceivedTimestamp = performance.now();
 
               // If this is the FIRST update or a huge jump, snap instantly
