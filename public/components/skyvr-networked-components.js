@@ -231,6 +231,7 @@ AFRAME.registerComponent('constellation-illustration', {
             });
 
             const mesh = new THREE.Mesh(geometry, material);
+            mesh.name = 'illustration-plane'; // Essential for raycaster detection!
             mesh.renderOrder = 3; // Bottom Layer (below stars and avatar)
             this.el.object3D.add(mesh);
             this.mesh = mesh; // Track it

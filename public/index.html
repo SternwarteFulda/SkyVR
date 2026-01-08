@@ -1469,9 +1469,19 @@
     </div>
 
     <div class="infobar-2d-section infobar-2d-modes">
-      <button id="infobar-2d-draw" class="infobar-2d-button active" title="Draw Mode" data-mode="draw">
-        <img src="assets/icons/draw.svg">
-      </button>
+      <div style="position: relative;">
+        <button id="infobar-2d-draw" class="infobar-2d-button" title="Draw Mode" data-mode="draw">
+          <img src="assets/icons/draw.svg">
+        </button>
+        <div id="infobar-2d-draw-extras" class="infobar-extra-buttons-vertical">
+          <button id="infobar-2d-draw-undo" class="infobar-2d-button" title="Undo Last Stroke">
+            <img src="assets/icons/draw.svg" style="transform: scaleX(-1); filter: hue-rotate(90deg);">
+          </button>
+          <button id="infobar-2d-draw-clear" class="infobar-2d-button" title="Clear All Drawings">
+            <img src="assets/icons/door.svg" style="filter: hue-rotate(180deg) brightness(1.5);">
+          </button>
+        </div>
+      </div>
       <button id="infobar-2d-stickfigure" class="infobar-2d-button" title="Stick Figure" data-mode="stickfigure">
         <img src="assets/icons/stickfigure.svg">
       </button>
@@ -1803,7 +1813,7 @@
       spawn-in-spots="radius:4" position="0 0 0" rotation="0 0 0">
       <a-entity id="camera" player-info networked="template:#camera-template;attachTemplateToLocal:false;"
         camera="near: 0.1; far: 3600" skyvr-look-controls="reverseMouseDrag: true; reverseTouchDrag: false"
-        constellation-pointer-2d position="0 1.6 0">
+        constellation-pointer-2d drawing="pointerMode: 2d" position="0 1.6 0">
         <a-sphere class="head" visible="false" random-color></a-sphere>
       </a-entity>
       <!-- Infobar placed in front of user, visible when looking down -->

@@ -10,18 +10,30 @@ AFRAME.registerComponent('constellation-pointer-2d', {
 
         this.mouseDownPos = new THREE.Vector2();
         this.mouseDownTime = 0;
+        this.lastTapTime = 0;
 
-        this.onMouseMove = this.onMouseMove.bind(this);
-        this.onMouseDown = this.onMouseDown.bind(this);
-        this.onMouseUp = this.onMouseUp.bind(this);
+        this.onPointerMove = this.onPointerMove.bind(this);
+        this.onPointerDown = this.onPointerDown.bind(this);
+        this.onPointerUp = this.onPointerUp.bind(this);
         this.onContextMenu = this.onContextMenu.bind(this);
-        this.onTouchStart = this.onTouchStart.bind(this);
+        this.onPointerLeave = this.onPointerLeave.bind(this);
 
-        window.addEventListener('mousemove', this.onMouseMove);
-        window.addEventListener('mousedown', this.onMouseDown);
-        window.addEventListener('mouseup', this.onMouseUp);
-        window.addEventListener('contextmenu', this.onContextMenu);
-        window.addEventListener('touchstart', this.onTouchStart);
+        const canvas = this.el.sceneEl.canvas;
+        if (canvas) {
+            this.addListeners(canvas);
+        } else {
+            this.el.sceneEl.addEventListener('render-target-loaded', () => {
+                this.addListeners(this.el.sceneEl.canvas);
+            });
+        }
+    },
+
+    addListeners: function (canvas) {
+        canvas.addEventListener('pointermove', this.onPointerMove);
+        canvas.addEventListener('pointerdown', this.onPointerDown);
+        canvas.addEventListener('pointerup', this.onPointerUp);
+        canvas.addEventListener('pointerleave', this.onPointerLeave);
+        canvas.addEventListener('contextmenu', this.onContextMenu);
     },
 
     findRenderer: function () {
@@ -33,58 +45,115 @@ AFRAME.registerComponent('constellation-pointer-2d', {
         }
     },
 
-    onMouseMove: function (e) {
-        // If we were in touch mode, any mouse movement (from a real mouse) 
-        // should switch us back to hover mode.
-        if (this.isTouch) {
+    onPointerMove: function (e) {
+        // Track input type
+        if (e.pointerType === 'touch') {
+            this.isTouch = true;
+        } else {
             this.isTouch = false;
         }
 
+        // Pen hover/move updates coordinates
         this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
         this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+        // Prevent default on pen to avoid scrolling/panning while interacting
+        if (window.currentMode === 'constellation' && e.pointerType === 'pen') {
+            e.preventDefault();
+        }
     },
 
-    onMouseDown: function (e) {
+    onPointerDown: function (e) {
         if (window.currentMode !== 'constellation' || !this.renderer) return;
 
-        // Record start state for click vs drag detection
+        // Prevent default on pen
+        if (e.pointerType === 'pen') {
+            e.preventDefault();
+        }
+
+        // Record start state
         this.mouseDownPos.set(e.clientX, e.clientY);
         this.mouseDownTime = performance.now();
     },
 
-    onMouseUp: function (e) {
+    onPointerUp: function (e) {
         if (window.currentMode !== 'constellation' || !this.renderer) return;
-
-        // Only handle clicks on the canvas, not on UI
         if (e.target.closest('.infobar-2d') || e.target.closest('.control-panel-2d')) return;
+
+        // Prevent default on pen
+        if (e.pointerType === 'pen') {
+            e.preventDefault();
+        }
 
         // --- Click vs Drag Detection ---
         const dist = Math.sqrt(Math.pow(e.clientX - this.mouseDownPos.x, 2) + Math.pow(e.clientY - this.mouseDownPos.y, 2));
         const duration = performance.now() - this.mouseDownTime;
 
-        // If moved more than 10 pixels or held for more than 500ms, it's a drag/hold, not a stamp click
+        // Drag threshold
         if (dist > 10 || duration > 500) {
             return;
         }
 
-        // Check if cursor is locked (Camera mode) or not
-        const isPointerLocked = !!document.pointerLockElement;
-
-        // If pointer is locked, mouse is effectively at center
-        if (isPointerLocked) {
+        // If pointer is locked (FPS), mouse is effectively at center
+        if (!!document.pointerLockElement) {
             this.mouse.set(0, 0);
         }
 
-        // Left click stamps
-        if (e.button === 0) {
-            this.renderer.placeIllustration();
-            if (typeof syncSky === 'function') syncSky();
+        if (e.pointerType === 'pen') {
+            // Pen Interaction:
+            // Tip (0) -> No action (just hover/preview)
+            // Side Button (2) -> Stamp (replaces Right Click Undo for pen)
+            if (e.button === 2) {
+                this.renderer.placeIllustration();
+                if (typeof syncSky === 'function') syncSky();
+            }
+            // Eraser logic is now handled globally by skyvr-drawing-component
+        } else {
+            // Mouse/Touch Interaction (Standard):
+            // Button 0 (Left) -> Place
+            // Button 0 (Left) -> Place OR Double Tap -> Remove
+            if (e.button === 0) {
+                // Explicitly ignore pen here for double-tap (user request)
+                if (e.pointerType === 'pen') return;
+
+                const now = performance.now();
+                if (now - this.lastTapTime < 300) {
+                    // Double Tap!
+                    this.raycaster.setFromCamera(this.mouse, this.el.sceneEl.camera);
+
+                    // Find illustration planes
+                    const illustrationMeshes = [];
+                    // We know illustrations are children of the renderer
+                    if (this.renderer && this.renderer.el) {
+                        this.renderer.el.object3D.traverse(child => {
+                            if (child.name === 'illustration-plane' || child.dataset?.constellationId) {
+                                illustrationMeshes.push(child);
+                            }
+                        });
+
+                        const intersects = this.raycaster.intersectObjects(illustrationMeshes, true);
+                        if (intersects.length > 0) {
+                            this.renderer.removeIllustrationByObject(intersects[0].object);
+                            if (typeof syncSky === 'function') syncSky();
+                        }
+                    }
+                } else {
+                    this.renderer.placeIllustration();
+                    if (typeof syncSky === 'function') syncSky();
+                }
+                this.lastTapTime = now;
+            }
+            // Button 2 (Right) -> Remove
+            else if (e.button === 2) {
+                this.renderer.removeLastIllustration();
+                if (typeof syncSky === 'function') syncSky();
+            }
         }
-        // Right click undos (A button equivalent)
-        else if (e.button === 2) {
-            this.renderer.removeLastIllustration();
-            if (typeof syncSky === 'function') syncSky();
-        }
+    },
+
+    onPointerLeave: function (e) {
+        // Optional: clear preview or handle exit?
+        // For now, standard behavior is fine.
     },
 
     onContextMenu: function (e) {
@@ -93,9 +162,6 @@ AFRAME.registerComponent('constellation-pointer-2d', {
         }
     },
 
-    onTouchStart: function (e) {
-        this.isTouch = true;
-    },
 
     tick: function () {
         if (window.currentMode !== 'constellation' || !this.renderer || !this.renderer.loadingComplete) {
@@ -125,10 +191,13 @@ AFRAME.registerComponent('constellation-pointer-2d', {
     },
 
     remove: function () {
-        window.removeEventListener('mousemove', this.onMouseMove);
-        window.removeEventListener('mousedown', this.onMouseDown);
-        window.removeEventListener('mouseup', this.onMouseUp);
-        window.removeEventListener('contextmenu', this.onContextMenu);
-        window.removeEventListener('touchstart', this.onTouchStart);
+        const canvas = this.el.sceneEl.canvas;
+        if (canvas) {
+            canvas.removeEventListener('pointermove', this.onPointerMove);
+            canvas.removeEventListener('pointerdown', this.onPointerDown);
+            canvas.removeEventListener('pointerup', this.onPointerUp);
+            canvas.removeEventListener('pointerleave', this.onPointerLeave);
+            canvas.removeEventListener('contextmenu', this.onContextMenu);
+        }
     }
 });

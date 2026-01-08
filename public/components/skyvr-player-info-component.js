@@ -213,8 +213,8 @@ AFRAME.registerComponent('player-info', {
             }
         }
 
-        // Apply same color to laser ray (local only)
-        if (this.ownedByLocalUser && this.el.id === 'right-controller') {
+        // Apply same color to laser ray and drawing (local only)
+        if (this.ownedByLocalUser && (this.el.id === 'right-controller' || this.el.id === 'camera')) {
             if (this.el.hasAttribute('raycaster')) {
                 this.el.setAttribute('raycaster', 'lineColor', this.data.color);
             }

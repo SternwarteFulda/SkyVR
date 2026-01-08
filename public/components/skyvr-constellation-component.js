@@ -519,6 +519,36 @@ AFRAME.registerComponent('constellation-renderer', {
         console.log('Cleared all illustrations in shared state');
     },
 
+    // Remove specific illustration by its Object3D
+    removeIllustrationByObject: function (obj) {
+        let target = obj;
+        // Traverse up to find the entity or ID
+        while (target) {
+            if (target.el && (target.el.dataset.constellationId || target.el.getAttribute('constellation-illustration'))) {
+                break;
+            }
+            target = target.parent;
+            if (!target || target.type === 'Scene') return;
+        }
+
+        if (target && target.el) {
+            const attr = target.el.getAttribute('constellation-illustration');
+            const id = (typeof attr === 'object' && attr !== null) ? attr.constellationId : target.el.dataset.constellationId;
+
+            if (id) {
+                console.log('removeIllustrationByObject: found ID', id);
+                let activeData = this.getSharedActiveData() || [];
+                // Filter out the ID
+                const newData = activeData.filter(d => (typeof d === 'string' ? d : d.id) !== id);
+
+                if (newData.length !== activeData.length) {
+                    this.updateSharedState(newData);
+                    console.log('Removed illustration via object match:', id);
+                }
+            }
+        }
+    },
+
     // Show illustrations for all constellations in shared state
     showAllIllustrations: function () {
         if (!this.loadingComplete || !this.constellationData) return;

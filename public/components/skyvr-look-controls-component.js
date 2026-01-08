@@ -209,6 +209,14 @@
             if ((sceneEl.is('vr-mode') || sceneEl.is('ar-mode')) && sceneEl.checkHeadsetConnected()) {
                 return;
             }
+
+            // Lock camera rotation if drawing or erasing
+            const drawComp = this.el.components.drawing;
+            const isDrawing = window.currentMode === 'draw' && drawComp && drawComp.isDrawing;
+            if (isDrawing || window.isErasing) {
+                return;
+            }
+
             this.updateMagicWindowOrientation();
             object3D.rotation.x = this.magicWindowDeltaEuler.x + pitchObject.rotation.x;
             object3D.rotation.y = this.magicWindowDeltaEuler.y + yawObject.rotation.y;
@@ -238,6 +246,13 @@
 
         updateKeyboardRotation: function (dt) {
             if (!this.data.enabled || !this.data.mouseEnabled) { return; }
+
+            // Lock keyboard rotation if drawing
+            const drawComp = this.el.components.drawing;
+            const isDrawing = window.currentMode === 'draw' && drawComp && drawComp.isDrawing;
+            if (isDrawing || window.isErasing) {
+                return;
+            }
 
             var speed = 0.02; // Rad per frame
             var keys = this.activeKeys;
@@ -281,6 +296,17 @@
         onMouseMove: function (evt) {
             if (!this.data.enabled || (!this.mouseDown && !this.pointerLocked)) { return; }
 
+            // Lock camera rotation if drawing/erasing with mouse/pen
+            const drawComp = this.el.components.drawing;
+            const isDrawing = window.currentMode === 'draw' && drawComp && drawComp.isDrawing;
+
+            if (isDrawing || window.isErasing) {
+                // Update previous coordinates so we don't jump when we resume
+                this.previousMouseEvent.screenX = evt.screenX;
+                this.previousMouseEvent.screenY = evt.screenY;
+                return;
+            }
+
             var movementX, movementY;
             if (this.pointerLocked) {
                 movementX = evt.movementX || evt.mozMovementX || 0;
@@ -308,6 +334,8 @@
                 this.exitPointerLock();
                 return;
             }
+
+            if (window.currentMode === 'draw') { return; }
 
             this.mouseDown = true;
             this.previousMouseEvent.screenX = evt.screenX;
@@ -338,6 +366,10 @@
 
         onTouchStart: function (evt) {
             if (evt.touches.length !== 1 || !this.data.touchEnabled || this.el.sceneEl.is('vr-mode') || this.el.sceneEl.is('ar-mode')) { return; }
+
+            // Ignore stylus/pen if in Draw mode (allows drawing instead of rotating)
+            if (window.currentMode === 'draw' && evt.touches[0].touchType === 'stylus') { return; }
+
             this.touchStart = { x: evt.touches[0].pageX, y: evt.touches[0].pageY };
             this.touchStarted = true;
 
@@ -348,6 +380,17 @@
 
         onTouchMove: function (evt) {
             if (!this.touchStarted || !this.data.touchEnabled) { return; }
+
+            // Block rotation if drawing/erasing is in progress
+            const drawComp = this.el.components.drawing;
+            const isDrawing = window.currentMode === 'draw' && drawComp && drawComp.isDrawing;
+
+            if (isDrawing || window.isErasing) {
+                // Reset touch start to current pos to prevent jump when lifting pen/finger
+                this.touchStart.x = evt.touches[0].pageX;
+                this.touchStart.y = evt.touches[0].pageY;
+                return;
+            }
 
             var canvas = this.el.sceneEl.canvas;
             var deltaY = 2 * Math.PI * (evt.touches[0].pageX - this.touchStart.x) / canvas.clientWidth;

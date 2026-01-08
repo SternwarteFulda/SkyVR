@@ -58,6 +58,9 @@ AFRAME.registerComponent('skyvr-infobar', {
             },
             mouseMove: document.getElementById('infobar-2d-mouse-move'),
             settings: document.getElementById('infobar-2d-settings'),
+            drawExtras: document.getElementById('infobar-2d-draw-extras'),
+            drawUndo: document.getElementById('infobar-2d-draw-undo'),
+            drawClear: document.getElementById('infobar-2d-draw-clear'),
             constellationExtras: document.getElementById('infobar-2d-constellation-extras'),
             showAll: document.getElementById('infobar-2d-show-all'),
             clearAll: document.getElementById('infobar-2d-clear-all'),
@@ -281,7 +284,7 @@ AFRAME.registerComponent('skyvr-infobar', {
             const btn = this.createIcon(m.icon, this.CONFIG.iconSize);
             btn.setAttribute('position', `${index * this.CONFIG.modeSpacing} 0 0.001`);
             btn.addEventListener('click', () => {
-                window.currentMode = m.id;
+                window.currentMode = (window.currentMode === m.id) ? 'none' : m.id;
             });
             this.modeGroup.appendChild(btn);
             this.modeButtons[m.id] = btn;
@@ -308,7 +311,7 @@ AFRAME.registerComponent('skyvr-infobar', {
         } else {
             this.roomText.setAttribute('value', 'Connecting...');
         }
-        window.currentMode = 'draw';
+        window.currentMode = 'none';
     },
 
     remove: function () {
@@ -406,7 +409,7 @@ AFRAME.registerComponent('skyvr-infobar', {
             const btn = this.ui2d.modes[modeId];
             if (btn) {
                 btn.addEventListener('click', () => {
-                    window.currentMode = modeId;
+                    window.currentMode = (window.currentMode === modeId) ? 'none' : modeId;
                 });
             }
         });
@@ -426,6 +429,23 @@ AFRAME.registerComponent('skyvr-infobar', {
                     this.ui2d.controlPanel.container.classList.toggle('hidden', !this.controlPanel2DVisible);
                 }
                 this.ui2d.settings.classList.toggle('active', this.controlPanel2DVisible);
+            });
+        }
+
+        // Drawing Extras
+        if (this.ui2d.drawUndo) {
+            this.ui2d.drawUndo.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const cam = document.getElementById('camera');
+                if (cam && cam.components.drawing) cam.components.drawing.clearLastSegment();
+            });
+        }
+
+        if (this.ui2d.drawClear) {
+            this.ui2d.drawClear.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const cam = document.getElementById('camera');
+                if (cam && cam.components.drawing) cam.components.drawing.clearDrawing();
             });
         }
 
@@ -841,11 +861,15 @@ AFRAME.registerComponent('skyvr-infobar', {
             Object.keys(this.ui2d.modes).forEach(id => {
                 const btn = this.ui2d.modes[id];
                 if (btn) {
-                    btn.classList.toggle('active', id === currentMode);
+                    const isActive = id === currentMode && !window.isAutoDrawing;
+                    btn.classList.toggle('active', isActive);
                 }
             });
 
-            // Toggle constellation extras menu visibility
+            // Toggle extras menus
+            if (this.ui2d.drawExtras) {
+                this.ui2d.drawExtras.classList.toggle('show', currentMode === 'draw' && !window.isAutoDrawing);
+            }
             if (this.ui2d.constellationExtras) {
                 this.ui2d.constellationExtras.classList.toggle('show', currentMode === 'constellation');
             }

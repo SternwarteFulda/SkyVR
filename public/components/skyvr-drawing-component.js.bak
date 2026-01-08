@@ -37,21 +37,6 @@ AFRAME.registerComponent('drawing', {
         // Bind erase loop if needed, though we use tick/move
 
         // Listeners are managed in update() to avoid duplicates
-        this.injectEraserCSS();
-    },
-
-    injectEraserCSS: function () {
-        if (document.getElementById('skyvr-eraser-css')) return;
-        const style = document.createElement('style');
-        style.id = 'skyvr-eraser-css';
-        const eraserSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="red" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="7" x2="12" y2="17"/><line x1="7" y1="12" x2="17" y2="12"/></svg>';
-        const eraserUrl = 'url("data:image/svg+xml;base64,' + btoa(eraserSvg) + '") 16 16, crosshair';
-        style.textContent = `
-            canvas.is-erasing {
-                cursor: ${eraserUrl} !important;
-            }
-        `;
-        document.head.appendChild(style);
     },
 
     onPointerMove: function (e) {
@@ -176,7 +161,8 @@ AFRAME.registerComponent('drawing', {
         this.raycaster.setFromCamera(mousePos, this.el.sceneEl.camera);
         const ray = this.raycaster.ray;
 
-        // 1. "Spherecast" vs Drawing Strokes (Works Great!)
+        // 1. "Spherecast" vs Drawing Strokes
+        // Instead of pure raycast, check distance from ray to line segments
         if (mode === 'all' || mode === 'strokes') {
             const radius = 5; // Erase radius in world units
             const toRemove = [];
@@ -223,21 +209,31 @@ AFRAME.registerComponent('drawing', {
             const conRenderer = document.getElementById('constellation-lines');
             if (conRenderer) {
                 const illustrationMeshes = [];
-                // Look for both the plane mesh AND grouped entities
                 conRenderer.object3D.traverse(child => {
-                    if (child.name === 'illustration-plane' || (child.userData && child.userData.id)) {
+                    if (child.name === 'illustration-plane') {
                         illustrationMeshes.push(child);
                     }
                 });
 
-                // Standard raycast is usually fine for planes
+                // Standard raycast is usually fine for planes, but let's ensure recursive check
+                // Increase threshold for illustrations (radius of spherecast effectively)
+                // Since this is a raycast, we can't easily set radius.
+                // But we can emulate "fat finger" by using a lower threshold on distance check?
+                // Actually, the previous logic used intersectObjects which is precise.
+                // Double-check if we need more tolerance.
+                // Let's rely on double-tap or improved Eraser Tap precision.
+                // We'll trust the user taps correctly or sweeping logic.
+                // Wait, 'eraseAt' with 'all' relies on `intersectObjects`.
+                // Let's add a "Spherecast" for illustrations too?
+                // No, planes are 2D. Raycast is best.
+                // Just use tolerance.
+                this.raycaster.params.currThreshold = 5; // Custom param if we used it, but standard ThreeJS doesn't.
+
                 const conIntersects = this.raycaster.intersectObjects(illustrationMeshes, true);
                 if (conIntersects.length > 0) {
-                    // Find the root object that represents the illustration
-                    const hitObj = conIntersects[0].object;
-
+                    const hitPlane = conIntersects[0].object;
                     if (conRenderer.components['constellation-renderer'] && conRenderer.components['constellation-renderer'].removeIllustrationByObject) {
-                        conRenderer.components['constellation-renderer'].removeIllustrationByObject(hitObj);
+                        conRenderer.components['constellation-renderer'].removeIllustrationByObject(hitPlane);
                         if (typeof syncSky === 'function') syncSky();
                     }
                 }
@@ -347,28 +343,26 @@ AFRAME.registerComponent('drawing', {
             (window.currentMode === 'draw') ||
             this.isPenHovering
         );
+
         let targetCursor = '';
 
         if (isErasing) {
-            // Use CSS class for robust override
-            canvas.classList.add('is-erasing');
-        } else {
-            canvas.classList.remove('is-erasing');
+            // Eraser Icon (Red Circle/Block)
+            targetCursor = 'url("data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="red" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="7" x2="12" y2="17"/><line x1="7" y1="12" x2="17" y2="12"/></svg>') + '") 16 16, crosshair';
+        } else if (showPenCursor) {
+            // Hotspot at 3,21 in a 24x24 viewBox
+            targetCursor = 'url("data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="yellow" stroke="black" stroke-width="1"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>') + '") 4 28, crosshair';
+        }
 
-            if (showPenCursor) {
-                // Hotspot at 3,21 in a 24x24 viewBox
-                targetCursor = 'url("data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="yellow" stroke="black" stroke-width="1"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>') + '") 4 28, crosshair';
-            }
-
-            // Only update if changed to avoid flicker/reflow
-            if (canvas.style.cursor !== targetCursor) {
-                if (!targetCursor) {
-                    if (canvas.style.cursor.includes('data:image') || canvas.style.cursor === 'crosshair') {
-                        canvas.style.cursor = '';
-                    }
-                } else {
-                    canvas.style.cursor = targetCursor;
+        // Only update if changed to avoid flicker/reflow
+        if (canvas.style.cursor !== targetCursor) {
+            // If we are clearing, only clear if it was ours
+            if (!targetCursor) {
+                if (canvas.style.cursor.includes('data:image') || canvas.style.cursor === 'crosshair') {
+                    canvas.style.cursor = '';
                 }
+            } else {
+                canvas.style.cursor = targetCursor;
             }
         }
     },
@@ -456,7 +450,7 @@ AFRAME.registerComponent('drawing', {
                 this.precessionContainerEl.object3D.add(this.currentSegmentMesh);
             }
         }
-        if (this.data.pointerMode === '2d' || window.isErasing) {
+        if (this.data.pointerMode === '2d') {
             this.updateCursor();
         }
     },
