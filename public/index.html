@@ -1000,6 +1000,27 @@
       background: rgba(255, 0, 0, 0.2);
     }
 
+    .infobar-extra-buttons-vertical {
+      position: absolute;
+      bottom: 55px;
+      left: 50%;
+      transform: translateX(-50%) translateY(10px);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      opacity: 0;
+      pointer-events: none;
+      z-index: 1000000;
+      align-items: center;
+    }
+
+    .infobar-extra-buttons-vertical.show {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateX(-50%) translateY(0);
+    }
+
     #infobar-2d-room-text {
       font-weight: 500;
       font-size: 0.9rem;
@@ -1454,9 +1475,20 @@
       <button id="infobar-2d-stickfigure" class="infobar-2d-button" title="Stick Figure" data-mode="stickfigure">
         <img src="assets/icons/stickfigure.svg">
       </button>
-      <button id="infobar-2d-constellation" class="infobar-2d-button" title="Constellation" data-mode="constellation">
-        <img src="assets/icons/constellation.svg">
-      </button>
+      <div style="position: relative;">
+        <button id="infobar-2d-constellation" class="infobar-2d-button" title="Constellation" data-mode="constellation">
+          <img src="assets/icons/constellation.svg">
+        </button>
+        <div id="infobar-2d-constellation-extras" class="infobar-extra-buttons-vertical">
+          <button id="infobar-2d-show-all" class="infobar-2d-button" title="Show All Illustrations">
+            <img src="assets/icons/constellation.svg" style="filter: drop-shadow(0 0 5px #8a2be2);">
+          </button>
+          <button id="infobar-2d-clear-all" class="infobar-2d-button" title="Clear All Illustrations">
+            <img src="assets/icons/draw.svg"
+              style="filter: hue-rotate(180deg) brightness(1.5) drop-shadow(0 0 5px #ff4444); transform: scaleX(-1);">
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1752,6 +1784,7 @@
       <script src="components/skyvr-tooltip-component.js"></script>
       <script src="components/skyvr-constellation-component.js?v=2"></script>
       <script src="components/skyvr-constellation-pointer-component.js"></script>
+      <script src="components/skyvr-constellation-pointer-2d-component.js"></script>
       <script src="components/skyvr-networked-components.js?v=2"></script>
       <script src="components/skyvr-offscreen-indicator-component.js"></script>
     </a-assets>
@@ -1770,7 +1803,7 @@
       spawn-in-spots="radius:4" position="0 0 0" rotation="0 0 0">
       <a-entity id="camera" player-info networked="template:#camera-template;attachTemplateToLocal:false;"
         camera="near: 0.1; far: 3600" skyvr-look-controls="reverseMouseDrag: true; reverseTouchDrag: false"
-        position="0 1.6 0">
+        constellation-pointer-2d position="0 1.6 0">
         <a-sphere class="head" visible="false" random-color></a-sphere>
       </a-entity>
       <!-- Infobar placed in front of user, visible when looking down -->

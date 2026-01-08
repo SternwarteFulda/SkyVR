@@ -58,6 +58,9 @@ AFRAME.registerComponent('skyvr-infobar', {
             },
             mouseMove: document.getElementById('infobar-2d-mouse-move'),
             settings: document.getElementById('infobar-2d-settings'),
+            constellationExtras: document.getElementById('infobar-2d-constellation-extras'),
+            showAll: document.getElementById('infobar-2d-show-all'),
+            clearAll: document.getElementById('infobar-2d-clear-all'),
             controlPanel: {
                 container: document.getElementById('control-panel-2d'),
                 close: document.getElementById('control-panel-2d-close'),
@@ -423,6 +426,25 @@ AFRAME.registerComponent('skyvr-infobar', {
                     this.ui2d.controlPanel.container.classList.toggle('hidden', !this.controlPanel2DVisible);
                 }
                 this.ui2d.settings.classList.toggle('active', this.controlPanel2DVisible);
+            });
+        }
+
+        // Constellation Extras
+        if (this.ui2d.showAll) {
+            this.ui2d.showAll.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const renderer = document.getElementById('constellation-lines')?.components['constellation-renderer'];
+                if (renderer) renderer.showAllIllustrations();
+                if (typeof syncSky === 'function') syncSky();
+            });
+        }
+
+        if (this.ui2d.clearAll) {
+            this.ui2d.clearAll.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const renderer = document.getElementById('constellation-lines')?.components['constellation-renderer'];
+                if (renderer) renderer.clearAllIllustrations();
+                if (typeof syncSky === 'function') syncSky();
             });
         }
 
@@ -822,6 +844,11 @@ AFRAME.registerComponent('skyvr-infobar', {
                     btn.classList.toggle('active', id === currentMode);
                 }
             });
+
+            // Toggle constellation extras menu visibility
+            if (this.ui2d.constellationExtras) {
+                this.ui2d.constellationExtras.classList.toggle('show', currentMode === 'constellation');
+            }
 
             // Update B-button hint text dynamically
             const bText = document.getElementById('hint-b-text');
