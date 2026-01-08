@@ -13,8 +13,30 @@ AFRAME.registerComponent('offscreen-indicator', {
             this.playerInfo = this.el.components['player-info'];
         }
 
-        // Only show if pointer is visible
-        if (!this.pointer || !this.pointer.getAttribute('visible')) {
+        // Deep Visibility Check
+        // The parent pointer entity might be 'visible' but its children hidden via opacity/scale.
+        let isVisuallyActive = false;
+
+        if (this.pointer && this.pointer.getAttribute('visible')) {
+            // 1. Check Beam (Cylinder Mesh Opacity)
+            const cylinderComp = this.pointer.components['bottom-origin-cylinder'];
+            if (cylinderComp && cylinderComp.cylinderMesh && cylinderComp.cylinderMesh.visible) {
+                if (cylinderComp.cylinderMesh.material.opacity > 0.01) isVisuallyActive = true;
+            }
+
+            // 2. Check Arrow (Scale)
+            if (!isVisuallyActive) {
+                const arrow = this.pointer.querySelector('.pointer-arrow');
+                if (arrow && arrow.getAttribute('visible')) {
+                    // Check Object3D visibility and scale (animation uses scale)
+                    if (arrow.object3D && arrow.object3D.visible && arrow.object3D.scale.x > 0.01) {
+                        isVisuallyActive = true;
+                    }
+                }
+            }
+        }
+
+        if (!isVisuallyActive) {
             if (this.indicator) this.indicator.setAttribute('visible', false);
             return;
         }
