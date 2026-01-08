@@ -197,7 +197,8 @@ AFRAME.registerComponent('constellation-illustration', {
                 uniforms: {
                     map: { value: texture },
                     opacity: { value: 0 },
-                    targetRadius: { value: illustRadius }
+                    targetRadius: { value: illustRadius },
+                    highlightStrength: { value: 0.0 }
                 },
                 vertexShader: `
                     uniform float targetRadius;
@@ -212,12 +213,15 @@ AFRAME.registerComponent('constellation-illustration', {
                 fragmentShader: `
                     uniform sampler2D map;
                     uniform float opacity;
+                    uniform float highlightStrength;
                     varying vec2 vUv;
                     void main() {
                         vec4 tex = texture2D(map, vUv);
                         float brightness = max(tex.r, max(tex.g, tex.b));
                         if (brightness < 0.05) discard;
-                        gl_FragColor = vec4(tex.rgb, tex.a * opacity);
+                        
+                        vec3 finalColor = mix(tex.rgb, vec3(1.0, 0.0, 0.0), highlightStrength);
+                        gl_FragColor = vec4(finalColor, tex.a * opacity);
                     }
                 `,
                 transparent: true,
@@ -258,6 +262,12 @@ AFRAME.registerComponent('constellation-illustration', {
         }
     },
 
+
+    setHighlight: function (enabled) {
+        if (!this.mesh || !this.mesh.material || !this.mesh.material.uniforms) return;
+        const target = enabled ? 0.3 : 0.0;
+        this.mesh.material.uniforms.highlightStrength.value = target;
+    },
 
     remove: function () {
         // Clean up

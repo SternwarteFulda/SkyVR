@@ -119,11 +119,11 @@ AFRAME.registerComponent('constellation-pointer-2d', {
                 const now = performance.now();
                 if (now - this.lastTapTime < 300) {
                     // Double Tap!
+                    // (Double tap acts as a robust removal backup, but click-to-remove is now primary)
                     this.raycaster.setFromCamera(this.mouse, this.el.sceneEl.camera);
 
-                    // Find illustration planes
+                    // Explicit object removal path
                     const illustrationMeshes = [];
-                    // We know illustrations are children of the renderer
                     if (this.renderer && this.renderer.el) {
                         this.renderer.el.object3D.traverse(child => {
                             if (child.name === 'illustration-plane' || child.dataset?.constellationId) {
@@ -138,12 +138,25 @@ AFRAME.registerComponent('constellation-pointer-2d', {
                         }
                     }
                 } else {
-                    this.renderer.placeIllustration();
-                    if (typeof syncSky === 'function') syncSky();
+                    // Single Tap / Click
+                    // Context-aware action: Remove if highlighted, Place if empty
+                    this.raycaster.setFromCamera(this.mouse, this.el.sceneEl.camera);
+                    const pointed = this.renderer.findPointedConstellation(this.raycaster);
+
+                    if (pointed) {
+                        if (this.renderer.isIllustrationActive(pointed.id)) {
+                            // It is active -> Remove it
+                            this.renderer.removeIllustrationById(pointed.id);
+                        } else {
+                            // It is not active -> Place it
+                            this.renderer.placeIllustration();
+                        }
+                        if (typeof syncSky === 'function') syncSky();
+                    }
                 }
                 this.lastTapTime = now;
             }
-            // Button 2 (Right) -> Remove
+            // Button 2 (Right) -> Legacy Remove Last
             else if (e.button === 2) {
                 this.renderer.removeLastIllustration();
                 if (typeof syncSky === 'function') syncSky();
@@ -187,9 +200,20 @@ AFRAME.registerComponent('constellation-pointer-2d', {
         const pointed = this.renderer.findPointedConstellation(this.raycaster);
 
         if (pointed) {
-            this.renderer.updatePreview(pointed);
+            const isActive = this.renderer.isIllustrationActive(pointed.id);
+
+            if (isActive) {
+                // Already placed -> Highlight for removal
+                this.renderer.removePreview();
+                this.renderer.highlightIllustration(pointed.id);
+            } else {
+                // Not placed -> Show ghost preview
+                this.renderer.clearHighlights();
+                this.renderer.updatePreview(pointed);
+            }
         } else {
             this.renderer.removePreview();
+            this.renderer.clearHighlights();
         }
     },
 

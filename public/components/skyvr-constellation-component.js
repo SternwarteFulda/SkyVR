@@ -548,17 +548,43 @@ AFRAME.registerComponent('constellation-renderer', {
             const id = (typeof attr === 'object' && attr !== null) ? attr.constellationId : target.el.dataset.constellationId;
 
             if (id) {
-                console.log('removeIllustrationByObject: found ID', id);
-                let activeData = this.getSharedActiveData() || [];
-                // Filter out the ID
-                const newData = activeData.filter(d => (typeof d === 'string' ? d : d.id) !== id);
-
-                if (newData.length !== activeData.length) {
-                    this.updateSharedState(newData);
-                    console.log('Removed illustration via object match:', id);
-                }
+                this.removeIllustrationById(id);
             }
         }
+    },
+
+    removeIllustrationById: function (id) {
+        console.log('removeIllustrationById:', id);
+        let activeData = this.getSharedActiveData() || [];
+        // Filter out the ID, handling both string and object formats
+        const newData = activeData.filter(d => (typeof d === 'string' ? d : d.id) !== id);
+
+        if (newData.length !== activeData.length) {
+            this.updateSharedState(newData);
+            console.log('Removed illustration via ID:', id);
+        }
+    },
+
+    highlightIllustration: function (id) {
+        this.placedIllustrations.forEach(ent => {
+            const attr = ent.getAttribute('constellation-illustration');
+            const entId = (typeof attr === 'object' && attr !== null) ? attr.constellationId : ent.dataset.constellationId;
+            const comp = ent.components['constellation-illustration'];
+
+            if (entId === id) {
+                if (comp) comp.setHighlight(true);
+            } else {
+                if (comp) comp.setHighlight(false);
+            }
+        });
+    },
+
+    clearHighlights: function () {
+        this.placedIllustrations.forEach(ent => {
+            if (ent.components['constellation-illustration']) {
+                ent.components['constellation-illustration'].setHighlight(false);
+            }
+        });
     },
 
     // Show illustrations for all constellations in shared state
@@ -646,6 +672,14 @@ AFRAME.registerComponent('constellation-renderer', {
         }
     },
 
+    isIllustrationActive: function (id) {
+        // Check local state which should reflect shared state
+        return this.placedIllustrations.some(ent => {
+            const attr = ent.getAttribute('constellation-illustration');
+            const entId = (typeof attr === 'object' && attr !== null) ? attr.constellationId : ent.dataset.constellationId;
+            return entId === id;
+        });
+    },
 
     // Helper to take ownership and update NAF state
     updateSharedState: function (activeData) {

@@ -19,6 +19,17 @@ AFRAME.registerComponent('constellation-pointer', {
     tick: function () {
         if (!this.constellationRenderer || !this.constellationRenderer.loadingComplete) return;
 
+        // Prevent conflict with 2D pointer if not in VR mode
+        if (!this.el.sceneEl.is('vr-mode')) {
+            // Ensure we don't leave lingering previews if we just exited VR or initialized
+            if (this.currentConstellation) {
+                this.constellationRenderer.removePreview();
+                this.constellationRenderer.clearHighlights();
+                this.currentConstellation = null;
+            }
+            return;
+        }
+
         // Only update in constellation mode
         const currentMode = window.currentMode || 'draw';
         if (currentMode !== 'constellation') {
@@ -66,20 +77,38 @@ AFRAME.registerComponent('constellation-pointer', {
         // Find pointed constellation
         const pointedConstellation = this.constellationRenderer.findPointedConstellation(this.raycaster);
 
-        // Update preview if constellation changed
-        if (pointedConstellation !== this.currentConstellation) {
+        // Update preview or highlight if constellation changed OR we need to maintain state
+        // (We check every frame because active status might change externally)
+        if (pointedConstellation !== this.currentConstellation || true) {
+            // ^ Optimization: we could just check on change, but status (isActive) might change
+
             this.currentConstellation = pointedConstellation;
 
             if (pointedConstellation) {
-                this.constellationRenderer.updatePreview(pointedConstellation);
+                const isActive = this.constellationRenderer.isIllustrationActive(pointedConstellation.id);
 
-                // Haptic feedback when pointing at a constellation
-                if (this.el.components['haptics']) {
-                    this.el.components['haptics'].pulse(0.1, 50);
+                if (isActive) {
+                    // It's already placed -> Highlight it for removal
+                    this.constellationRenderer.removePreview(); // Ensure ghost is gone
+                    this.constellationRenderer.highlightIllustration(pointedConstellation.id);
+                } else {
+                    // It's not placed -> Show ghost preview
+                    this.constellationRenderer.clearHighlights(); // Ensure no red tint
+                    this.constellationRenderer.updatePreview(pointedConstellation);
+                }
+
+                // Haptic feedback when entering a constellation (Debounced ideally, but simple for now)
+                if (pointedConstellation !== this.lastConstellation) {
+                    if (this.el.components['haptics']) {
+                        this.el.components['haptics'].pulse(0.1, 50);
+                    }
                 }
             } else {
                 this.constellationRenderer.removePreview();
+                this.constellationRenderer.clearHighlights();
             }
+
+            this.lastConstellation = pointedConstellation;
         }
     },
 

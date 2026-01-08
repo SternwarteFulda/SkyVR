@@ -3104,8 +3104,15 @@
             if (rightController.components.drawing) rightController.components.drawing.clearLastSegment();
           } else if (currentMode === 'constellation') {
             const renderer = document.getElementById('constellation-lines').components['constellation-renderer'];
-            if (renderer) renderer.removeLastIllustration();
-            if (rightController.components['haptics']) rightController.components['haptics'].pulse(0.2, 50);
+            const pointer = rightController.components['constellation-pointer'];
+
+            if (renderer && pointer && pointer.currentConstellation) {
+              const id = pointer.currentConstellation.id;
+              if (renderer.isIllustrationActive(id)) {
+                renderer.removeIllustrationById(id);
+                if (rightController.components['haptics']) rightController.components['haptics'].pulse(0.2, 50);
+              }
+            }
           }
         }
       };
