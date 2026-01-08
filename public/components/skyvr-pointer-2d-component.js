@@ -3,173 +3,133 @@ AFRAME.registerComponent('skyvr-pointer-2d', {
         this.mouse = new THREE.Vector2();
         this.raycaster = new THREE.Raycaster();
         this.pointerEl = document.getElementById('pointer');
+        this.arrowEl = null;
         this.isLMBDown = false;
+        this.keys = {};
 
-        this.onPointerMove = this.onPointerMove.bind(this);
-        this.onPointerDown = this.onPointerDown.bind(this);
-        this.onPointerUp = this.onPointerUp.bind(this);
+        window.addEventListener('keydown', (e) => { this.keys[e.key.toLowerCase()] = true; });
+        window.addEventListener('keyup', (e) => { this.keys[e.key.toLowerCase()] = false; });
 
-        // Wait for canvas
         if (this.el.sceneEl.canvas) {
             this.setupListeners();
         } else {
             this.el.sceneEl.addEventListener('render-target-loaded', () => this.setupListeners());
         }
-
-        // Initialize state
-        this.resetParentTransform();
     },
 
     setupListeners: function () {
         const canvas = this.el.sceneEl.canvas;
-        canvas.addEventListener('pointermove', this.onPointerMove);
-        canvas.addEventListener('pointerdown', this.onPointerDown);
-        window.addEventListener('pointerup', this.onPointerUp);
-    },
-
-    resetParentTransform: function () {
-        if (this.pointerEl && this.pointerEl.object3D.parent) {
-            const parent = this.pointerEl.object3D.parent;
-            parent.position.set(0, 0, 0);
-            parent.rotation.set(0, 0, 0);
-            parent.scale.set(1, 1, 1);
-            parent.updateMatrix();
-            parent.updateMatrixWorld(true);
-        }
-    },
-
-    onPointerMove: function (e) {
-        const canvas = this.el.sceneEl.canvas;
         if (!canvas) return;
-
-        const rect = canvas.getBoundingClientRect();
-        this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-        this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-    },
-
-    onPointerDown: function (e) {
-        if (e.pointerType === 'touch') return;
-        if (window.currentMode === 'pointer' && e.button === 0) {
-            this.isLMBDown = true;
-        }
-    },
-
-    onPointerUp: function (e) {
-        if (e.button === 0) {
-            this.isLMBDown = false;
-        }
-    },
-
-    updateCursor: function (modeActive) {
-        const canvas = this.el.sceneEl.canvas;
-        if (!canvas) return;
-
-        if (modeActive) {
-            canvas.classList.add('is-pointing');
-        } else {
-            canvas.classList.remove('is-pointing');
-        }
+        canvas.addEventListener('pointermove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        });
+        canvas.addEventListener('pointerdown', (e) => {
+            if (e.pointerType !== 'touch' && window.currentMode === 'pointer' && e.button === 0) {
+                this.isLMBDown = true;
+            }
+        });
+        window.addEventListener('pointerup', (e) => {
+            if (e.button === 0) {
+                this.isLMBDown = false;
+                if (this.arrowEl) this.arrowEl.object3D.visible = false;
+                const cylinder = this.pointerEl && this.pointerEl.components['bottom-origin-cylinder'];
+                if (cylinder && cylinder.cylinderMesh) cylinder.cylinderMesh.visible = true;
+            }
+        });
     },
 
     tick: function () {
         if (this.el.sceneEl.is('vr-mode')) return;
 
         const modeActive = window.currentMode === 'pointer';
-        this.updateCursor(modeActive);
+        const canvas = this.el.sceneEl.canvas;
+        if (canvas) {
+            if (modeActive) canvas.classList.add('is-pointing');
+            else canvas.classList.remove('is-pointing');
+        }
 
-        if (!!document.pointerLockElement) {
-            if (this.pointerEl && this.pointerEl.getAttribute('visible')) {
-                this.pointerEl.setAttribute('visible', false);
-            }
-            window.isPointerActive = false;
+        if (!this.el.sceneEl.camera || !modeActive) {
+            if (this.pointerEl) this.pointerEl.object3D.visible = false;
             return;
         }
 
-        const activeCamera = this.el.sceneEl.camera;
-        if (!activeCamera || !modeActive) {
-            if (this.pointerEl && this.pointerEl.getAttribute('visible')) {
-                this.pointerEl.setAttribute('visible', false);
-            }
-            window.isPointerActive = false;
-            return;
-        }
-
-        // CRITICAL: Update transform EVERY frame to stay warm
-        this.updatePointerTransform(activeCamera);
-
-        // Visibility logic
-        const shouldBeShow = this.isLMBDown;
-        if (this.pointerEl) {
-            const isVisible = !!this.pointerEl.getAttribute('visible');
-            if (isVisible !== shouldBeShow) {
-                this.pointerEl.setAttribute('visible', shouldBeShow);
-            }
-        }
-        window.isPointerActive = shouldBeShow;
-    },
-
-    updatePointerTransform: function (activeCamera) {
-        if (!this.pointerEl) return;
-
-        // 1. Get Mouse Ray in World Space
-        this.raycaster.setFromCamera(this.mouse, activeCamera);
-
-        // Find target point at 400m
+        // 1. Update Pointer (Laser) Transform
+        this.raycaster.setFromCamera(this.mouse, this.el.sceneEl.camera);
         const targetWorld = new THREE.Vector3();
         targetWorld.copy(this.raycaster.ray.origin).add(this.raycaster.ray.direction.clone().multiplyScalar(400));
 
-        // 2. Determine "Hand" world position
-        // Bring hand closer to eye center (0.15, -0.2, -0.4) to minimize 2D parallax
         const handOffset = new THREE.Vector3(0.15, -0.2, -0.4);
-
-        // Ensure parent and rig matrices are up to date
         const parent = this.pointerEl.object3D.parent;
-        if (parent) {
-            parent.position.set(0, 0, 0);
-            parent.rotation.set(0, 0, 0);
-            parent.scale.set(1, 1, 1);
-            parent.updateMatrix();
-            parent.updateMatrixWorld(true);
-        }
+        const handWorld = new THREE.Vector3().copy(handOffset).applyMatrix4(this.el.sceneEl.camera.matrixWorld);
+        const beamDir = new THREE.Vector3().copy(targetWorld).sub(handWorld).normalize();
 
-        // Calculate hand position in world space
-        const handWorld = new THREE.Vector3();
-        handWorld.copy(handOffset).applyMatrix4(activeCamera.matrixWorld);
-
-        // 3. Direction from Hand to Target (World Space)
-        const beamDir = new THREE.Vector3();
-        beamDir.copy(targetWorld).sub(handWorld).normalize();
-
-        // 4. Convert beamDir to Parent's Local Space for Rotation
         const parentWorldQuat = new THREE.Quaternion();
         parent.getWorldQuaternion(parentWorldQuat);
-        const invParentQuat = parentWorldQuat.invert();
+        const localBeamDir = beamDir.clone().applyQuaternion(parentWorldQuat.invert());
 
-        const localBeamDir = beamDir.clone().applyQuaternion(invParentQuat);
+        const pitch = Math.acos(-localBeamDir.y);
+        const yaw = Math.atan2(-localBeamDir.x, -localBeamDir.z);
 
-        // 5. Calculate local pitch/yaw for -Y cylinder
-        const pitch = Math.acos(-localBeamDir.y) * (180 / Math.PI);
-        const yaw = Math.atan2(-localBeamDir.x, -localBeamDir.z) * (180 / Math.PI);
-
-        // 6. Convert handWorld to Parent's Local Space
         const localHandPos = handWorld.clone();
         parent.worldToLocal(localHandPos);
 
-        // 7. Apply!
-        this.pointerEl.setAttribute('position', localHandPos);
-        this.pointerEl.setAttribute('bottom-origin-cylinder', 'rotation', { x: pitch, y: yaw, z: 0 });
+        this.pointerEl.object3D.position.copy(localHandPos);
+        this.pointerEl.object3D.rotation.set(pitch, yaw, 0);
+        this.pointerEl.object3D.visible = this.isLMBDown;
 
-        // Final object matrix sync
-        this.pointerEl.object3D.updateMatrix();
-    },
-
-    remove: function () {
-        const canvas = this.el.sceneEl.canvas;
-        if (canvas) {
-            canvas.removeEventListener('pointermove', this.onPointerMove);
-            canvas.removeEventListener('pointerdown', this.onPointerDown);
-            canvas.classList.remove('is-pointing');
+        // 2. Update Arrow Logic
+        if (!this.arrowEl) {
+            this.arrowEl = this.pointerEl.querySelector('.pointer-arrow');
         }
-        window.removeEventListener('pointerup', this.onPointerUp);
+        if (!this.arrowEl) return;
+
+        let stickX = 0, stickY = 0;
+        const gamepads = navigator.getGamepads();
+        for (let i = 0; i < gamepads.length; i++) {
+            const gp = gamepads[i];
+            if (gp && gp.axes.length >= 4) {
+                if (Math.abs(gp.axes[2]) > 0.1 || Math.abs(gp.axes[3]) > 0.1) {
+                    stickX = gp.axes[2]; stickY = gp.axes[3]; break;
+                }
+            }
+        }
+        if (stickX === 0 && stickY === 0) {
+            if (this.keys['arrowleft'] || this.keys['a']) stickX = -1;
+            if (this.keys['arrowright'] || this.keys['d']) stickX = 1;
+            if (this.keys['arrowup'] || this.keys['w']) stickY = -1;
+            if (this.keys['arrowdown'] || this.keys['s']) stickY = 1;
+        }
+
+        const arrowActive = (Math.abs(stickX) > 0.1 || Math.abs(stickY) > 0.1);
+        const arrowVisible = this.isLMBDown && arrowActive;
+
+        this.arrowEl.object3D.visible = arrowVisible;
+
+        const cylinder = this.pointerEl.components['bottom-origin-cylinder'];
+        if (cylinder && cylinder.cylinderMesh) {
+            cylinder.cylinderMesh.visible = this.isLMBDown && !arrowActive;
+        }
+
+        if (arrowVisible) {
+            const angleDeg = Math.atan2(-stickY, stickX) * (180 / Math.PI) + 180;
+            // X: 90 is critical, Y is rotation around beam
+            this.arrowEl.object3D.rotation.set(Math.PI / 2, THREE.MathUtils.degToRad(angleDeg - 90), 0);
+
+            const child = this.arrowEl.querySelector('a-entity');
+            const mesh = child ? child.getObject3D('mesh') : null;
+            if (mesh) {
+                mesh.renderOrder = 20000;
+                if (mesh.material) {
+                    mesh.material.depthTest = false;
+                    mesh.material.depthWrite = false;
+                    const playerInfo = this.el.sceneEl.querySelector('#camera').components['player-info'];
+                    if (playerInfo && playerInfo.data.color) {
+                        mesh.material.color.set(playerInfo.data.color);
+                    }
+                }
+            }
+        }
     }
 });

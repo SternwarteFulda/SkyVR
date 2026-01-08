@@ -600,12 +600,15 @@
             },
             {
               selector: '.pointer',
-              component: 'bottom-origin-cylinder',
-              property: 'rotation'
+              component: 'rotation'
             },
             {
-              selector: '.pointer',
-              property: 'position'
+              selector: '.pointer-arrow',
+              component: 'visible'
+            },
+            {
+              selector: '.pointer-arrow',
+              component: 'rotation'
             },
             {
               component: 'player-info',
@@ -1929,8 +1932,13 @@
       <template id="right-controller-template">
         <a-entity player-info offscreen-indicator>
           <a-entity class="pointer" position="-0.0065 -0.0186 -0.05"
-            bottom-origin-cylinder="height: 400; radius: 0.009; color: red; rotation: 53.53 8.87 0; opacity: 0.6;"
-            visible="false">
+            bottom-origin-cylinder="height: 400; radius: 0.009; color: red; opacity: 0.6;" rotation="53.53 8.87 0"
+            visible="false" shadow="cast: false; receive: false">
+            <a-entity class="pointer-arrow" position="0 -390 0" visible="false">
+              <a-entity geometry="primitive: cone; radiusBottom: 4; height: 16"
+                material="color: white; shader: flat; fog: false; transparent: true; opacity: 1; depthTest: false; side: double"
+                position="0 -8 0" rotation="0 0 0"></a-entity>
+            </a-entity>
           </a-entity>
         </a-entity>
       </template>
@@ -2019,8 +2027,13 @@
         </a-entity>
         <!-- Pointer -->
         <a-entity id="pointer" class="pointer" position="-0.0065 -0.0186 -0.05"
-          bottom-origin-cylinder="height: 400; radius: 0.009; color: red; rotation: 53.53 8.87 0; opacity: 0.6;"
-          visible="false">
+          bottom-origin-cylinder="height: 400; radius: 0.009; color: red; opacity: 0.6;" rotation="53.53 8.87 0"
+          visible="false" shadow="cast: false; receive: false">
+          <a-entity class="pointer-arrow" position="0 -390 0" visible="false">
+            <a-entity geometry="primitive: cone; radiusBottom: 4; height: 16"
+              material="color: white; shader: flat; fog: false; transparent: true; opacity: 1; depthTest: false; side: double"
+              position="0 -8 0" rotation="0 0 0"></a-entity>
+          </a-entity>
         </a-entity>
 
         <!-- Controller Hints -->
@@ -2971,6 +2984,9 @@
       const azimuthRotationStep = 30;
       let isJoystickReleased = true;
 
+      let isArrowLocked = false;
+      let lastArrowAngle = 0;
+
       const rightController = document.getElementById("right-controller");
 
       // Button state variables
@@ -2989,11 +3005,54 @@
         const pointer = document.getElementById("pointer");
         pointer.setAttribute('visible', true);
         isRightControllerGripDown = true;
+
+        // Locked Mode: Show Arrow immediately, hide Beam
+        // Normal Mode: Show Beam immediately, hide Arrow, only show arrow when stick moved
+        const cylinder = pointer.components['bottom-origin-cylinder'];
+        const arrow = pointer.querySelector('.pointer-arrow');
+
+        if (isArrowLocked) {
+          if (cylinder && cylinder.cylinderMesh) cylinder.cylinderMesh.visible = false;
+          if (arrow) {
+            arrow.setAttribute('visible', true);
+            if (arrow.object3D) arrow.object3D.visible = true;
+            // Restore last rotation
+            arrow.setAttribute('rotation', { x: 90, y: lastArrowAngle - 90, z: 0 });
+
+            // Apply material/layer fix immediately
+            const child = arrow.querySelector('a-entity');
+            const mesh = child ? child.getObject3D('mesh') : null;
+            if (mesh) {
+              mesh.renderOrder = 20000;
+              if (mesh.material) {
+                mesh.material.depthTest = false;
+                mesh.material.depthWrite = false;
+                const camera = document.getElementById('camera');
+                const playerInfo = camera ? camera.components['player-info'] : null;
+                if (playerInfo && playerInfo.data.color) {
+                  mesh.material.color.set(playerInfo.data.color);
+                }
+              }
+            }
+          }
+        } else {
+          if (cylinder && cylinder.cylinderMesh) cylinder.cylinderMesh.visible = true;
+          if (arrow) {
+            arrow.setAttribute('visible', false);
+            if (arrow.object3D) arrow.object3D.visible = false;
+          }
+        }
       });
       rightController.addEventListener("gripup", function (event) {
         const pointer = document.getElementById("pointer");
         pointer.setAttribute('visible', false);
         isRightControllerGripDown = false;
+
+        // Reset beam visibility for next use
+        const cylinder = pointer.components['bottom-origin-cylinder'];
+        if (cylinder && cylinder.cylinder) {
+          cylinder.cylinder.visible = true;
+        }
       });
 
       const onAButtonDown = () => {
@@ -3078,6 +3137,122 @@
       rightController.addEventListener('bbuttondown', onBButtonDown);
       rightController.addEventListener('bbuttonup', onBButtonUp);
 
+      let pointerMode = 'beam'; // 'beam' or 'arrow'
+
+      function updateVisuals() {
+        const pointer = document.getElementById("pointer");
+        if (!pointer) return;
+        const arrow = pointer.querySelector('.pointer-arrow');
+
+        // Ensure parent is visible (opacity/scale will handle actual visibility)
+        if (!pointer.getAttribute('visible')) pointer.setAttribute('visible', true);
+
+        const showBeam = isRightControllerGripDown && pointerMode === 'beam';
+        const showArrow = isRightControllerGripDown && pointerMode === 'arrow';
+
+        // 1. BEAM ANIMATION
+        // Animate the component property 'opacity'
+        pointer.removeAttribute('animation__beam'); // Reset to ensure restart
+        pointer.setAttribute('animation__beam', {
+          property: 'bottom-origin-cylinder.opacity',
+          to: showBeam ? 0.6 : 0.0,
+          dur: 100, // Faster
+          easing: 'linear'
+        });
+
+        // 2. ARROW ANIMATION
+        if (arrow) {
+          if (!arrow.getAttribute('visible')) arrow.setAttribute('visible', true);
+
+          // Animate scale 0->1 or 1->0
+          arrow.removeAttribute('animation__scale');
+          arrow.setAttribute('animation__scale', {
+            property: 'scale',
+            to: showArrow ? '1 1 1' : '0 0 0',
+            dur: 150, // Faster
+            easing: showArrow ? 'easeOutBack' : 'easeInBack'
+          });
+
+          if (showArrow) {
+            // Apply Rotation & Color immediately when revealing
+            arrow.setAttribute('rotation', { x: 90, y: lastArrowAngle - 90, z: 0 });
+
+            const child = arrow.querySelector('a-entity');
+            const mesh = child ? child.getObject3D('mesh') : null;
+            if (mesh) {
+              mesh.renderOrder = 20000;
+              if (mesh.material) {
+                mesh.material.depthTest = false;
+                mesh.material.depthWrite = false;
+                const camera = document.getElementById('camera');
+                const playerInfo = camera ? camera.components['player-info'] : null;
+                if (playerInfo && playerInfo.data.color) {
+                  mesh.material.color.set(playerInfo.data.color);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      rightController.addEventListener("thumbstickdown", function () {
+        // Toggle Mode
+        pointerMode = (pointerMode === 'beam') ? 'arrow' : 'beam';
+
+        // Feedback
+        if (rightController.components.haptics) rightController.components.haptics.pulse(0.5, 100);
+
+        // Update immediately
+        updateVisuals();
+      });
+
+      rightController.addEventListener("gripdown", function (event) {
+        isRightControllerGripDown = true;
+        updateVisuals();
+      });
+
+      rightController.addEventListener("gripup", function (event) {
+        isRightControllerGripDown = false;
+        updateVisuals();
+      });
+
+      rightController.addEventListener("thumbstickmoved", function (event) {
+        const stickX = event.detail.x;
+        const stickY = event.detail.y;
+        const stickActive = Math.abs(stickX) > 0.2 || Math.abs(stickY) > 0.2;
+
+        // Standard Locomotion (Rotate Rig)
+        // ONLY if Grip is RELEASED. (User requested "Lock" when beam/pointer is shown)
+        if (!isRightControllerGripDown) {
+          if (stickActive) {
+            if (event.detail.x > 0.8 && isJoystickReleased) {
+              rotateCameraRig(-azimuthRotationStep);
+              isJoystickReleased = false;
+            } else if (event.detail.x < -0.8 && isJoystickReleased) {
+              rotateCameraRig(azimuthRotationStep);
+              isJoystickReleased = false;
+            } else if (event.detail.x >= -0.8 && event.detail.x <= 0.8) {
+              isJoystickReleased = true;
+            }
+          } else {
+            isJoystickReleased = true;
+          }
+        } else {
+          // Grip IS Down (Tool Active)
+          if (pointerMode === 'arrow') {
+            // Arrow Mode: Stick rotates Arrow
+            if (stickActive) {
+              const angleDeg = Math.atan2(-stickY, stickX) * (180 / Math.PI) + 180;
+              lastArrowAngle = angleDeg;
+              const pointer = document.getElementById("pointer");
+              const arrow = pointer ? pointer.querySelector('.pointer-arrow') : null;
+              if (arrow) arrow.setAttribute('rotation', { x: 90, y: angleDeg - 90, z: 0 });
+            }
+          }
+          // If Beam Mode: Stick does nothing (Snap turn is locked)
+        }
+      });
+
       function checkAHoldWithInterval() {
         if (!aButtonIsPhysicallyDown || aHoldActionTriggered) {
           if (aHoldIntervalId) {
@@ -3132,7 +3307,7 @@
             const constellationLines = document.getElementById('constellation-lines');
             if (constellationLines && constellationLines.components['constellation-renderer']) {
               const renderer = constellationLines.components['constellation-renderer'];
-              // Fill in the gaps by showing all illustrations
+              // Fill in the gaps
               renderer.showAllIllustrations();
               // Haptics on show-all
               if (rightController.components['haptics']) {
@@ -3149,24 +3324,6 @@
           }
         }
       }
-
-      rightController.addEventListener("thumbstickmoved", function (event) {
-        if (!isRightControllerGripDown) {
-          if (event.detail.x > 0.8 && isJoystickReleased) {
-            rotateCameraRig(-azimuthRotationStep);
-            isJoystickReleased = false;
-          } else if (event.detail.x < -0.8 && isJoystickReleased) {
-            rotateCameraRig(azimuthRotationStep);
-            isJoystickReleased = false;
-          } else if (event.detail.x >= -0.8 && event.detail.x <= 0.8) {
-            isJoystickReleased = true;
-          }
-        }
-
-        // if (Math.abs(event.detail.y) >= joystickThreshold) {
-        //   precessionContainer.object3D.rotation.z -= event.detail.y * starRotationSpeed;
-        // }
-      });
 
       function rotateCameraRig(rotationStep) {
         const rig = document.getElementById('camera-rig');

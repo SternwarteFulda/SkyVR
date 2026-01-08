@@ -3,51 +3,37 @@ AFRAME.registerComponent("bottom-origin-cylinder", {
         height: { type: "number", default: 1 },
         radius: { type: "number", default: 0.5 },
         color: { type: "color", default: "#00F" },
-        rotation: { type: "vec3", default: { x: 0, y: 0, z: 0 } },
         opacity: { type: "number", default: 1.0 },
     },
+
     init: function () {
-        // Create a parent entity to handle rotation and translation
-        this.parentEntity = document.createElement("a-entity");
-
-        // Set the rotation of the parent entity
-        this.parentEntity.setAttribute("rotation", this.data.rotation);
-
-        // Append the parent entity to the current entity
-        this.el.appendChild(this.parentEntity);
-
-        // Create the cylinder geometry
         const geometry = new THREE.CylinderGeometry(
             this.data.radius,
             this.data.radius,
             this.data.height,
             32
         );
-        // Create the material
         const material = new THREE.MeshBasicMaterial({
             color: this.data.color,
             transparent: true,
             opacity: this.data.opacity,
+            depthWrite: false // Usually better for transparent beams
         });
-        // Create the mesh
-        this.cylinder = new THREE.Mesh(geometry, material);
 
-        // Move the cylinder downward based on half of its height
-        this.cylinder.position.y -= this.data.height / 2;
+        this.cylinderMesh = new THREE.Mesh(geometry, material);
 
-        // Append the cylinder to the parent entity
-        this.parentEntity.setObject3D("mesh", this.cylinder);
+        // Pivot at the bottom: move mesh down by half height
+        // Cylinder default center is at its middle.
+        this.cylinderMesh.position.y = -this.data.height / 2;
+
+        this.el.setObject3D("mesh", this.cylinderMesh);
     },
+
     update: function (oldData) {
-        if (!this.parentEntity) return;
-
-        if (this.data.rotation !== oldData.rotation) {
-            this.parentEntity.setAttribute("rotation", this.data.rotation);
-        }
-
-        if (this.cylinder && this.cylinder.material) {
-            this.cylinder.material.color.set(this.data.color);
-            this.cylinder.material.opacity = this.data.opacity;
+        if (this.cylinderMesh && this.cylinderMesh.material) {
+            this.cylinderMesh.material.color.set(this.data.color);
+            this.cylinderMesh.material.opacity = this.data.opacity;
+            this.cylinderMesh.material.needsUpdate = true;
         }
     }
 });

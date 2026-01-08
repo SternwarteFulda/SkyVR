@@ -154,16 +154,26 @@ AFRAME.registerComponent('offscreen-indicator', {
     },
 
     getPointerTipPosition: function () {
-        const cylinderComp = this.pointer.components['bottom-origin-cylinder'];
-        if (!cylinderComp || !cylinderComp.parentEntity) return null;
+        // Pointer is the entity being rotated.
+        // The beam/arrow point down the local Y axis.
+        // Geometry is centered at Y= -Height/2.
+        // But the beam VISUALLY extends from 0 to -Height.
+        // So the tip is at (0, -400, 0)
 
-        const height = cylinderComp.data.height;
-        // Tip is at (0, -height, 0) relative to parentEntity
+        let height = 400;
+        // Try to get from component data if available
+        if (this.pointer.components['bottom-origin-cylinder']) {
+            height = this.pointer.components['bottom-origin-cylinder'].data.height;
+        }
+
         const tipPosLocal = new THREE.Vector3(0, -height, 0);
 
-        // Ensure world matrix is up to date
-        cylinderComp.parentEntity.object3D.updateWorldMatrix(true, false);
-        return tipPosLocal.applyMatrix4(cylinderComp.parentEntity.object3D.matrixWorld);
+        // Ensure matrix is up to date
+        if (this.pointer.object3D) {
+            this.pointer.object3D.updateWorldMatrix(true, false);
+            return tipPosLocal.applyMatrix4(this.pointer.object3D.matrixWorld);
+        }
+        return null;
     },
 
     remove: function () {
