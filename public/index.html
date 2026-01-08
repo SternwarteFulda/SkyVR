@@ -463,6 +463,14 @@
             {
               component: 'player-info',
               property: 'micStatus'
+            },
+            {
+              component: 'player-info',
+              property: 'presence'
+            },
+            {
+              component: 'player-info',
+              property: 'videoEnabled'
             }
           ]
         });
@@ -510,6 +518,14 @@
             {
               component: 'player-info',
               property: 'micStatus'
+            },
+            {
+              component: 'player-info',
+              property: 'presence'
+            },
+            {
+              component: 'player-info',
+              property: 'videoEnabled'
             }
           ]
         });
@@ -573,6 +589,8 @@
     const roomParam = roomParamRaw === 'none' ? 'none' : sanitizeRoomName(roomParamRaw);
     const nameParam = sanitizePlayerName(nameParamRaw);
     const colorParam = urlParams.get('color');
+    const presenceParamRaw = urlParams.get('presence') || 'avatar';
+    const presenceParam = presenceParamRaw.split(':')[0].trim();
 
     // Check if URL parameters were modified by sanitization
     if (!window.location.search.includes('no-redirect')) {
@@ -634,6 +652,33 @@
       window.location.href = 'lobby.html' + window.getLobbyParams();
     }
 
+    // --- CRITICAL MEDIA HOOKS ---
+    // These hooks prevent EasyRTC from requesting local media based on the user's choices.
+    // This allows the user to JOIN with 'audio: true' and 'video: true' (to see/hear others)
+    // without being prompted for their own media if they don't want to share it.
+    if (typeof easyrtc !== 'undefined') {
+      // Audio Hook
+      const originalEnableAudio = easyrtc.enableAudio;
+      easyrtc.enableAudio = function (val) {
+        const micEnabled = urlParams.get('mic') !== 'false';
+        if (!micEnabled && val === true) {
+          console.log("NAF-Hook: Blocking local audio capture request (Mic was unchecked in lobby).");
+          return originalEnableAudio.call(easyrtc, false);
+        }
+        return originalEnableAudio.apply(easyrtc, arguments);
+      };
+
+      // Video Hook
+      const originalEnableVideo = easyrtc.enableVideo;
+      easyrtc.enableVideo = function (val) {
+        if (presenceParam !== 'webcam' && val === true) {
+          console.log("NAF-Hook: Blocking local video capture request (Avatar Mode).");
+          return originalEnableVideo.call(easyrtc, false);
+        }
+        return originalEnableVideo.apply(easyrtc, arguments);
+      };
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
       const sceneEl = document.querySelector('a-scene');
       const cameraEl = document.getElementById('camera');
@@ -641,8 +686,22 @@
 
       if (sceneEl) {
         if (roomParam && roomParam !== 'none') {
-          sceneEl.setAttribute('networked-scene', 'room', roomParam);
-          sceneEl.setAttribute('networked-scene', 'audio', micEnabled);
+          // Sanitized global 'presenceParam' is already available
+          // CRITICAL FIX: We set both audio and video to true ALWAYS.
+          // This ensures the PeerConnection is configured to receive both from others.
+          const audioEnabledForScene = true;
+          const videoEnabledForScene = true;
+
+          // CRITICAL: We must rebuild the attribute string because multiple setAttributes might fail with NAF's parser
+          const config = `
+            room: ${roomParam};
+            adapter: easyrtc;
+            audio: ${audioEnabledForScene};
+            video: ${videoEnabledForScene};
+            onConnect: onConnect;
+          `;
+          console.log("DEBUG: networked-scene config:", config);
+          sceneEl.setAttribute('networked-scene', config);
         } else if (roomParam === 'none') {
           console.log("Standalone mode: Disabling NAF and auto-completing network syncing.");
           sceneEl.removeAttribute('networked-scene');
@@ -669,6 +728,7 @@
 
       if (cameraEl) {
         if (nameParam) cameraEl.setAttribute('player-info', 'name', nameParam);
+        if (presenceParam) cameraEl.setAttribute('player-info', 'presence', presenceParam);
         if (colorParam) {
           const color = colorParam.startsWith('#') ? colorParam : '#' + colorParam;
           cameraEl.setAttribute('player-info', 'color', color);
@@ -681,6 +741,7 @@
           const color = colorParam.startsWith('#') ? colorParam : '#' + colorParam;
           rightControllerEl.setAttribute('player-info', 'color', color);
         }
+        if (presenceParam) rightControllerEl.setAttribute('player-info', 'presence', presenceParam);
       }
 
       if (leftControllerEl) {
@@ -689,19 +750,124 @@
           const color = colorParam.startsWith('#') ? colorParam : '#' + colorParam;
           leftControllerEl.setAttribute('player-info', 'color', color);
         }
+        if (presenceParam) leftControllerEl.setAttribute('player-info', 'presence', presenceParam);
       }
     });
+
 
     window.onConnect = function () {
       console.log('onConnect', new Date());
       updateLoadingIndicator('network', true);
+      window.loadingStatus.network = true;
+
+      const urlParams = new URL(window.location.href).searchParams;
       const micEnabledParam = urlParams.get('mic') !== 'false';
 
-      if (micEnabledParam && typeof NAF !== 'undefined' && NAF.connection && NAF.connection.adapter && typeof NAF.connection.adapter.enableMicrophone === 'function') {
-        NAF.connection.adapter.enableMicrophone(false);
-        window.micEnabled = false;
+      // --- Pre-Connect Stream Management ---
+      if (typeof easyrtc !== 'undefined') {
+        // If the user isn't in webcam mode, tell EasyRTC not to capture local video.
+        // This prevents the camera prompt while still allowing the scene to receive video.
+        if (presenceParam !== 'webcam') {
+          console.log("NAF: Presence is 'avatar'. Disabling local video capture (to avoid prompt) but keeping scene video-capable.");
+          easyrtc.enableVideo(false);
+        } else {
+          easyrtc.enableVideo(true);
+        }
+      }
+
+      if (NAF && NAF.connection && NAF.connection.adapter) {
+        // --- Microphone Logic ---
+        if (typeof NAF.connection.adapter.enableMicrophone === 'function') {
+          if (micEnabledParam) {
+            // Join Muted (standard privacy default)
+            NAF.connection.adapter.enableMicrophone(false);
+            window.micEnabled = false;
+            console.log("NAF: Join Muted - mic checkbox was checked, but starting muted.");
+          } else {
+            window.micEnabled = false;
+            console.log("NAF: Microphone disabled (lobby choice).");
+          }
+        }
+
+        // --- Camera / Webcam Logic ---
+        if (presenceParam === 'webcam') {
+          window.cameraEnabled = true;
+          console.log("NAF: Webcam mode active.");
+
+          // Explicitly tell NAF adapter to enable camera
+          if (typeof NAF.connection.adapter.enableCamera === 'function') {
+            console.log("NAF: Calling enableCamera(true)...");
+            NAF.connection.adapter.enableCamera(true);
+          }
+
+          // --- Local Mirror Feedback ---
+          // Since templates aren't usually applied to the local player rig/camera,
+          // we attach a visual feedback plane manually.
+          setTimeout(() => {
+            const cameraEl = document.querySelector('#camera');
+            if (cameraEl && typeof easyrtc !== 'undefined' && easyrtc.getLocalStream) {
+              const stream = easyrtc.getLocalStream();
+              if (stream && stream.getVideoTracks().length > 0) {
+                console.log("Found local video stream for mirror.");
+
+                let mirror = document.querySelector('#local-mirror');
+                if (!mirror) {
+                  const rig = document.querySelector('#camera-rig');
+                  if (rig) {
+                    console.log("Creating circular local mirror below infobar...");
+                    mirror = document.createElement('a-circle');
+                    mirror.setAttribute('id', 'local-mirror');
+                    mirror.setAttribute('radius', '0.15');
+                    mirror.setAttribute('position', '0 0.5 -0.6');
+                    mirror.setAttribute('rotation', '-40 0 0');
+                    mirror.setAttribute('scale', '-1 1 1'); // Mirrored for self
+                    mirror.setAttribute('material', 'shader: flat; side: double');
+                    rig.appendChild(mirror);
+                  }
+                }
+
+                const video = document.createElement('video');
+                video.setAttribute('autoplay', '');
+                video.setAttribute('muted', 'true'); // Explicit attribute
+                video.setAttribute('playsinline', '');
+                video.muted = true;  // Explicit property
+                video.volume = 0;    // Absolute silence
+                video.srcObject = stream;
+
+                // Play immediately
+                video.play().catch(e => console.warn("Mirror play error:", e));
+
+                const updateMirror = () => {
+                  console.log("Applying local mirror texture...");
+                  const texture = new THREE.VideoTexture(video);
+                  const mesh = mirror.getObject3D('mesh');
+                  if (mesh) {
+                    mesh.material.map = texture;
+                    mesh.material.needsUpdate = true;
+                    // Mirror visibility follows cameraEnabled state
+                    mirror.setAttribute('visible', window.cameraEnabled);
+                  }
+                };
+
+                // Watch for camera toggle to hide/show mirror
+                window.addEventListener('camera-toggled', () => {
+                  if (mirror) mirror.setAttribute('visible', window.cameraEnabled);
+                });
+
+                if (video.readyState >= 2) {
+                  updateMirror();
+                } else {
+                  video.onloadedmetadata = updateMirror;
+                }
+              } else {
+                console.warn("No local video tracks found for mirror.");
+              }
+            }
+          }, 3000); // 3s delay to ensure EasyRTC has fully initialized the local stream
+        }
       }
     };
+
 
     // Dynamically align the visual pointer with the controller's rayOrigin
     document.addEventListener('controllermodelready', (evt) => {
@@ -1280,6 +1446,9 @@
       <button id="infobar-2d-mic" class="infobar-2d-button" title="Toggle Microphone">
         <img id="infobar-2d-mic-icon" src="assets/icons/mic-off.svg">
       </button>
+      <button id="infobar-2d-camera" class="infobar-2d-button" title="Toggle Camera" style="display: none;">
+        <img id="infobar-2d-camera-icon" src="assets/icons/camera-off.svg">
+      </button>
       <button id="infobar-2d-fullscreen" class="infobar-2d-button" title="Toggle Fullscreen">
         <img src="assets/icons/fullscreen.svg">
       </button>
@@ -1484,7 +1653,6 @@
       dressingOnPlayArea: 0;
       gridColor: #39d2f2;
       shadow: false" networked-scene="
-      debug: true;
       adapter: easyrtc;
       onConnect: onConnect;">
 
@@ -1499,10 +1667,13 @@
       <template id="rig-template">
         <a-entity class="avatar-rig"></a-entity>
       </template>
+
       <template id="camera-template">
-        <a-entity class="avatar-camera" networked-audio-source>
+        <a-entity class="avatar-camera">
           <a-entity light="type: point; intensity: 0.4; distance: 4; decay: 2" position="0 0.5 -1.5"></a-entity>
-          <a-sphere class="head" scale="0.2 0.22 0.2"></a-sphere>
+          <a-sphere class="head" scale="0.2 0.22 0.2">
+            <a-entity networked-audio-source></a-entity>
+          </a-sphere>
           <a-entity class="face" position="0 0.05 0">
             <a-sphere class="eye" color="#efefef" position="0.06 0.05 -0.16" scale="0.04 0.04 0.04">
               <a-cylinder class="pupil" color="#000" position="0 0 -1" rotation="90 0 0" radius="0.2"
@@ -1516,6 +1687,18 @@
             </a-sphere>
             <a-sphere class="eyelid" position="-0.06 0.05 -0.16" scale="0.042 0.042 0.042" theta-length="90"
               rotation="20 0 0"></a-sphere>
+          </a-entity>
+
+          <a-entity class="webcam-group" position="0 0 0">
+            <a-cylinder class="webcam-frame" radius="0.41" height="0.04" rotation="90 0 0"
+              material="side: double; emissive: #fff; emissiveIntensity: 0.05"></a-cylinder>
+            <a-circle class="webcam-circle" radius="0.4" position="0 0 0.025" color="#FFF"
+              material="shader: flat; side: front" networked-video-source></a-circle>
+            <a-circle class="webcam-circle-back" radius="0.4" position="0 0 -0.025" color="#FFF"
+              material="shader: flat; side: front" rotation="0 180 0" networked-video-source></a-circle>
+            <!-- subtle local lighting for the frame (coin) -->
+            <a-entity light="type: point; intensity: 0.2; distance: 1; decay: 2" position="0 0 0.2"></a-entity>
+            <a-entity light="type: point; intensity: 0.2; distance: 1; decay: 2" position="0 0 -0.2"></a-entity>
           </a-entity>
 
           <!-- mic indicator -->
@@ -1558,6 +1741,8 @@
       <img id="icon-door" src="assets/icons/door.svg">
       <img id="icon-mic-on" src="assets/icons/mic-on.svg">
       <img id="icon-mic-off" src="assets/icons/mic-off.svg">
+      <img id="icon-camera-on" src="assets/icons/camera-on.svg">
+      <img id="icon-camera-off" src="assets/icons/camera-off.svg">
       <img id="icon-draw" src="assets/icons/draw.svg">
       <img id="icon-stamp" src="assets/icons/stamp.svg">
       <img id="icon-stickfigure" src="assets/icons/stickfigure.svg">

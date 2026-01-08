@@ -15,7 +15,9 @@ AFRAME.registerComponent('player-info', {
         },
         spawned: { type: 'boolean', default: false },
         spotId: { type: 'int', default: -1 },
-        micStatus: { type: 'string', default: 'none' }
+        micStatus: { type: 'string', default: 'none' },
+        presence: { type: 'string', default: 'avatar' },
+        videoEnabled: { type: 'boolean', default: true }
     },
 
     init: function () {
@@ -25,6 +27,10 @@ AFRAME.registerComponent('player-info', {
         this.pointer = this.el.querySelector('.pointer');
         this.micIndicator = this.el.querySelector('.mic-indicator');
         this.micIcons = this.el.querySelectorAll('.mic-icon');
+        this.face = this.el.querySelector('.face');
+        // Flattened structure: no container
+        this.webcamGroup = this.el.querySelector('.webcam-group');
+        this.webcamFrame = this.el.querySelector('.webcam-frame');
 
         // Initial render order setup to fix "transparent sorting" (head occluding eyes)
         if (this.head) this.head.object3D.renderOrder = 10;
@@ -143,6 +149,15 @@ AFRAME.registerComponent('player-info', {
         if (this.micIndicator) {
             apply(this.micIndicator, 0.42);
         }
+
+        // 3. DYNAMIC SCALING: Scale remote video based on distance (2D devices only)
+        if (this.webcamGroup && !AFRAME.utils.device.checkHeadsetConnected()) {
+            const dist = this._tmp.camPos.distanceTo(this._tmp.avatarPos);
+            // Max distance on the 4m circle is 8m. 
+            // Scale linearly from 1.0 (at 0m) to 2.0 (at 8m)
+            const s = Math.min(2.0, Math.max(1.0, 1.0 + (dist / 8.0)));
+            this.webcamGroup.object3D.scale.set(s, s, s);
+        }
     },
 
     update: function (oldData) {
@@ -160,6 +175,17 @@ AFRAME.registerComponent('player-info', {
         if (this.pointer) {
             this.pointer.setAttribute('bottom-origin-cylinder', 'color', this.data.color);
         }
+
+        // Handle Presence Mode (Avatar vs Webcam)
+        const isWebcamMode = this.data.presence === 'webcam';
+        const isVideoActive = this.data.videoEnabled;
+        const showWebcam = isWebcamMode && isVideoActive;
+
+        if (this.head) this.head.setAttribute('visible', !showWebcam);
+        if (this.face) this.face.setAttribute('visible', !showWebcam);
+
+        if (this.webcamGroup) this.webcamGroup.setAttribute('visible', showWebcam);
+        if (this.webcamFrame) this.webcamFrame.setAttribute('material', 'color', this.data.color);
 
         // Handle mic indicator visuals
         if (this.micIndicator) {
@@ -254,7 +280,7 @@ AFRAME.registerComponent('player-info', {
 
     setAvatarOpacity: function (opacity) {
         // Find all parts that should fade
-        const parts = this.el.querySelectorAll('.head, .eye, .pupil, .eyelid, .nametag, .mic-icon');
+        const parts = this.el.querySelectorAll('.head, .eye, .pupil, .eyelid, .nametag, .mic-icon, .webcam-plane, .webcam-frame');
         parts.forEach(part => {
             if (part.tagName.toLowerCase() === 'a-text') {
                 part.setAttribute('opacity', opacity);
@@ -370,7 +396,9 @@ AFRAME.registerComponent('player-info', {
 
             if (mode === 'in') {
                 // Fade in original avatar components
-                const parts = el.querySelectorAll('.head, .eye, .pupil, .eyelid, .nametag, .mic-icon');
+                // Fade in original avatar components
+                // Include webcam parts in the fade-in logic
+                const parts = el.querySelectorAll('.head, .eye, .pupil, .eyelid, .nametag, .mic-icon, .webcam-plane, .webcam-frame');
                 parts.forEach(part => {
                     const isText = part.tagName.toLowerCase() === 'a-text';
                     const property = isText ? 'opacity' : 'material.opacity';
@@ -382,7 +410,7 @@ AFRAME.registerComponent('player-info', {
             } else {
                 // Create phantom avatar for 'out' effect
                 // We only query the top-level parts we want to clone.
-                const visuals = el.querySelectorAll('.head, .face, .nametag, .mic-indicator');
+                const visuals = el.querySelectorAll('.head, .face, .nametag, .mic-indicator, .webcam-container');
                 visuals.forEach(v => {
                     const clone = v.cloneNode(true);
 

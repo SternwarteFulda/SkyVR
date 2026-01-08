@@ -5,6 +5,8 @@ AFRAME.registerComponent('skyvr-infobar', {
             room: '#icon-door',
             micOn: '#icon-mic-on',
             micOff: '#icon-mic-off',
+            cameraOn: '#icon-camera-on',
+            cameraOff: '#icon-camera-off',
             draw: '#icon-draw',
             stamp: '#icon-stamp',
             stickfigure: '#icon-stickfigure',
@@ -47,6 +49,8 @@ AFRAME.registerComponent('skyvr-infobar', {
             roomText: document.getElementById('infobar-2d-room-text'),
             mic: document.getElementById('infobar-2d-mic'),
             micIcon: document.getElementById('infobar-2d-mic-icon'),
+            camera: document.getElementById('infobar-2d-camera'),
+            cameraIcon: document.getElementById('infobar-2d-camera-icon'),
             modes: {
                 draw: document.getElementById('infobar-2d-draw'),
                 stickfigure: document.getElementById('infobar-2d-stickfigure'),
@@ -211,13 +215,56 @@ AFRAME.registerComponent('skyvr-infobar', {
             }
         }
 
+        // Camera Section (Next to Mic)
+        const presenceParamRaw = urlParams.get('presence') || '';
+        const presenceParam = presenceParamRaw.split(':')[0].trim();
+        // Only show camera toggle if joined as 'webcam' AND not standalone
+        if (presenceParam === 'webcam' && !isStandalone) {
+            this.cameraIcon = this.createIcon(this.ICONS.cameraOn, this.CONFIG.iconSize);
+            // Position slightly to the right of mic (mic is at 0)
+            this.cameraIcon.setAttribute('position', '0.05 0 0.001');
+
+            // Shift existing mode group further right to make space
+            // Previously 0.205 (mic only). Now we have mic + cam.
+            // Mic: 0. Cam: 0.05. ModeStart: 0.205 -> 0.25?
+
+            const onCameraClick = () => {
+                window.cameraEnabled = !window.cameraEnabled;
+                if (typeof NAF !== 'undefined' && NAF.connection && NAF.connection.adapter) {
+                    NAF.connection.adapter.enableCamera(window.cameraEnabled);
+                }
+                // Sync with player-info for peers to see mode change
+                const cam = document.getElementById('camera');
+                if (cam) {
+                    cam.setAttribute('player-info', 'videoEnabled', window.cameraEnabled);
+                }
+                window.dispatchEvent(new CustomEvent('camera-toggled'));
+            };
+
+            this.cameraIcon.addEventListener('click', onCameraClick);
+            this.container.appendChild(this.cameraIcon);
+
+            // 2D Camera UI
+            if (this.ui2d.camera) {
+                this.ui2d.camera.style.display = 'flex';
+                this.ui2d.camera.addEventListener('click', onCameraClick);
+            }
+
+            // Update layout for mode group
+            // We can dynamically adjust it below or just use a safe offset.
+        } else {
+            this.cameraIcon = null;
+        }
+
         // Mode Group (Right)
         this.modeButtons = {};
         this.modesList = ['draw', 'stickfigure', 'constellation']; // 'stamp' disabled
 
         // Mode container starts after the center
         this.modeGroup = document.createElement('a-entity');
-        this.modeGroup.setAttribute('position', '0.205 0 0');
+        // Shift right if camera icon is present
+        const modeStart = (presenceParam === 'webcam' && !isStandalone) ? 0.25 : 0.205;
+        this.modeGroup.setAttribute('position', `${modeStart} 0 0`);
         this.container.appendChild(this.modeGroup);
 
         const modes = [
@@ -247,6 +294,7 @@ AFRAME.registerComponent('skyvr-infobar', {
 
         // State tracking
         this.lastMic = null;
+        this.lastCamera = null;
         this.lastRoom = null;
         this.lastMode = null;
         this.lastConnected = false;
@@ -740,6 +788,20 @@ AFRAME.registerComponent('skyvr-infobar', {
             if (this.ui2d.mic && this.ui2d.micIcon) {
                 this.ui2d.micIcon.src = currentMic ? 'assets/icons/mic-on.svg' : 'assets/icons/mic-off.svg';
                 this.ui2d.mic.classList.toggle('mic-on', currentMic);
+            }
+        }
+
+        // Camera status updates
+        const currentCamera = !!window.cameraEnabled;
+        if (this.cameraIcon && currentCamera !== this.lastCamera) {
+            this.lastCamera = currentCamera;
+            const camSrc = currentCamera ? this.ICONS.cameraOn : this.ICONS.cameraOff;
+            this.updateIcon(this.cameraIcon, camSrc, currentCamera ? 'white' : 'gray');
+
+            // Update 2D Camera UI
+            if (this.ui2d.camera && this.ui2d.cameraIcon) {
+                this.ui2d.cameraIcon.src = currentCamera ? 'assets/icons/camera-on.svg' : 'assets/icons/camera-off.svg';
+                this.ui2d.camera.classList.toggle('active', currentCamera);
             }
         }
 
