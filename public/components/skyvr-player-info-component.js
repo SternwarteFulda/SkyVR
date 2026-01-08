@@ -227,21 +227,24 @@ AFRAME.registerComponent('player-info', {
         if (this.data.spawned && !this.lastSpawned) {
             this.lastSpawned = true; // Mark as handled immediately to prevent multiple loops
 
+            let posWaitAttempts = 0;
             const checkPositionAndShow = () => {
+                posWaitAttempts++;
                 const currentPos = new THREE.Vector3();
                 const targetEl = this.el.id === 'camera' ? (this.el.parentElement || this.el) : this.el;
                 targetEl.object3D.getWorldPosition(currentPos);
 
-                // If they are a remote player and still at the origin, wait before showing.
+                // If they are a remote player and still at the origin, wait before showing (max 3 seconds).
                 const horizontalDistSq = (currentPos.x * currentPos.x) + (currentPos.z * currentPos.z);
-                if (!this.ownedByLocalUser && horizontalDistSq < 0.25) {
+                if (!this.ownedByLocalUser && horizontalDistSq < 0.25 && posWaitAttempts < 30) {
                     setTimeout(checkPositionAndShow, 100);
                     return;
                 }
 
                 // CRITICAL CHECK for pre-existing players:
-                const timeSinceInit = performance.now() - this.initTime;
-                const isInitialSync = timeSinceInit < 2000 && !this.ownedByLocalUser;
+                // If the scene has been running for a while, this is a new joiner (play beam).
+                // If we JUST joined, any existing players should appear immediately (skip beam).
+                const isInitialSync = (this.el.sceneEl.time < 6000) && !this.ownedByLocalUser;
 
                 if (isInitialSync) {
                     // Pre-existing player detected. Show immediately, NO beam.
@@ -280,7 +283,7 @@ AFRAME.registerComponent('player-info', {
 
     setAvatarOpacity: function (opacity) {
         // Find all parts that should fade
-        const parts = this.el.querySelectorAll('.head, .eye, .pupil, .eyelid, .nametag, .mic-icon, .webcam-plane, .webcam-frame');
+        const parts = this.el.querySelectorAll('.head, .eye, .pupil, .eyelid, .nametag, .mic-icon');
         parts.forEach(part => {
             if (part.tagName.toLowerCase() === 'a-text') {
                 part.setAttribute('opacity', opacity);
@@ -398,7 +401,7 @@ AFRAME.registerComponent('player-info', {
                 // Fade in original avatar components
                 // Fade in original avatar components
                 // Include webcam parts in the fade-in logic
-                const parts = el.querySelectorAll('.head, .eye, .pupil, .eyelid, .nametag, .mic-icon, .webcam-plane, .webcam-frame');
+                const parts = el.querySelectorAll('.head, .eye, .pupil, .eyelid, .nametag, .mic-icon');
                 parts.forEach(part => {
                     const isText = part.tagName.toLowerCase() === 'a-text';
                     const property = isText ? 'opacity' : 'material.opacity';
@@ -410,7 +413,7 @@ AFRAME.registerComponent('player-info', {
             } else {
                 // Create phantom avatar for 'out' effect
                 // We only query the top-level parts we want to clone.
-                const visuals = el.querySelectorAll('.head, .face, .nametag, .mic-indicator, .webcam-container');
+                const visuals = el.querySelectorAll('.head, .face, .nametag, .mic-indicator');
                 visuals.forEach(v => {
                     const clone = v.cloneNode(true);
 
@@ -418,7 +421,20 @@ AFRAME.registerComponent('player-info', {
                     const applyProperties = (node) => {
                         const isText = node.tagName && node.tagName.toLowerCase() === 'a-text';
                         const isHead = node.classList && node.classList.contains('head');
+                        const isFace = node.classList && node.classList.contains('face');
                         const isEyePart = node.classList && (node.classList.contains('eye') || node.classList.contains('pupil') || node.classList.contains('eyelid'));
+
+                        // Ensure avatar is visible for the exit effect even if it was hidden (e.g. in webcam mode)
+                        if (isHead || isFace) {
+                            node.setAttribute('visible', true);
+                        }
+
+                        if (node.removeAttribute) {
+                            // Strip networked components from clones to prevent initialization errors
+                            node.removeAttribute('networked-audio-source');
+                            node.removeAttribute('networked-video-source');
+                            node.removeAttribute('id');
+                        }
 
                         if (!isText && node.setAttribute) {
                             // Enable depthWrite to allow head to mask eyes
