@@ -67,6 +67,7 @@
         window.loadingStatus.network &&
         window.loadingStatus.stars &&
         window.loadingStatus.sync &&
+        window.loadingStatus.spawn &&
         window.localPlayerSpawned) {
         const overlay = document.getElementById('loading-overlay');
         if (overlay && overlay.style.display !== 'none') {
@@ -79,15 +80,17 @@
     }
 
 
-    function updateLoadingIndicator(type, status) {
+    function updateLoadingIndicator(type, status, subStatus) {
       window.loadingStatus[type] = status;
       const item = document.getElementById(`status-${type}`);
+      const subItem = document.getElementById(`status-${type}-sub`);
       const isSolo = new URLSearchParams(window.location.search).get('room') === 'none';
 
       if (item) {
         // Hide network/sync steps in solo mode
         if (isSolo && (type === 'network' || type === 'sync')) {
           item.style.display = 'none';
+          if (subItem) subItem.style.display = 'none';
           return;
         }
 
@@ -95,28 +98,139 @@
           item.classList.remove('active');
           item.classList.add('complete');
           item.querySelector('.icon').textContent = '✓';
+
+          // Hide sub-item when complete
+          if (subItem) {
+            subItem.style.display = 'none';
+          }
+
           if (type === 'network') {
             const urlParams = new URLSearchParams(window.location.search);
             const room = urlParams.get('room') || 'default';
             item.querySelector('.label').textContent = `Connected to Room: ${room}`;
           } else if (type === 'assets') {
-            item.querySelector('.label').textContent = 'Modules Ready';
+            item.querySelector('.label').textContent = 'Application Initialized';
+            // Hide progress bar
+            const progressItem = document.getElementById('status-assets-progress');
+            if (progressItem) progressItem.style.display = 'none';
           } else if (type === 'stars') {
-            item.querySelector('.label').textContent = 'Star Map Processed';
+            item.querySelector('.label').textContent = 'Star Catalog Loaded';
+            // Hide progress bar
+            const progressItem = document.getElementById('status-stars-progress');
+            if (progressItem) progressItem.style.display = 'none';
           } else if (type === 'sync') {
-            item.querySelector('.label').textContent = 'Universe Synchronized';
+            item.querySelector('.label').textContent = 'Reality Synchronized';
+          } else if (type === 'spawn') {
+            item.querySelector('.label').textContent = 'Arrival Complete';
           }
         } else {
           item.classList.add('active');
           item.querySelector('.icon').textContent = '○';
+
+          // Show sub-item when active
+          if (subItem && subStatus) {
+            subItem.style.display = 'flex';
+          }
         }
       }
       checkLoadingComplete();
     }
 
+    // Function to update progress bar for star data
+    function updateStarProgress(percent) {
+      const progressBar = document.getElementById('stars-progress-bar');
+      const progressText = document.getElementById('stars-progress-text');
+      const progressItem = document.getElementById('status-stars-progress');
+
+      percent = Math.min(Math.max(0, percent), 100);
+
+      if (progressItem) {
+        progressItem.style.display = 'flex';
+      }
+
+      if (progressBar) {
+        progressBar.style.width = percent + '%';
+      }
+
+      if (progressText) {
+        progressText.textContent = Math.floor(percent) + '%';
+      }
+    }
+
+    // Function to update progress bar for assets
+    function updateAssetProgress(percent) {
+      const progressBar = document.getElementById('assets-progress-bar');
+      const progressText = document.getElementById('assets-progress-text');
+      const progressItem = document.getElementById('status-assets-progress');
+
+      // Cap at 100%
+      percent = Math.min(percent, 100);
+
+      if (progressItem) {
+        progressItem.style.display = 'flex';
+      }
+
+      if (progressBar) {
+        progressBar.style.width = percent + '%';
+      }
+
+      if (progressText) {
+        progressText.textContent = Math.floor(percent) + '%';
+      }
+    }
+
+    // Track asset loading
+    window.assetTracker = {
+      total: 0,
+      loaded: 0,
+      init: function () {
+        // Count all assets in a-assets
+        const assetsEl = document.querySelector('a-assets');
+        if (assetsEl) {
+          const images = assetsEl.querySelectorAll('img');
+          const scripts = assetsEl.querySelectorAll('script');
+          this.total = images.length + scripts.length;
+
+          // Show progress bar
+          updateAssetProgress(0);
+
+          // Track images
+          images.forEach(img => {
+            if (img.complete) {
+              this.onAssetLoaded();
+            } else {
+              img.addEventListener('load', () => this.onAssetLoaded());
+              img.addEventListener('error', () => this.onAssetLoaded());
+            }
+          });
+
+          // Track scripts
+          scripts.forEach(script => {
+            script.addEventListener('load', () => this.onAssetLoaded());
+            script.addEventListener('error', () => this.onAssetLoaded());
+          });
+        }
+      },
+      onAssetLoaded: function () {
+        this.loaded++;
+        const percent = (this.loaded / this.total) * 100;
+        updateAssetProgress(percent);
+
+        if (this.loaded >= this.total) {
+          // Show sub-item when assets are loading
+          const assetsSubItem = document.getElementById('status-assets-sub');
+          if (assetsSubItem) {
+            assetsSubItem.style.display = 'flex';
+          }
+        }
+      }
+    };
+
+
     window.onLocalPlayerSpawned = function () {
       console.log("Local player spawned and positioned. Fading loading screen.");
       window.localPlayerSpawned = true;
+      updateLoadingIndicator('spawn', true);
       checkLoadingComplete();
     };
 
@@ -140,7 +254,7 @@
           fallbackMsg.style.display = 'block';
         }
       }
-    }, 8000); // Show after 8 seconds of waiting for network
+    }, 10000); // Show after 10 seconds of waiting for network
 
     window.joinWithoutAudio = function () {
       const url = new URL(window.location.href);
@@ -230,6 +344,7 @@
             if (!incomingIsInit) {
               window.skyStateInitialized = true;
               updateLoadingIndicator('sync', true);
+              updateLoadingIndicator('spawn', false, true); // Show "Selecting seat and spawning..."
             }
           }
         }
@@ -321,6 +436,7 @@
           }
           window.skyStateInitialized = true;
           updateLoadingIndicator('sync', true);
+          updateLoadingIndicator('spawn', false, true); // Show "Selecting seat and spawning..."
         }
 
         if (isRemote) {
@@ -679,6 +795,12 @@
           const audioEnabledForScene = true;
           const videoEnabledForScene = true;
 
+          // Show network sub-item
+          const networkSubItem = document.getElementById('status-network-sub');
+          if (networkSubItem) {
+            networkSubItem.style.display = 'flex';
+          }
+
           // CRITICAL: We must rebuild the attribute string because multiple setAttributes might fail with NAF's parser
           const config = `
             room: ${roomParam};
@@ -700,6 +822,7 @@
           setTimeout(() => {
             updateLoadingIndicator('network', true);
             updateLoadingIndicator('sync', true);
+            updateLoadingIndicator('spawn', false, true); // Show "Selecting seat and spawning..."
           }, 100);
         }
 
@@ -746,6 +869,18 @@
       console.log('onConnect', new Date());
       updateLoadingIndicator('network', true);
       window.loadingStatus.network = true;
+
+      // Hide the fallback message if it was shown
+      const fallbackMsg = document.getElementById('network-fallback');
+      if (fallbackMsg) {
+        fallbackMsg.style.display = 'none';
+      }
+
+      // Show sync sub-item as we start synchronizing
+      const syncSubItem = document.getElementById('status-sync-sub');
+      if (syncSubItem && !window.skyStateInitialized) {
+        syncSubItem.style.display = 'flex';
+      }
 
       const urlParams = new URL(window.location.href).searchParams;
       const micEnabledParam = urlParams.get('mic') !== 'false';
@@ -1408,19 +1543,55 @@
       <ul class="status-list">
         <li id="status-assets" class="status-item active">
           <span class="icon">○</span>
-          <span class="label">Preloading Assets...</span>
+          <span class="label">Initializing Application...</span>
+        </li>
+        <li id="status-assets-progress" class="status-item sub-item" style="display: none;">
+          <div class="progress-bar-container">
+            <div id="assets-progress-bar" class="progress-bar"></div>
+            <span id="assets-progress-text" class="progress-text">0%</span>
+          </div>
+        </li>
+        <li id="status-assets-sub" class="status-item sub-item" style="display: none;">
+          <span class="icon">→</span>
+          <span class="label">Loading A-Frame Scene...</span>
         </li>
         <li id="status-network" class="status-item active">
           <span class="icon">○</span>
           <span class="label">Connecting to Network...</span>
         </li>
+        <li id="status-network-sub" class="status-item sub-item" style="display: none;">
+          <span class="icon">→</span>
+          <span class="label">Requesting microphone access...</span>
+        </li>
         <li id="status-stars" class="status-item active">
           <span class="icon">○</span>
-          <span class="label">Downloading Star Data (35MB)...</span>
+          <span class="label">Downloading Star Catalog...</span>
+        </li>
+        <li id="status-stars-progress" class="status-item sub-item" style="display: none;">
+          <div class="progress-bar-container">
+            <div id="stars-progress-bar" class="progress-bar"></div>
+            <span id="stars-progress-text" class="progress-text">0%</span>
+          </div>
+        </li>
+        <li id="status-stars-sub" class="status-item sub-item" style="display: none;">
+          <span class="icon">→</span>
+          <span class="label">Processing 118,000 stars...</span>
         </li>
         <li id="status-sync" class="status-item active">
           <span class="icon">○</span>
           <span class="label">Synchronizing Reality...</span>
+        </li>
+        <li id="status-sync-sub" class="status-item sub-item" style="display: none;">
+          <span class="icon">→</span>
+          <span class="label">Calculating celestial positions...</span>
+        </li>
+        <li id="status-spawn" class="status-item active">
+          <span class="icon">○</span>
+          <span class="label">Entering Simulation...</span>
+        </li>
+        <li id="status-spawn-sub" class="status-item sub-item" style="display: none;">
+          <span class="icon">→</span>
+          <span class="label">Selecting seat and spawning...</span>
         </li>
       </ul>
 
@@ -1435,7 +1606,10 @@
           border-radius: 8px;
           cursor: pointer;
           font-family: inherit;
-        ">Join without Audio</button>
+          margin-bottom: 0.75rem;
+        ">Join without microphone</button>
+        <p style="font-size: 0.8rem; opacity: 0.6; margin: 0;">You can still hear other players without a microphone.
+        </p>
       </div>
 
     </div>
@@ -2531,6 +2705,11 @@
       // });
 
       document.addEventListener('DOMContentLoaded', function () {
+        // Initialize asset tracker
+        if (window.assetTracker) {
+          window.assetTracker.init();
+        }
+
         const scene = document.querySelector('a-scene');
         if (scene) {
           if (scene.hasLoaded) {

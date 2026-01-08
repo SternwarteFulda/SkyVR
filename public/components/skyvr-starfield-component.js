@@ -173,7 +173,56 @@ AFRAME.registerComponent('starfield', {
       return start + (end - start) * factor;
     }
     fetch("data/hyglike_from_athyg_v31.csv")
-      .then(response => response.text())
+      .then(response => {
+        const reader = response.body.getReader();
+        const contentLength = response.headers.get('Content-Length');
+        let receivedLength = 0;
+        let chunks = [];
+
+        // Show progress bar
+        if (typeof updateStarProgress === 'function') {
+          updateStarProgress(0);
+        }
+
+        return reader.read().then(function processText({ done, value }) {
+          if (done) {
+            // Set to 100% when download is complete
+            if (typeof updateStarProgress === 'function') {
+              updateStarProgress(100);
+            }
+
+            // Combine all chunks into a single Uint8Array
+            let chunksAll = new Uint8Array(receivedLength);
+            let position = 0;
+            for (let chunk of chunks) {
+              chunksAll.set(chunk, position);
+              position += chunk.length;
+            }
+
+            // Convert to text
+            const text = new TextDecoder("utf-8").decode(chunksAll);
+
+            // Show processing sub-item
+            const starsSubItem = document.getElementById('status-stars-sub');
+            if (starsSubItem) {
+              starsSubItem.style.display = 'flex';
+            }
+
+            return text;
+          }
+
+          chunks.push(value);
+          receivedLength += value.length;
+
+          // Update progress
+          if (contentLength && typeof updateStarProgress === 'function') {
+            const percent = (receivedLength / contentLength) * 100;
+            updateStarProgress(percent);
+          }
+
+          return reader.read().then(processText);
+        });
+      })
       .then(csvData => {
         const halos = createStarsFromCSV(csvData, "halos");
         el.object3D.add(halos);
