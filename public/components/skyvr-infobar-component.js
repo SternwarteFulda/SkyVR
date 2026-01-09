@@ -62,6 +62,9 @@ AFRAME.registerComponent('skyvr-infobar', {
             drawExtras: document.getElementById('infobar-2d-draw-extras'),
             drawUndo: document.getElementById('infobar-2d-draw-undo'),
             drawClear: document.getElementById('infobar-2d-draw-clear'),
+            stickfigureExtras: document.getElementById('infobar-2d-stickfigure-extras'),
+            showAllStick: document.getElementById('infobar-2d-show-all-stick'),
+            clearAllStick: document.getElementById('infobar-2d-clear-all-stick'),
             constellationExtras: document.getElementById('infobar-2d-constellation-extras'),
             showAll: document.getElementById('infobar-2d-show-all'),
             clearAll: document.getElementById('infobar-2d-clear-all'),
@@ -415,7 +418,9 @@ AFRAME.registerComponent('skyvr-infobar', {
             const btn = this.ui2d.modes[modeId];
             if (btn) {
                 btn.addEventListener('click', () => {
-                    window.currentMode = (window.currentMode === modeId) ? 'none' : modeId;
+                    const newMode = (window.currentMode === modeId) ? 'none' : modeId;
+                    console.log('Mode button clicked:', modeId, 'currentMode:', window.currentMode, '-> newMode:', newMode);
+                    window.currentMode = newMode;
                 });
             }
         });
@@ -467,6 +472,25 @@ AFRAME.registerComponent('skyvr-infobar', {
 
         if (this.ui2d.clearAll) {
             this.ui2d.clearAll.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const renderer = document.getElementById('constellation-lines')?.components['constellation-renderer'];
+                if (renderer) renderer.clearAllIllustrations();
+                if (typeof syncSky === 'function') syncSky();
+            });
+        }
+
+        // Stick Figure Extras
+        if (this.ui2d.showAllStick) {
+            this.ui2d.showAllStick.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const renderer = document.getElementById('constellation-lines')?.components['constellation-renderer'];
+                if (renderer) renderer.showAllIllustrations('stick');
+                if (typeof syncSky === 'function') syncSky();
+            });
+        }
+
+        if (this.ui2d.clearAllStick) {
+            this.ui2d.clearAllStick.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const renderer = document.getElementById('constellation-lines')?.components['constellation-renderer'];
                 if (renderer) renderer.clearAllIllustrations();
@@ -875,6 +899,9 @@ AFRAME.registerComponent('skyvr-infobar', {
             // Toggle extras menus
             if (this.ui2d.drawExtras) {
                 this.ui2d.drawExtras.classList.toggle('show', currentMode === 'draw' && !window.isAutoDrawing);
+            }
+            if (this.ui2d.stickfigureExtras) {
+                this.ui2d.stickfigureExtras.classList.toggle('show', currentMode === 'stickfigure');
             }
             if (this.ui2d.constellationExtras) {
                 this.ui2d.constellationExtras.classList.toggle('show', currentMode === 'constellation');

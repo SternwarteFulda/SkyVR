@@ -81,6 +81,7 @@ AFRAME.registerComponent('constellation-illustration', {
         this.currentOpacity = 0;
         this.targetOpacity = this.data.opacity;
         this.isRemoving = false;
+        this.isHighlighted = false;
         this.el.classList.add('networked-illustration');
 
         // Ensure networked illustrations are in the constellation-lines entity to maintain tilt alignment
@@ -148,12 +149,29 @@ AFRAME.registerComponent('constellation-illustration', {
 
     tick: function (t, dt) {
         if (!dt || !this.mesh) return;
-        const lerpFactor = 1 - Math.pow(0.001, dt / 1000); // Fast fade
+
+        // Faster bloom for entities (~200ms)
+        let lerpFactor;
+        if (this.targetOpacity > this.currentOpacity) {
+            lerpFactor = 1 - Math.pow(0.01, dt / 1000);
+        } else {
+            lerpFactor = 1 - Math.pow(0.01, dt / 1000);
+        }
 
         this.currentOpacity += (this.targetOpacity - this.currentOpacity) * lerpFactor;
 
-        if (this.mesh.material && this.mesh.material.uniforms && this.mesh.material.uniforms.opacity) {
-            this.mesh.material.uniforms.opacity.value = this.currentOpacity;
+        if (this.mesh.material && this.mesh.material.uniforms) {
+            if (this.mesh.material.uniforms.opacity) {
+                this.mesh.material.uniforms.opacity.value = this.currentOpacity;
+            }
+            if (this.mesh.material.uniforms.color) {
+                const baseCol = new THREE.Color('#ffffff');
+                // Turn redish if up for removal OR being pointed at
+                if (this.isRemoving || this.isHighlighted) {
+                    baseCol.lerp(new THREE.Color('#ff4444'), 0.8);
+                }
+                this.mesh.material.uniforms.color.value.copy(baseCol);
+            }
         }
 
         if (this.isRemoving && this.currentOpacity < 0.01) {
@@ -264,6 +282,7 @@ AFRAME.registerComponent('constellation-illustration', {
 
 
     setHighlight: function (enabled) {
+        this.isHighlighted = enabled;
         if (!this.mesh || !this.mesh.material || !this.mesh.material.uniforms) return;
         const target = enabled ? 0.3 : 0.0;
         this.mesh.material.uniforms.highlightStrength.value = target;
@@ -276,5 +295,172 @@ AFRAME.registerComponent('constellation-illustration', {
             if (this.mesh.geometry) this.mesh.geometry.dispose();
             if (this.mesh.material) this.mesh.material.dispose();
         }
+    }
+});
+AFRAME.registerComponent('constellation-stick-figure', {
+    schema: {
+        constellationId: { type: 'string' },
+        color: { type: 'color', default: '#00ffff' },
+        opacity: { type: 'number', default: 1.0 }
+    },
+
+    init: function () {
+        this.renderer = null;
+        this.rendererReady = false;
+        this.mesh = null;
+        this.currentOpacity = 0;
+        this.targetOpacity = this.data.opacity;
+        this.isRemoving = false;
+        this.isHighlighted = false;
+        this.pulseOffset = Math.random() * 10000; // Unique offset for each constellation
+        this.el.classList.add('networked-stick-figure');
+
+        // Container placement (same as illustrations)
+        const container = document.getElementById('constellation-lines');
+        if (container && this.el.parentNode !== container) {
+            container.appendChild(this.el);
+        }
+
+        const checkRenderer = () => {
+            const rendererEl = document.getElementById('constellation-lines');
+            if (rendererEl && rendererEl.components['constellation-renderer']) {
+                const comp = rendererEl.components['constellation-renderer'];
+                if (comp.loadingComplete) {
+                    this.renderer = comp;
+                    this.rendererReady = true;
+                    this.setupStickFigure();
+                    return;
+                }
+            }
+            setTimeout(checkRenderer, 200);
+        };
+        checkRenderer();
+    },
+
+    update: function (oldData) {
+        if (this.data.constellationId !== oldData.constellationId && this.rendererReady) {
+            this.setupStickFigure();
+        }
+        this.targetOpacity = this.data.opacity;
+    },
+
+    tick: function (t, dt) {
+        if (!dt || !this.mesh) return;
+
+        // Faster bloom for entities (~200ms)
+        let lerpFactor;
+        if (this.targetOpacity > this.currentOpacity) {
+            lerpFactor = 1 - Math.pow(0.01, dt / 1000);
+        } else {
+            lerpFactor = 1 - Math.pow(0.01, dt / 1000);
+        }
+
+        // Smooth fade
+        this.currentOpacity += (this.targetOpacity - this.currentOpacity) * lerpFactor;
+
+        // Flash decay (transient peak on stamp)
+        if (!this.flashValue) this.flashValue = 0;
+        if (this.flashValue > 0) {
+            this.flashValue -= dt / 1500; // 1.5s decay
+            if (this.flashValue < 0) this.flashValue = 0;
+        }
+
+        // Breathing effect with random offset
+        const pulse = 0.75 + Math.sin((t + this.pulseOffset) / 800) * 0.25;
+        const finalAlpha = this.currentOpacity * pulse * (1.0 + this.flashValue);
+
+        // Detection helper for color enforcement
+        const isZod = this.renderer && this.renderer.isZodiac(this.data.constellationId);
+        const zodiacColor = '#ffd700';
+        const standardColor = '#00ffff';
+
+        this.mesh.traverse(node => {
+            if (node.material && node.material.transparent) {
+                // Layer system (7: Bloom, 8: Inner Glow, 9: Core)
+                let base = 1.0;
+                if (node.renderOrder === 7) base = 0.08;
+                if (node.renderOrder === 8) base = 0.15;
+                if (node.renderOrder === 9) base = 0.3;
+
+                // For shader materials (Core)
+                if (node.material.uniforms && node.material.uniforms.opacity) {
+                    node.material.uniforms.opacity.value = Math.min(finalAlpha * base, 1.0);
+                } else {
+                    node.material.opacity = Math.min(finalAlpha * base, 1.0);
+                }
+
+                // Dynamic Color Enforcement
+                let target = (node.renderOrder === 9)
+                    ? (isZod ? '#fff4cc' : '#ffffff')
+                    : (isZod ? zodiacColor : standardColor);
+
+                // Turn redish if up for removal OR being pointed at
+                if (this.isRemoving || this.isHighlighted) {
+                    const baseCol = new THREE.Color(target);
+                    const redCol = new THREE.Color('#ff4444');
+                    target = baseCol.lerp(redCol, 0.8); // 80% red shift
+                }
+
+                if (node.material.uniforms && node.material.uniforms.color) {
+                    node.material.uniforms.color.value.set(target);
+                } else if (node.material.color) {
+                    node.material.color.set(target);
+                }
+            }
+        });
+
+        if (this.isRemoving && this.currentOpacity < 0.01) {
+            if (this.el.parentNode) this.el.parentNode.removeChild(this.el);
+        }
+    },
+
+    flash: function () {
+        this.flashValue = 1.5; // Strong initial burst
+    },
+
+    fadeOutAndRemove: function () {
+        this.targetOpacity = 0;
+        this.isRemoving = true;
+    },
+
+    setupStickFigure: function () {
+        if (!this.rendererReady || !this.data.constellationId) return;
+
+        if (this.mesh) {
+            this.el.object3D.remove(this.mesh);
+            this.mesh = null;
+        }
+
+        const constellation = this.renderer.constellationData.constellations.find(c => c.id === this.data.constellationId);
+        if (!constellation) return;
+
+        this.mesh = this.renderer.createStickFigure(constellation, this.data.color, 0); // Create with 0 alpha
+        this.el.object3D.add(this.mesh);
+    },
+
+    setHighlight: function (enabled) {
+        this.isHighlighted = enabled;
+        if (!this.mesh) return;
+
+        const isZod = this.renderer && this.renderer.isZodiac(this.data.constellationId);
+        const zodiacColor = '#ffd700';
+        const standardColor = '#00ffff';
+
+        // Use Zodiac gold or Standard Cyan when resetting highlight
+        const baseColor = isZod ? zodiacColor : standardColor;
+        const color = enabled ? '#ff0000' : baseColor;
+        const coreColor = enabled ? '#ff5555' : (isZod ? '#fff4cc' : '#ffffff');
+
+        this.mesh.traverse(node => {
+            if (node.material) {
+                const target = (node.renderOrder === 9) ? coreColor : color;
+
+                if (node.material.uniforms && node.material.uniforms.color) {
+                    node.material.uniforms.color.value.set(target);
+                } else if (node.material.color) {
+                    node.material.color.set(target);
+                }
+            }
+        });
     }
 });

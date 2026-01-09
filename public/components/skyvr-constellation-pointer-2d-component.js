@@ -64,7 +64,11 @@ AFRAME.registerComponent('constellation-pointer-2d', {
     },
 
     onPointerDown: function (e) {
-        if (window.currentMode !== 'constellation' || !this.renderer) return;
+        const currentMode = window.currentMode || 'draw';
+        const isConst = currentMode === 'constellation';
+        const isStick = currentMode === 'stickfigure';
+
+        if ((!isConst && !isStick) || !this.renderer) return;
 
         // Prevent default on pen
         if (e.pointerType === 'pen') {
@@ -77,7 +81,11 @@ AFRAME.registerComponent('constellation-pointer-2d', {
     },
 
     onPointerUp: function (e) {
-        if (window.currentMode !== 'constellation' || !this.renderer) return;
+        const currentMode = window.currentMode || 'draw';
+        const isConst = currentMode === 'constellation';
+        const isStick = currentMode === 'stickfigure';
+
+        if ((!isConst && !isStick) || !this.renderer) return;
         if (e.target.closest('.infobar-2d') || e.target.closest('.control-panel-2d')) return;
 
         // Prevent default on pen
@@ -140,18 +148,23 @@ AFRAME.registerComponent('constellation-pointer-2d', {
                 } else {
                     // Single Tap / Click
                     // Context-aware action: Remove if highlighted, Place if empty
+                    const targetType = (window.currentMode === 'stickfigure') ? 'stick' : 'illustration';
+
                     this.raycaster.setFromCamera(this.mouse, this.el.sceneEl.camera);
                     const pointed = this.renderer.findPointedConstellation(this.raycaster);
 
                     if (pointed) {
-                        if (this.renderer.isIllustrationActive(pointed.id)) {
+                        const isActive = this.renderer.isItemActive(pointed.id, targetType);
+
+                        if (isActive) {
                             // It is active -> Remove it
-                            this.renderer.removeIllustrationById(pointed.id);
+                            this.renderer.removeItemById(pointed.id, targetType);
                         } else {
                             // It is not active -> Place it
-                            this.renderer.placeIllustration();
+                            this.renderer.placeItem(targetType);
                         }
                         if (typeof syncSky === 'function') syncSky();
+                    } else {
                     }
                 }
                 this.lastTapTime = now;
@@ -177,43 +190,62 @@ AFRAME.registerComponent('constellation-pointer-2d', {
 
 
     tick: function () {
-        // Skip if in VR mode to prevent conflict with 3D controller pointer
-        if (this.el.sceneEl.is('vr-mode')) return;
+        if (!this.renderer || !this.renderer.loadingComplete) return;
 
-        if (window.currentMode !== 'constellation' || !this.renderer || !this.renderer.loadingComplete) {
-            // Ensure preview is removed when not in mode
-            if (this.renderer && this.renderer.previewIllustration) {
+        // Prevent conflict with VR pointer if in VR mode
+        if (this.el.sceneEl.is('vr-mode')) {
+            if (this.currentConstellation) {
                 this.renderer.removePreview();
+                this.renderer.clearHighlights();
+                this.currentConstellation = null;
             }
             return;
         }
 
-        const camera = this.el.components.camera.camera;
-        if (!camera) return;
+        const currentMode = window.currentMode || 'draw';
+        const isConstMode = currentMode === 'constellation';
+        const isStickMode = currentMode === 'stickfigure';
+
+        if (!isConstMode && !isStickMode) {
+            if (this.currentConstellation) {
+                this.renderer.removePreview();
+                this.renderer.clearHighlights();
+                this.currentConstellation = null;
+            }
+            return;
+        }
+
+        const targetType = isStickMode ? 'stick' : 'illustration';
 
         // In touch mode or locked pointer mode, always center
         if (this.isTouch || !!document.pointerLockElement) {
             this.mouse.set(0, 0);
         }
 
-        this.raycaster.setFromCamera(this.mouse, camera);
+        // Check if hovering
+        this.raycaster.setFromCamera(this.mouse, this.el.sceneEl.camera);
         const pointed = this.renderer.findPointedConstellation(this.raycaster);
 
-        if (pointed) {
-            const isActive = this.renderer.isIllustrationActive(pointed.id);
+        if (pointed !== this.currentConstellation) { // Corrected condition
+            this.currentConstellation = pointed;
 
-            if (isActive) {
-                // Already placed -> Highlight for removal
-                this.renderer.removePreview();
-                this.renderer.highlightIllustration(pointed.id);
+            if (pointed) {
+                const isActive = this.renderer.isItemActive(pointed.id, targetType);
+
+                if (isActive) {
+                    // Already placed -> Highlight for removal
+                    this.renderer.removePreview();
+                    this.renderer.clearHighlights();
+                    this.renderer.highlightItem(pointed.id, targetType);
+                } else {
+                    // Not placed -> Show ghost preview
+                    this.renderer.clearHighlights();
+                    this.renderer.updatePreview(pointed);
+                }
             } else {
-                // Not placed -> Show ghost preview
+                this.renderer.removePreview();
                 this.renderer.clearHighlights();
-                this.renderer.updatePreview(pointed);
             }
-        } else {
-            this.renderer.removePreview();
-            this.renderer.clearHighlights();
         }
     },
 

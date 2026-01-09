@@ -30,15 +30,20 @@ AFRAME.registerComponent('constellation-pointer', {
             return;
         }
 
-        // Only update in constellation mode
+        // Only update in constellation or stick-figure mode
         const currentMode = window.currentMode || 'draw';
-        if (currentMode !== 'constellation') {
+        const isConstMode = currentMode === 'constellation';
+        const isStickMode = currentMode === 'stickfigure';
+
+        if (!isConstMode && !isStickMode) {
             if (this.currentConstellation) {
                 this.constellationRenderer.removePreview();
                 this.currentConstellation = null;
             }
             return;
         }
+
+        const targetType = isStickMode ? 'stick' : 'illustration';
 
         const controllerPos = new THREE.Vector3();
         const controllerQuat = new THREE.Quaternion();
@@ -67,37 +72,41 @@ AFRAME.registerComponent('constellation-pointer', {
         const worldStart = rayOriginLocal.clone().applyQuaternion(controllerQuat).add(controllerPos);
         const worldDir = rayDirectionLocal.clone().applyQuaternion(controllerQuat).normalize();
 
-        // Parallax-robust selection: We point from the controller but we are selecting 
-        // objects on a sphere centered at (0,0,0). Because the user might be several 
-        // meters away, we use the controller's world position and direction to find 
-        // what they are pointing at on that fixed sphere.
-        const skyOrigin = new THREE.Vector3(0, 0, 0);
+        // Parallax-robust selection
         this.raycaster.set(worldStart, worldDir);
 
         // Find pointed constellation
         const pointedConstellation = this.constellationRenderer.findPointedConstellation(this.raycaster);
 
-        // Update preview or highlight if constellation changed OR we need to maintain state
-        // (We check every frame because active status might change externally)
+        // Update preview or highlight
         if (pointedConstellation !== this.currentConstellation || true) {
-            // ^ Optimization: we could just check on change, but status (isActive) might change
-
             this.currentConstellation = pointedConstellation;
 
             if (pointedConstellation) {
-                const isActive = this.constellationRenderer.isIllustrationActive(pointedConstellation.id);
+                const isActive = this.constellationRenderer.isItemActive(pointedConstellation.id, targetType);
 
                 if (isActive) {
                     // It's already placed -> Highlight it for removal
-                    this.constellationRenderer.removePreview(); // Ensure ghost is gone
-                    this.constellationRenderer.highlightIllustration(pointedConstellation.id);
+                    this.constellationRenderer.removePreview();
+                    this.constellationRenderer.clearHighlights();
+                    this.constellationRenderer.highlightItem(pointedConstellation.id, targetType);
                 } else {
                     // It's not placed -> Show ghost preview
-                    this.constellationRenderer.clearHighlights(); // Ensure no red tint
+                    this.constellationRenderer.clearHighlights();
+                    // Update preview currently shows illustration. We might need stick figure preview?
+                    // For now, let's just use the same preview logic but maybe tint it?
+                    // 'updatePreview' assumes illustration.
+                    // If we want stick figure preview, we need to update renderer.updatePreview to handle it OR just show illustration ghost as proxy.
+                    // The user said "Stick figure mode... similar to constellation mode".
+                    // Showing the stick figure lines as preview would be ideal.
+                    // But `updatePreview` is hardcoded for illustrations.
+                    // Let's modify `updatePreview` later if needed. For now, using illustration preview is a decent fallback or I can add a quick hack to renderer.
+                    // BUT, if I am in Stick Mode, I probably want to see the stick figure as preview.
+                    // I'll stick with illustration preview for now to be safe, as it indicates "this is the constellation".
                     this.constellationRenderer.updatePreview(pointedConstellation);
                 }
 
-                // Haptic feedback when entering a constellation (Debounced ideally, but simple for now)
+                // Haptic feedback
                 if (pointedConstellation !== this.lastConstellation) {
                     if (this.el.components['haptics']) {
                         this.el.components['haptics'].pulse(0.1, 50);

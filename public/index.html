@@ -477,6 +477,7 @@
             try {
               const activeItems = JSON.parse(this.data.activeConstellations);
               console.log('Sky State: Triggering renderer sync with', activeItems.length, 'items');
+              console.log('Sky State: First 3 items:', activeItems.slice(0, 3));
               renderer.syncConstellations(activeItems);
             } catch (e) {
               console.error('Sky State: Error parsing activeConstellations:', e, this.data.activeConstellations);
@@ -1675,9 +1676,20 @@
           </button>
         </div>
       </div>
-      <button id="infobar-2d-stickfigure" class="infobar-2d-button" title="Stick Figure" data-mode="stickfigure">
-        <img src="assets/icons/stickfigure.svg">
-      </button>
+      <div style="position: relative;">
+        <button id="infobar-2d-stickfigure" class="infobar-2d-button" title="Stick Figure" data-mode="stickfigure">
+          <img src="assets/icons/stickfigure.svg">
+        </button>
+        <div id="infobar-2d-stickfigure-extras" class="infobar-extra-buttons-vertical">
+          <button id="infobar-2d-show-all-stick" class="infobar-2d-button" title="Show All Stick Figures">
+            <img src="assets/icons/stickfigure.svg" style="filter: drop-shadow(0 0 5px #8a2be2);">
+          </button>
+          <button id="infobar-2d-clear-all-stick" class="infobar-2d-button" title="Clear All Stick Figures">
+            <img src="assets/icons/draw.svg"
+              style="filter: hue-rotate(180deg) brightness(1.5) drop-shadow(0 0 5px #ff4444); transform: scaleX(-1);">
+          </button>
+        </div>
+      </div>
       <div style="position: relative;">
         <button id="infobar-2d-constellation" class="infobar-2d-button" title="Constellation" data-mode="constellation">
           <img src="assets/icons/constellation.svg">
@@ -2414,7 +2426,14 @@
           }
 
           const renderer = document.getElementById('constellation-lines')?.components['constellation-renderer'];
-          const constellationData = renderer ? JSON.stringify(renderer.placedIllustrations.map(e => e.dataset.constellationId).filter(id => id)) : sharedConst;
+          const constellationData = renderer ? JSON.stringify(
+            renderer.placedIllustrations.map(e => {
+              const id = e.dataset.constellationId;
+              const type = e.dataset.type || 'illustration';
+              // Return string for illustrations (backward compat), object for others
+              return type === 'illustration' ? id : { id: id, type: type };
+            }).filter(item => item && (typeof item === 'string' || item.id))
+          ) : sharedConst;
 
           if (!silent) {
             // Only log if it's been a while to avoid console flood during scrubbing
@@ -3102,15 +3121,23 @@
           const currentMode = window.currentMode || 'draw';
           if (currentMode === 'draw') {
             if (rightController.components.drawing) rightController.components.drawing.clearLastSegment();
-          } else if (currentMode === 'constellation') {
+          } else if (currentMode === 'constellation' || currentMode === 'stickfigure') {
+            // A button = Remove only (eraser)
             const renderer = document.getElementById('constellation-lines').components['constellation-renderer'];
             const pointer = rightController.components['constellation-pointer'];
 
             if (renderer && pointer && pointer.currentConstellation) {
               const id = pointer.currentConstellation.id;
-              if (renderer.isIllustrationActive(id)) {
-                renderer.removeIllustrationById(id);
-                if (rightController.components['haptics']) rightController.components['haptics'].pulse(0.2, 50);
+              const targetType = currentMode === 'stickfigure' ? 'stick' : 'illustration';
+
+              if (renderer.isItemActive(id, targetType)) {
+                renderer.removeItemById(id, targetType);
+                // Unified haptic fallback
+                if (rightController.components['haptics']) rightController.components['haptics'].pulse(0.4, 50);
+                const gamepad = rightController.components['tracked-controls']?.controller;
+                if (gamepad?.hapticActuators?.length > 0) gamepad.hapticActuators[0].pulse(0.4, 50);
+
+                if (typeof syncSky === 'function') syncSky();
               }
             }
           }
@@ -3131,16 +3158,20 @@
         if (!bHoldActionTriggered) {
           if (currentMode === 'draw') {
             rightController.components.drawing.stopDrawing();
-          } else if (currentMode === 'constellation') {
-            console.log('B button up: Placing constellation illustration');
+          } else if (currentMode === 'constellation' || currentMode === 'stickfigure') {
+            // B button = Place/Stamp
+            console.log('B button up: Placing', currentMode === 'stickfigure' ? 'stick figure' : 'constellation illustration');
             const constellationLines = document.getElementById('constellation-lines');
             if (constellationLines && constellationLines.components['constellation-renderer']) {
               const renderer = constellationLines.components['constellation-renderer'];
-              renderer.placeIllustration();
-              // Haptics on stamp
-              if (rightController.components['haptics']) {
-                rightController.components['haptics'].pulse(0.3, 100);
-              }
+              const targetType = currentMode === 'stickfigure' ? 'stick' : 'illustration';
+              renderer.placeItem(targetType);
+              // Unified haptic fallback
+              if (rightController.components['haptics']) rightController.components['haptics'].pulse(0.5, 100);
+              const gamepad = rightController.components['tracked-controls']?.controller;
+              if (gamepad?.hapticActuators?.length > 0) gamepad.hapticActuators[0].pulse(0.5, 100);
+
+              if (typeof syncSky === 'function') syncSky();
             }
           }
         } else {
@@ -3362,11 +3393,18 @@
             if (comp) {
               comp.clearDrawing();
             }
-          } else if (currentMode === 'constellation') {
+          } else if (currentMode === 'constellation' || currentMode === 'stickfigure') {
+            console.log('VR A-button hold: Clearing all in mode', currentMode);
             const constellationLines = document.getElementById('constellation-lines');
             if (constellationLines && constellationLines.components['constellation-renderer']) {
               const renderer = constellationLines.components['constellation-renderer'];
               renderer.clearAllIllustrations();
+              // Haptic feedback for clear all
+              if (rightController.components['haptics']) {
+                rightController.components['haptics'].pulse(0.8, 300);
+              }
+              const gamepad = rightController.components['tracked-controls']?.controller;
+              if (gamepad?.hapticActuators?.length > 0) gamepad.hapticActuators[0].pulse(0.8, 300);
             }
           }
 
@@ -3393,7 +3431,7 @@
         if (currentHoldDuration >= HOLD_DURATION_THRESHOLD) {
           const currentMode = window.currentMode || 'draw';
 
-          if (currentMode === 'constellation') {
+          if (currentMode === 'constellation' || currentMode === 'stickfigure') {
             const constellationLines = document.getElementById('constellation-lines');
             if (constellationLines && constellationLines.components['constellation-renderer']) {
               const renderer = constellationLines.components['constellation-renderer'];
