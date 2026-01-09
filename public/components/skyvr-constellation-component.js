@@ -9,6 +9,9 @@ AFRAME.registerComponent('constellation-renderer', {
         stickFigureWidth: { type: 'number', default: 3 },
         radius: { type: 'number', default: 400 },
         showLines: { type: 'boolean', default: false },
+        showBoundaries: { type: 'boolean', default: false },
+        boundaryColor: { type: 'color', default: '#ff4444' },
+        boundaryOpacity: { type: 'number', default: 0.2 },
         illustrationOpacity: { type: 'number', default: 0.1 }
     },
 
@@ -17,6 +20,7 @@ AFRAME.registerComponent('constellation-renderer', {
         this.constellationData = null;
         this.starPositions = new Map();
         this.constellationLines = [];
+        this.boundaryLines = [];
         this.placedIllustrations = [];
         this.currentPointedConstellation = null;
         this.textureCache = new Map();
@@ -32,6 +36,9 @@ AFRAME.registerComponent('constellation-renderer', {
                 this.loadingComplete = true;
                 if (this.data.showLines) {
                     this.renderConstellationLines();
+                }
+                if (this.data.showBoundaries) {
+                    this.renderBoundaries();
                 }
                 if (this.pendingSyncData) {
                     console.log('Applying pending constellation sync after load');
@@ -179,10 +186,94 @@ AFRAME.registerComponent('constellation-renderer', {
 
     clearConstellationLines: function () {
         this.constellationLines.forEach(line => {
-            this.el.object3D.remove(line);
+            if (line.parent) line.parent.remove(line);
             if (line.geometry) line.geometry.dispose();
+            // Material is shared, so we don't dispose it here
         });
         this.constellationLines = [];
+    },
+
+    renderBoundaries: function () {
+        this.clearBoundaries();
+        if (!this.constellationData || !this.constellationData.edges) {
+            console.warn('renderBoundaries: No edge data available');
+            return;
+        }
+
+        const material = new THREE.LineBasicMaterial({
+            color: new THREE.Color(this.data.boundaryColor),
+            opacity: this.data.boundaryOpacity,
+            transparent: true,
+            fog: false,
+            linewidth: 1,
+            depthWrite: false,
+            depthTest: true
+        });
+
+        let totalSegments = 0;
+        this.constellationData.edges.forEach(edgeStr => {
+            const parts = edgeStr.trim().split(/\s+/);
+            if (parts.length < 6) return;
+
+            // Format: "ID Type RA1 Dec1 RA2 Dec2 ..."
+            const ra1 = this.parseHms(parts[2]);
+            const dec1 = this.parseDms(parts[3]);
+            const ra2 = this.parseHms(parts[4]);
+            const dec2 = this.parseDms(parts[5]);
+
+            if (isNaN(ra1) || isNaN(dec1) || isNaN(ra2) || isNaN(dec2)) return;
+
+            // Normalize RA difference for shortest path across 0/24h meridian
+            let dra = ra2 - ra1;
+            if (dra > 12) dra -= 24;
+            if (dra < -12) dra += 24;
+
+            // Subdivide to follow curvature (roughly 1 step per degree of sky)
+            const points = [];
+            const steps = Math.max(1, Math.floor(Math.abs(dra) * 15 + Math.abs(dec2 - dec1)));
+
+            for (let i = 0; i <= steps; i++) {
+                const t = i / steps;
+                const r = ra1 + dra * t;
+                const d = dec1 + (dec2 - dec1) * t;
+                points.push(this.raDecToPosition(r, d, this.data.radius));
+            }
+
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const line = new THREE.Line(geometry, material);
+            line.name = 'iau-boundary';
+            line.renderOrder = 6;
+
+            this.el.object3D.add(line);
+            this.boundaryLines.push(line);
+            totalSegments++;
+        });
+
+        console.log(`Rendered ${totalSegments} IAU boundary segments`);
+    },
+
+    clearBoundaries: function () {
+        this.boundaryLines.forEach(line => {
+            if (line.parent) line.parent.remove(line);
+            if (line.geometry) line.geometry.dispose();
+        });
+        this.boundaryLines = [];
+    },
+
+    parseHms: function (hms) {
+        if (!hms) return NaN;
+        const parts = hms.split(':');
+        if (parts.length < 2) return parseFloat(hms);
+        return parseFloat(parts[0]) + (parseFloat(parts[1]) || 0) / 60 + (parseFloat(parts[2]) || 0) / 3600;
+    },
+
+    parseDms: function (dms) {
+        if (!dms) return NaN;
+        const sign = dms.startsWith('-') ? -1 : 1;
+        const clean = dms.replace(/^[+-]/, '');
+        const parts = clean.split(':');
+        if (parts.length < 2) return parseFloat(dms);
+        return sign * (parseFloat(parts[0]) + (parseFloat(parts[1]) || 0) / 60 + (parseFloat(parts[2]) || 0) / 3600);
     },
 
 
@@ -1060,6 +1151,13 @@ AFRAME.registerComponent('constellation-renderer', {
                     this.renderConstellationLines();
                 } else {
                     this.clearConstellationLines();
+                }
+            }
+            if (this.data.showBoundaries !== oldData.showBoundaries) {
+                if (this.data.showBoundaries) {
+                    this.renderBoundaries();
+                } else {
+                    this.clearBoundaries();
                 }
             }
         }

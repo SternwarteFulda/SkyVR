@@ -280,6 +280,8 @@
         showEcliptic: { type: 'boolean', default: false },
         showCardinalPoints: { type: 'boolean', default: true },
         showCelestialPoles: { type: 'boolean', default: false },
+        showConstellationLines: { type: 'boolean', default: false },
+        showBoundaries: { type: 'boolean', default: false },
         activeConstellations: { type: 'string', default: 'INIT' },
         velocity: { type: 'number', default: 0 },
         heartbeat: { type: 'number', default: 0 }
@@ -501,6 +503,15 @@
         for (let id in guides) {
           let el = document.getElementById(id);
           if (el) el.setAttribute('visible', guides[id]);
+        }
+
+        // Apply constellation renderer toggles
+        const rendererEl = document.getElementById('constellation-lines');
+        if (rendererEl) {
+          rendererEl.setAttribute('constellation-renderer', {
+            showLines: this.data.showConstellationLines,
+            showBoundaries: this.data.showBoundaries
+          });
         }
 
         if (typeof updateScene === 'function') {
@@ -1752,6 +1763,20 @@
             </label>
           </div>
           <div class="toggle-item">
+            <span>Lines</span>
+            <label class="switch-2d">
+              <input type="checkbox" id="toggle-2d-lines" onclick="onTogglerClick('toggleConstellationLines')">
+              <span class="slider-2d"></span>
+            </label>
+          </div>
+          <div class="toggle-item">
+            <span>IAU Boundaries</span>
+            <label class="switch-2d">
+              <input type="checkbox" id="toggle-2d-boundaries" onclick="onTogglerClick('toggleBoundaries')">
+              <span class="slider-2d"></span>
+            </label>
+          </div>
+          <div class="toggle-item">
             <span>Celestial Poles</span>
             <label class="switch-2d">
               <input type="checkbox" id="toggle-2d-poles" onclick="onTogglerClick('toggleNCP')">
@@ -2152,6 +2177,14 @@
           <a-entity id="switch-ncp" switch="position: -0.05 0.06 0; clickActionParam: toggleNCP"></a-entity>
           <a-text value="Celestial Poles" position="-0.03 0.06 0" width="0.2" color="white" align="left"></a-text>
 
+          <a-entity id="switch-lines"
+            switch="position: -0.05 0.03 0; clickActionParam: toggleConstellationLines"></a-entity>
+          <a-text value="Lines" position="-0.03 0.03 0" width="0.2" color="white" align="left"></a-text>
+
+          <a-entity id="switch-boundaries"
+            switch="position: -0.05 0.00 0; clickActionParam: toggleBoundaries"></a-entity>
+          <a-text value="IAU Boundaries" position="-0.03 0.00 0" width="0.2" color="white" align="left"></a-text>
+
           <!-- Coordinates adjusters -->
           <a-text value="Lat" position="-0.15 0.22 0" width="0.3" color="white" align="left"></a-text>
           <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 0.22 0.001" color="#444"
@@ -2452,6 +2485,8 @@
             showEcliptic: document.getElementById('ecliptic')?.getAttribute('visible') || false,
             showCardinalPoints: document.getElementById('cardinal-points')?.getAttribute('visible') || false,
             showCelestialPoles: document.getElementById('ncp')?.getAttribute('visible') || false,
+            showConstellationLines: renderer ? renderer.data.showLines : false,
+            showBoundaries: renderer ? renderer.data.showBoundaries : false,
             activeConstellations: constellationData || 'INIT',
             velocity: window.currentTimeVelocity,
             heartbeat: performance.now()
@@ -2996,6 +3031,22 @@
               scpEl.setAttribute('visible', newVisibility);
               scpGlowEl.setAttribute('visible', newVisibility);
               console.log('Celestial Poles visibility toggled to:', newVisibility);
+            }
+            break;
+          case 'toggleConstellationLines':
+            const renderer = document.getElementById('constellation-lines')?.components['constellation-renderer'];
+            if (renderer) {
+              const current = renderer.data.showLines;
+              renderer.el.setAttribute('constellation-renderer', { showLines: !current });
+              console.log('Constellation lines toggled to:', !current);
+            }
+            break;
+          case 'toggleBoundaries':
+            const rendererB = document.getElementById('constellation-lines')?.components['constellation-renderer'];
+            if (rendererB) {
+              const current = rendererB.data.showBoundaries;
+              rendererB.el.setAttribute('constellation-renderer', { showBoundaries: !current });
+              console.log('IAU Boundaries toggled to:', !current);
             }
             break;
           // Example for other existing actions, like 'red', if needed.

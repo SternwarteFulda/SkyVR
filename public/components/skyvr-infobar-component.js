@@ -77,6 +77,8 @@ AFRAME.registerComponent('skyvr-infobar', {
                     ecliptic: document.getElementById('toggle-2d-ecliptic'),
                     cardinal: document.getElementById('toggle-2d-cardinal'),
                     poles: document.getElementById('toggle-2d-poles'),
+                    lines: document.getElementById('toggle-2d-lines'),
+                    boundaries: document.getElementById('toggle-2d-boundaries'),
                     ns: document.getElementById('toggle-2d-ns'),
                     ew: document.getElementById('toggle-2d-ew')
                 },
@@ -1009,6 +1011,12 @@ AFRAME.registerComponent('skyvr-infobar', {
         if (toggles.ecliptic && ecliptic) toggles.ecliptic.checked = ecliptic.getAttribute('visible');
         if (toggles.cardinal && cardinal) toggles.cardinal.checked = cardinal.getAttribute('visible');
         if (toggles.poles && ncp) toggles.poles.checked = ncp.getAttribute('visible');
+
+        const renderer = document.getElementById('constellation-lines')?.components['constellation-renderer'];
+        if (renderer) {
+            if (toggles.lines) toggles.lines.checked = renderer.data.showLines;
+            if (toggles.boundaries) toggles.boundaries.checked = renderer.data.showBoundaries;
+        }
     }
 
 });
