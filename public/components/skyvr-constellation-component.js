@@ -29,6 +29,32 @@ AFRAME.registerComponent('constellation-renderer', {
         this.pendingSyncData = null;
         this.pulseOffset = Math.random() * 10000;
 
+        // Fading controls for lines and boundaries
+        this.currentLineOpacity = 0;
+        this.targetLineOpacity = this.data.showLines ? this.data.lineOpacity : 0;
+        this.currentBoundaryOpacity = 0;
+        this.targetBoundaryOpacity = this.data.showBoundaries ? this.data.boundaryOpacity : 0;
+
+        this.lineMaterial = new THREE.LineBasicMaterial({
+            color: new THREE.Color(this.data.lineColor),
+            opacity: 0,
+            transparent: true,
+            fog: false,
+            linewidth: this.data.lineWidth,
+            depthWrite: false,
+            depthTest: true
+        });
+
+        this.boundaryMaterial = new THREE.LineBasicMaterial({
+            color: new THREE.Color(this.data.boundaryColor),
+            opacity: 0,
+            transparent: true,
+            fog: false,
+            linewidth: 1,
+            depthWrite: false,
+            depthTest: true
+        });
+
         // Load data sequentially because constellation processing depends on star data
         this.loadStarData()
             .then(() => this.loadConstellationData())
@@ -144,16 +170,6 @@ AFRAME.registerComponent('constellation-renderer', {
     renderConstellationLines: function () {
         this.clearConstellationLines();
 
-        const lineMaterial = new THREE.LineBasicMaterial({
-            color: new THREE.Color(this.data.lineColor),
-            opacity: this.data.lineOpacity,
-            transparent: true,
-            fog: false,
-            linewidth: this.data.lineWidth,
-            depthWrite: false,
-            depthTest: true
-        });
-
         let totalLines = 0;
 
         this.constellationData.constellations.forEach(constellation => {
@@ -169,7 +185,7 @@ AFRAME.registerComponent('constellation-renderer', {
 
                     if (pos1 && pos2) {
                         const geometry = new THREE.BufferGeometry().setFromPoints([pos1, pos2]);
-                        const line = new THREE.Line(geometry, lineMaterial);
+                        const line = new THREE.Line(geometry, this.lineMaterial);
                         line.name = `constellation-line-${constellation.id}`;
                         line.renderOrder = 7; // Below avatar (10)
 
@@ -199,16 +215,6 @@ AFRAME.registerComponent('constellation-renderer', {
             console.warn('renderBoundaries: No edge data available');
             return;
         }
-
-        const material = new THREE.LineBasicMaterial({
-            color: new THREE.Color(this.data.boundaryColor),
-            opacity: this.data.boundaryOpacity,
-            transparent: true,
-            fog: false,
-            linewidth: 1,
-            depthWrite: false,
-            depthTest: true
-        });
 
         let totalSegments = 0;
         this.constellationData.edges.forEach(edgeStr => {
@@ -240,7 +246,7 @@ AFRAME.registerComponent('constellation-renderer', {
             }
 
             const geometry = new THREE.BufferGeometry().setFromPoints(points);
-            const line = new THREE.Line(geometry, material);
+            const line = new THREE.Line(geometry, this.boundaryMaterial);
             line.name = 'iau-boundary';
             line.renderOrder = 6;
 
@@ -1147,17 +1153,15 @@ AFRAME.registerComponent('constellation-renderer', {
     update: function (oldData) {
         if (this.loadingComplete) {
             if (this.data.showLines !== oldData.showLines) {
-                if (this.data.showLines) {
+                this.targetLineOpacity = this.data.showLines ? this.data.lineOpacity : 0;
+                if (this.data.showLines && this.constellationLines.length === 0) {
                     this.renderConstellationLines();
-                } else {
-                    this.clearConstellationLines();
                 }
             }
             if (this.data.showBoundaries !== oldData.showBoundaries) {
-                if (this.data.showBoundaries) {
+                this.targetBoundaryOpacity = this.data.showBoundaries ? this.data.boundaryOpacity : 0;
+                if (this.data.showBoundaries && this.boundaryLines.length === 0) {
                     this.renderBoundaries();
-                } else {
-                    this.clearBoundaries();
                 }
             }
         }
@@ -1169,6 +1173,19 @@ AFRAME.registerComponent('constellation-renderer', {
         // Fast Responsive easing for previews
         const inLerp = 1 - Math.pow(0.01, dt / 1000);   // ~100ms for full preview
         const outLerp = 1 - Math.pow(0.001, dt / 1000); // Near instant clear
+        const fadeLerp = 1 - Math.pow(0.05, dt / 1000);  // ~300ms for everything else
+
+        // Fade constellation lines
+        if (Math.abs(this.currentLineOpacity - this.targetLineOpacity) > 0.001) {
+            this.currentLineOpacity += (this.targetLineOpacity - this.currentLineOpacity) * fadeLerp;
+            this.lineMaterial.opacity = this.currentLineOpacity;
+        }
+
+        // Fade IAU boundaries
+        if (Math.abs(this.currentBoundaryOpacity - this.targetBoundaryOpacity) > 0.001) {
+            this.currentBoundaryOpacity += (this.targetBoundaryOpacity - this.currentBoundaryOpacity) * fadeLerp;
+            this.boundaryMaterial.opacity = this.currentBoundaryOpacity;
+        }
 
         // Handle Active Preview Fade & Pulse
         if (this.previewIllustration) {

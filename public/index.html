@@ -273,8 +273,8 @@
     AFRAME.registerComponent('sky-state', {
       schema: {
         time: { type: 'string', default: '' },
-        latitude: { type: 'number', default: 50.5 },
-        longitude: { type: 'number', default: 9.7 },
+        latitude: { type: 'number', default: 50.5741312 },
+        longitude: { type: 'number', default: 9.6927744 },
         showMeridian: { type: 'boolean', default: false },
         showEquator: { type: 'boolean', default: false },
         showEcliptic: { type: 'boolean', default: false },
@@ -502,7 +502,14 @@
 
         for (let id in guides) {
           let el = document.getElementById(id);
-          if (el) el.setAttribute('visible', guides[id]);
+          if (el) {
+            // Apply fader if not already present
+            if (!el.hasAttribute('fader')) {
+              el.setAttribute('fader', { active: guides[id] });
+            } else {
+              el.setAttribute('fader', 'active', guides[id]);
+            }
+          }
         }
 
         // Apply constellation renderer toggles
@@ -518,6 +525,60 @@
           updateScene();
         }
 
+      }
+    });
+
+    AFRAME.registerComponent('fader', {
+      schema: {
+        active: { type: 'boolean', default: false },
+        duration: { type: 'number', default: 500 }, // ms
+        maxOpacity: { type: 'number', default: 1.0 }
+      },
+      init: function () {
+        this.currentOpacity = this.data.active ? 1.0 : 0.0;
+        this.applyOpacity(this.currentOpacity);
+        this.el.setAttribute('visible', this.currentOpacity > 0);
+      },
+      update: function (oldData) {
+        if (this.data.active) {
+          this.el.setAttribute('visible', true);
+        }
+      },
+      tick: function (t, dt) {
+        if (!dt) return;
+        const target = this.data.active ? 1.0 : 0.0;
+        if (Math.abs(this.currentOpacity - target) < 0.001) {
+          if (!this.data.active && this.el.getAttribute('visible')) {
+            this.el.setAttribute('visible', false);
+          }
+          return;
+        }
+
+        const lerpFactor = 1 - Math.pow(0.05, dt / 1000);
+        this.currentOpacity += (target - this.currentOpacity) * lerpFactor;
+        this.applyOpacity(this.currentOpacity);
+      },
+      applyOpacity: function (opacity) {
+        const finalOpacity = opacity * this.data.maxOpacity;
+
+        // Handle standard material
+        if (this.el.components.material) {
+          this.el.setAttribute('material', 'transparent', true);
+          this.el.setAttribute('material', 'opacity', finalOpacity);
+        }
+
+        // Handle custom-fogless-text
+        if (this.el.components['custom-fogless-text']) {
+          this.el.setAttribute('custom-fogless-text', 'opacity', finalOpacity);
+        }
+
+        // Recursively apply to children if needed (for cardinal points container)
+        this.el.object3D.traverse(node => {
+          if (node.material) {
+            node.material.transparent = true;
+            node.material.opacity = finalOpacity;
+          }
+        });
       }
     });
 
@@ -2252,13 +2313,14 @@
       <!-- Floor -->
       <!-- <a-circle id="floor" radius="400" color="#111" position="0 0 0" rotation="-90 0 0" opacity="0.90"></a-circle> -->
 
-      <a-cylinder id="meridian" material="shader: flat; fog: false; depthWrite: false;" radius="400" height="0.8"
-        open-ended="true" color="#228B22" side="back" opacity="0.8" position="0 0 0" rotation="90 90 0"
-        object-render-order="2" visible="false">
+      <a-cylinder id="meridian" fader="active: false; maxOpacity: 0.8"
+        material="shader: flat; fog: false; depthWrite: false; transparent: true;" radius="400" height="0.8"
+        open-ended="true" color="#228B22" side="back" position="0 0 0" rotation="90 90 0" object-render-order="2"
+        visible="false">
       </a-cylinder>
 
       <!-- Cardinal points on the horizon -->
-      <a-entity id="cardinal-points" object-render-order="-10" visible="true">
+      <a-entity id="cardinal-points" fader="active: true" object-render-order="-10" visible="true">
         <a-entity id="N" custom-fogless-text="
             value: N;
             fontSize: 90;
@@ -2287,25 +2349,30 @@
 
       <!-- Equatorial Container with initial geographic latitude of 90 degrees (North Pole) -->
       <a-entity id="eq-container" position="0 0 0" rotation="-90 0 0">
-        <a-cylinder id="equator" material="shader: flat; fog: false; depthWrite: false;" radius="400" height="0.8"
-          open-ended="true" color="#0096FF" side="back" opacity="0.8" position="0 0 0" rotation="90 0 0"
-          object-render-order="2" visible="false">
+        <a-cylinder id="equator" fader="active: false; maxOpacity: 0.8"
+          material="shader: flat; fog: false; depthWrite: false; transparent: true;" radius="400" height="0.8"
+          open-ended="true" color="#0096FF" side="back" position="0 0 0" rotation="90 0 0" object-render-order="2"
+          visible="false">
         </a-cylinder>
 
         <!-- North Celestial Pole (NCP) with Glow Effect -->
-        <a-sphere id="ncp" material="shader: flat; fog: false" blending="normal" position="0 0 400" radius="2.0"
-          color="#FF0000" transparent="true" opacity="1.0" visible="false" object-render-order="2">
+        <a-sphere id="ncp" fader="active: false" material="shader: flat; fog: false; transparent: true; opacity: 0;"
+          blending="normal" position="0 0 400" radius="2.0" color="#FF0000" transparent="true" opacity="1.0"
+          visible="false" object-render-order="2">
         </a-sphere>
-        <a-sphere id="ncp_glow" material="shader: flat; fog: false" blending="normal" position="0 0 400" radius="4.0"
-          color="#FF0000" transparent="true" opacity="0.2" visible="false" object-render-order="2">
+        <a-sphere id="ncp_glow" fader="active: false; maxOpacity: 0.2"
+          material="shader: flat; fog: false; transparent: true;" blending="normal" position="0 0 400" radius="4.0"
+          color="#FF0000" visible="false" object-render-order="2">
         </a-sphere>
 
         <!-- South Celestial Pole (SCP) with Glow Effect -->
-        <a-sphere id="scp" material="shader: flat; fog: false" blending="normal" position="0 0 -400" radius="2.0"
-          color="#0000FF" transparent="true" opacity="1.0" visible="false" object-render-order="2">
+        <a-sphere id="scp" fader="active: false" material="shader: flat; fog: false; transparent: true; opacity: 0;"
+          blending="normal" position="0 0 -400" radius="2.0" color="#0000FF" transparent="true" opacity="1.0"
+          visible="false" object-render-order="2">
         </a-sphere>
-        <a-sphere id="scp_glow" material="shader: flat; fog: false" blending="normal" position="0 0 -400" radius="4.0"
-          color="#0000FF" transparent="true" opacity="0.2" visible="false" object-render-order="2">
+        <a-sphere id="scp_glow" fader="active: false; maxOpacity: 0.2"
+          material="shader: flat; fog: false; transparent: true;" blending="normal" position="0 0 -400" radius="4.0"
+          color="#0000FF" visible="false" object-render-order="2">
         </a-sphere>
 
         <!-- Koordinatensystem für den Eq-Container -->
@@ -2319,9 +2386,10 @@
         </a-entity>
 
         <a-entity id="precession-container" rotation="23.43619 0 0">
-          <a-cylinder id="ecliptic" material="shader: flat; fog: false; depthWrite: false;" radius="400" height="0.8"
-            open-ended="true" color="#FFBF00" side="back" opacity="0.8" position="0 0 0" rotation="90 0 0"
-            object-render-order="1" visible="false">
+          <a-cylinder id="ecliptic" fader="active: false; maxOpacity: 0.8"
+            material="shader: flat; fog: false; depthWrite: false; transparent: true;" radius="400" height="0.8"
+            open-ended="true" color="#FFBF00" side="back" position="0 0 0" rotation="90 0 0" object-render-order="1"
+            visible="false">
           </a-cylinder>
 
           <!-- Custom Shader for Stars -->
@@ -2356,8 +2424,8 @@
       let starsPointCloud = document.getElementById("stars-point-cloud");
       let milkyway = document.getElementById("milkyway");
 
-      const initialLatitude = 50.5;
-      const initialLongitude = 9.7;
+      const initialLatitude = 50.5741312;
+      const initialLongitude = 9.6927744;
       window.latitude = initialLatitude;
       window.longitude = initialLongitude;
       let elevation = 300;
@@ -2470,11 +2538,11 @@
             time: simulationTime.toISO(),
             latitude: window.latitude,
             longitude: window.longitude,
-            showMeridian: document.getElementById('meridian')?.getAttribute('visible') || false,
-            showEquator: document.getElementById('equator')?.getAttribute('visible') || false,
-            showEcliptic: document.getElementById('ecliptic')?.getAttribute('visible') || false,
-            showCardinalPoints: document.getElementById('cardinal-points')?.getAttribute('visible') || false,
-            showCelestialPoles: document.getElementById('ncp')?.getAttribute('visible') || false,
+            showMeridian: document.getElementById('meridian')?.getAttribute('fader')?.active || false,
+            showEquator: document.getElementById('equator')?.getAttribute('fader')?.active || false,
+            showEcliptic: document.getElementById('ecliptic')?.getAttribute('fader')?.active || false,
+            showCardinalPoints: document.getElementById('cardinal-points')?.getAttribute('fader')?.active || false,
+            showCelestialPoles: document.getElementById('ncp')?.getAttribute('fader')?.active || false,
             showConstellationLines: renderer ? renderer.data.showLines : false,
             showBoundaries: renderer ? renderer.data.showBoundaries : false,
             activeConstellations: constellationData || 'INIT',
@@ -2974,53 +3042,61 @@
           console.error("SCP glow element ('scp_glow') not found.");
         }
 
-        let newVisibility;
+        let newActive;
+        const ensureFader = (el, active) => {
+          if (!el) return;
+          if (!el.hasAttribute('fader')) {
+            el.setAttribute('fader', { active: active });
+          } else {
+            el.setAttribute('fader', 'active', active);
+          }
+        };
 
         switch (action) {
           case 'toggleMeridian':
             if (meridianEl) {
-              newVisibility = !meridianEl.getAttribute('visible');
-              meridianEl.setAttribute('visible', newVisibility);
-              console.log('Meridian visibility toggled to:', newVisibility);
+              newActive = !(meridianEl.getAttribute('fader')?.active ?? meridianEl.getAttribute('visible'));
+              ensureFader(meridianEl, newActive);
+              console.log('Meridian visibility toggled to:', newActive);
             }
             break;
           case 'toggleEquator':
             if (equatorEl) {
-              newVisibility = !equatorEl.getAttribute('visible');
-              equatorEl.setAttribute('visible', newVisibility);
-              console.log('Equator visibility toggled to:', newVisibility);
+              newActive = !(equatorEl.getAttribute('fader')?.active ?? equatorEl.getAttribute('visible'));
+              ensureFader(equatorEl, newActive);
+              console.log('Equator visibility toggled to:', newActive);
             }
             break;
           case 'toggleEcliptic':
             if (eclipticEl) {
-              newVisibility = !eclipticEl.getAttribute('visible');
-              eclipticEl.setAttribute('visible', newVisibility);
-              console.log('Ecliptic visibility toggled to:', newVisibility);
+              newActive = !(eclipticEl.getAttribute('fader')?.active ?? eclipticEl.getAttribute('visible'));
+              ensureFader(eclipticEl, newActive);
+              console.log('Ecliptic visibility toggled to:', newActive);
             }
             break;
           case 'toggleHints':
             const hints = document.querySelectorAll('.controller-hint');
             hints.forEach(hint => {
-              newVisibility = !hint.getAttribute('visible');
-              hint.setAttribute('visible', newVisibility);
+              newActive = !(hint.getAttribute('fader')?.active ?? hint.getAttribute('visible'));
+              ensureFader(hint, newActive);
             });
             console.log('Controller hints visibility toggled');
             break;
           case 'toggleCardinalPoints':
             if (cardinalPointsEl) {
-              newVisibility = !cardinalPointsEl.getAttribute('visible');
-              cardinalPointsEl.setAttribute('visible', newVisibility);
-              console.log('Cardinal points visibility toggled to:', newVisibility);
+              newActive = !(cardinalPointsEl.getAttribute('fader')?.active ?? cardinalPointsEl.getAttribute('visible'));
+              ensureFader(cardinalPointsEl, newActive);
+              console.log('Cardinal points visibility toggled to:', newActive);
             }
             break;
           case 'toggleNCP':
             if (ncpEl && ncpGlowEl && scpEl && scpGlowEl) {
-              newVisibility = !ncpEl.getAttribute('visible'); // Assuming all poles have the same visibility state
-              ncpEl.setAttribute('visible', newVisibility);
-              ncpGlowEl.setAttribute('visible', newVisibility);
-              scpEl.setAttribute('visible', newVisibility);
-              scpGlowEl.setAttribute('visible', newVisibility);
-              console.log('Celestial Poles visibility toggled to:', newVisibility);
+              newActive = !(ncpEl.getAttribute('fader')?.active ?? ncpEl.getAttribute('visible'));
+              ensureFader(ncpEl, newActive);
+              ensureFader(ncpGlowEl, newActive);
+              ensureFader(scpEl, newActive);
+              ensureFader(scpGlowEl, newActive);
+              console.log('Celestial Poles visibility toggled to:', newActive);
             }
             break;
           case 'toggleConstellationLines':

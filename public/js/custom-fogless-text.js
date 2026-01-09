@@ -1,32 +1,34 @@
 AFRAME.registerComponent('custom-fogless-text', {
   schema: {
-    value: {type: 'string', default: ''},
-    textColor: {type: 'color', default: '#FFBB00'},
-    fontSize: {type: 'number', default: 128}, // Primary user control for size/quality
-    fontFamily: {type: 'string', default: 'Arial'},
-    outlineWidth: {type: 'number', default: 8},
-    outlineColor: {type: 'color', default: '#000000'},
-    outlineAlphaForDepthWrite: {type: 'number', default: 0.002, min: 0.001, max: 1},
-    materialAlphaTestThreshold: {type: 'number', default: 0.001, min: 0.001, max: 1},
-    padding: {type: 'number', default: 10}, // Pixels of padding around text on canvas
-    worldScale: {type: 'number', default: 0.1} // Scales canvas pixel size to world units for the plane
+    value: { type: 'string', default: '' },
+    textColor: { type: 'color', default: '#FFBB00' },
+    fontSize: { type: 'number', default: 128 }, // Primary user control for size/quality
+    fontFamily: { type: 'string', default: 'Arial' },
+    outlineWidth: { type: 'number', default: 8 },
+    outlineColor: { type: 'color', default: '#000000' },
+    outlineAlphaForDepthWrite: { type: 'number', default: 0.002, min: 0.001, max: 1 },
+    materialAlphaTestThreshold: { type: 'number', default: 0.001, min: 0.001, max: 1 },
+    padding: { type: 'number', default: 10 }, // Pixels of padding around text on canvas
+    worldScale: { type: 'number', default: 0.1 }, // Scales canvas pixel size to world units for the plane
+    opacity: { type: 'number', default: 1 }
   },
 
   init: function () {
     this.canvas = document.createElement('canvas');
     this.ctx = this.canvas.getContext('2d');
     this.texture = new THREE.CanvasTexture(this.canvas);
-    
+
     this.material = new THREE.MeshBasicMaterial({
       map: this.texture,
       transparent: true,
       fog: false,
+      opacity: this.data.opacity,
       alphaTest: this.data.materialAlphaTestThreshold,
       depthWrite: true
     });
 
     // Mesh will be created and added in _createTextTextureAndPlane
-    this.mesh = null; 
+    this.mesh = null;
     this._createTextTextureAndPlane();
   },
 
@@ -38,6 +40,10 @@ AFRAME.registerComponent('custom-fogless-text', {
         needsUpdate = true;
         break;
       }
+    }
+
+    if (oldData.opacity !== this.data.opacity) {
+      this.material.opacity = this.data.opacity;
     }
 
     if (needsUpdate) {
@@ -52,7 +58,7 @@ AFRAME.registerComponent('custom-fogless-text', {
     // 1. Setup font and measure text for canvas sizing
     ctx.font = `bold ${data.fontSize}px ${data.fontFamily}`;
     const textMetrics = ctx.measureText(data.value);
-    
+
     // Robust height calculation
     // Start with fontSize * 1.2 as a base (20% buffer over font size).
     // This is generally safe for capital letters and gives some headroom.
@@ -62,18 +68,18 @@ AFRAME.registerComponent('custom-fogless-text', {
     // use that. This could be relevant for text with significant ascenders/descenders
     // beyond typical capital letter height, though less common for 'N,O,S,W'.
     if (textMetrics.actualBoundingBoxAscent && textMetrics.actualBoundingBoxDescent) {
-        const metricHeight = textMetrics.actualBoundingBoxAscent + textMetrics.actualBoundingBoxDescent;
-        if (metricHeight > derivedTextHeight) {
-            derivedTextHeight = metricHeight;
-        }
+      const metricHeight = textMetrics.actualBoundingBoxAscent + textMetrics.actualBoundingBoxDescent;
+      if (metricHeight > derivedTextHeight) {
+        derivedTextHeight = metricHeight;
+      }
     }
 
     const canvasWidth = Math.ceil(textMetrics.width + (data.padding * 2) + (data.outlineWidth * 2));
     const canvasHeight = Math.ceil(derivedTextHeight + (data.padding * 2) + (data.outlineWidth * 2));
 
-    if (canvasWidth <=0 || canvasHeight <=0) { // Avoid 0-size canvas
-        if (this.mesh) this.el.removeObject3D('mesh'); // Remove if exists
-        return; 
+    if (canvasWidth <= 0 || canvasHeight <= 0) { // Avoid 0-size canvas
+      if (this.mesh) this.el.removeObject3D('mesh'); // Remove if exists
+      return;
     }
 
     this.canvas.width = canvasWidth;
@@ -104,9 +110,9 @@ AFRAME.registerComponent('custom-fogless-text', {
     const planeWidth = canvasWidth * data.worldScale;
     const planeHeight = canvasHeight * data.worldScale;
 
-    if (planeWidth <=0 || planeHeight <=0) { // Avoid 0-size plane
-        if (this.mesh) this.el.removeObject3D('mesh');
-        return;
+    if (planeWidth <= 0 || planeHeight <= 0) { // Avoid 0-size plane
+      if (this.mesh) this.el.removeObject3D('mesh');
+      return;
     }
 
     if (this.mesh) {
@@ -131,7 +137,7 @@ AFRAME.registerComponent('custom-fogless-text', {
 });
 
 AFRAME.registerComponent('object-render-order', {
-  schema: {type: 'number', default: 0},
+  schema: { type: 'number', default: 0 },
   init: function () {
     this.el.addEventListener('object3dset', () => {
       if (this.el.object3D) {

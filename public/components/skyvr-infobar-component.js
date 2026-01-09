@@ -1006,11 +1006,11 @@ AFRAME.registerComponent('skyvr-infobar', {
         const cardinal = document.getElementById('cardinal-points');
         const ncp = document.getElementById('ncp');
 
-        if (toggles.meridian && meridian) toggles.meridian.checked = meridian.getAttribute('visible');
-        if (toggles.equator && equator) toggles.equator.checked = equator.getAttribute('visible');
-        if (toggles.ecliptic && ecliptic) toggles.ecliptic.checked = ecliptic.getAttribute('visible');
-        if (toggles.cardinal && cardinal) toggles.cardinal.checked = cardinal.getAttribute('visible');
-        if (toggles.poles && ncp) toggles.poles.checked = ncp.getAttribute('visible');
+        if (toggles.meridian && meridian) toggles.meridian.checked = meridian.getAttribute('fader')?.active ?? meridian.getAttribute('visible');
+        if (toggles.equator && equator) toggles.equator.checked = equator.getAttribute('fader')?.active ?? equator.getAttribute('visible');
+        if (toggles.ecliptic && ecliptic) toggles.ecliptic.checked = ecliptic.getAttribute('fader')?.active ?? ecliptic.getAttribute('visible');
+        if (toggles.cardinal && cardinal) toggles.cardinal.checked = cardinal.getAttribute('fader')?.active ?? cardinal.getAttribute('visible');
+        if (toggles.poles && ncp) toggles.poles.checked = ncp.getAttribute('fader')?.active ?? ncp.getAttribute('visible');
 
         const renderer = document.getElementById('constellation-lines')?.components['constellation-renderer'];
         if (renderer) {
