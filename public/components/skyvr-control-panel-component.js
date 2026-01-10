@@ -12,25 +12,35 @@ AFRAME.registerComponent("control-panel", {
     topRightRadius: { type: 'number', default: -1 },
     bottomLeftRadius: { type: 'number', default: -1 },
     bottomRightRadius: { type: 'number', default: -1 },
-    opacity: { type: 'number', default: 1 }
+    color: { type: 'color', default: '#080814' },
+    borderColor: { type: 'color', default: '#8a2be2' },
+    opacity: { type: 'number', default: 0.95 }
   },
 
   init: function () {
-    this.color = "#161616";
-    this.controlPanel = new THREE.Mesh(this.draw(), new THREE.MeshLambertMaterial({ color: new THREE.Color(this.color), side: THREE.DoubleSide }));
-    this.updateOpacity();
+    this.controlPanel = new THREE.Mesh(
+      this.draw(),
+      new THREE.MeshBasicMaterial({
+        color: new THREE.Color(this.data.color),
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: this.data.opacity
+      })
+    );
     this.el.setObject3D('mesh', this.controlPanel);
 
-    this.el.setAttribute("enabled", this.data.enabled);
+    // Top accent border
+    const borderGeom = new THREE.PlaneGeometry(this.data.width, 0.005);
+    this.borderMesh = new THREE.Mesh(
+      borderGeom,
+      new THREE.MeshBasicMaterial({ color: new THREE.Color(this.data.borderColor) })
+    );
+    this.borderMesh.position.set(0, this.data.height / 2, 0.001);
+    this.el.object3D.add(this.borderMesh);
 
-    this.el.setAttribute("color", this.color);
-    this.el.setAttribute("width", this.data.width);
-    this.el.setAttribute("height", this.data.height);
-    this.el.setAttribute("radius", this.data.radius);
+    this.el.setAttribute("enabled", this.data.enabled);
     this.el.setAttribute("position", this.data.position);
     this.el.setAttribute("rotation", "-90 0 0");
-    this.el.setAttribute("material", "shader: flat");
-    this.el.setAttribute("material", "side: double");
 
     //this.update();
   },
@@ -40,9 +50,13 @@ AFRAME.registerComponent("control-panel", {
       if (this.controlPanel) {
         this.controlPanel.visible = true;
         this.controlPanel.geometry = this.draw();
-        this.controlPanel.material.color = new THREE.Color(this.color);
+        this.controlPanel.material.color = new THREE.Color(this.data.color);
         this.el.object3D.visible = true;
         this.el.setAttribute('data-raycastable', '');
+
+        if (this.borderMesh) {
+          this.borderMesh.material.color = new THREE.Color(this.data.borderColor);
+        }
         // Set data-raycastable attribute for all switch-clickarea elements
         this.el.querySelectorAll('.switch-clickarea, .control-panel-button').forEach(clickarea => {
           clickarea.setAttribute('data-raycastable', '');
@@ -65,12 +79,12 @@ AFRAME.registerComponent("control-panel", {
   updateOpacity: function () {
     if (this.data.opacity < 0) { this.data.opacity = 0; }
     if (this.data.opacity > 1) { this.data.opacity = 1; }
-    if (this.data.opacity < 1) {
-      this.controlPanel.material.transparent = true;
-    } else {
-      this.controlPanel.material.transparent = false;
-    }
+    this.controlPanel.material.transparent = this.data.opacity < 1;
     this.controlPanel.material.opacity = this.data.opacity;
+    if (this.borderMesh) {
+      this.borderMesh.material.transparent = this.data.opacity < 1;
+      this.borderMesh.material.opacity = this.data.opacity;
+    }
   },
 
   remove: function () {
@@ -122,7 +136,8 @@ AFRAME.registerPrimitive('a-control-panel', {
     'top-right-radius': 'control-panel.topRightRadius',
     'bottom-left-radius': 'control-panel.bottomLeftRadius',
     'bottom-right-radius': 'control-panel.bottomRightRadius',
-    //color: 'control-panel.color',
+    color: 'control-panel.color',
+    'border-color': 'control-panel.borderColor',
     opacity: 'control-panel.opacity'
   }
 });

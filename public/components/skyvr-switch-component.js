@@ -10,8 +10,8 @@ AFRAME.registerComponent('switch', {
         const el = this.el;
         const data = this.data;
 
-        this.activeColor = '#fb6419';
-        this.inactiveColor = '#808080';
+        this.activeColor = '#8a2be2';
+        this.inactiveColor = '#2a2a3a';
 
         // Set initial position
         el.setAttribute('position', data.position);
@@ -48,6 +48,22 @@ AFRAME.registerComponent('switch', {
         el.appendChild(switchClickarea);
 
         this.onClick = this.onClick.bind(this);
+    },
+
+    update: function (oldData) {
+        if (this.data.toggled !== oldData.toggled) {
+            const switchSlider = this.el.querySelector('.switch-slider');
+            const switchBase = this.el.querySelector('.switch-base');
+            if (switchSlider && switchBase) {
+                if (this.data.toggled) {
+                    switchSlider.setAttribute('position', '0.0075 0 0.00002');
+                    switchBase.setAttribute('material', `color: ${this.activeColor}`);
+                } else {
+                    switchSlider.setAttribute('position', '-0.0075 0 0.00002');
+                    switchBase.setAttribute('material', `color: ${this.inactiveColor}`);
+                }
+            }
+        }
     },
 
     play: function () {

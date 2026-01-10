@@ -521,10 +521,37 @@
           });
         }
 
+        // Apply switch toggles for VR UI
+        const switches = {
+          'switch-meridian': this.data.showMeridian,
+          'switch-equator': this.data.showEquator,
+          'switch-ecliptic': this.data.showEcliptic,
+          'switch-cardinal-points': this.data.showCardinalPoints,
+          'switch-ncp': this.data.showCelestialPoles,
+          'switch-boundaries': this.data.showBoundaries,
+          'switch-hints': this.data.showHints
+        };
+
+        for (let id in switches) {
+          let el = document.getElementById(id);
+          if (el && el.components.switch) {
+            el.setAttribute('switch', 'toggled', switches[id]);
+          }
+        }
+
+        // Update VR Coordinate toggles
+        const nsToggleVr = document.getElementById('toggle-2d-ns-vr');
+        if (nsToggleVr) {
+          nsToggleVr.setAttribute('text', 'value', window.latitude >= 0 ? 'N' : 'S');
+        }
+        const ewToggleVr = document.getElementById('toggle-2d-ew-vr');
+        if (ewToggleVr) {
+          ewToggleVr.setAttribute('text', 'value', window.longitude >= 0 ? 'E' : 'W');
+        }
+
         if (typeof updateScene === 'function') {
           updateScene();
         }
-
       }
     });
 
@@ -2091,6 +2118,7 @@
       <script src="components/skyvr-constellation-pointer-2d-component.js"></script>
       <script src="components/skyvr-networked-components.js?v=2"></script>
       <script src="components/skyvr-offscreen-indicator-component.js"></script>
+      <script src="components/skyvr-numpad-component.js"></script>
     </a-assets>
 
     <a-entity id="sky-master" networked="template:#sky-template;persistent:true;networkId:sky-master;owner:scene"
@@ -2202,108 +2230,254 @@
           <a-rounded width="0.08" height="0.025" radius="0.005" color="#111" opacity="0.9"
             position="-0.04 -0.0125 0"></a-rounded>
           <a-text value="Time" width="0.25" align="center" color="white" position="0 0 0.001"></a-text>
+          <!-- Restoring Hint Text -->
           <a-entity line="start: 0 0 0; end: 0 -0.02 0.02; color: white; opacity: 0.5"></a-entity>
+          <!-- Restoring Hint Line -->
         </a-entity>
 
-        <a-control-panel id="control-panel-1" enabled="false" height="0.5">
-          <a-entity id="latitude-display" position="0 0.22 0"></a-entity>
-          <a-entity id="longitude-display" position="0 0.14 0"></a-entity>
-          <a-entity id="date-time-display" position="0 0.02 0"></a-entity>
+        <a-control-panel id="control-panel-1" enabled="false" width="0.6" height="0.5" border-color="BlueViolet"
+          position="0 0.25 -0.15" rotation="-45 0 0">
 
-          <!-- buttons on the control panel -->
-          <a-entity id="switch-hints"
-            switch="position: -0.05 0.21 0; clickActionParam: toggleHints; toggled: true"></a-entity>
-          <a-text value="Controller Tooltips" position="-0.03 0.21 0" width="0.2" color="white" align="left"></a-text>
+          <!-- Vertical Tab Navigation Bar (Left Side) -->
+          <a-entity position="-0.22 0 0.002">
+            <!-- Background for sidebar -->
+            <a-rounded width="0.12" height="0.48" radius="0.01" position="-0.06 -0.24 0" color="#1a1a2e"
+              opacity="0.6"></a-rounded>
 
-          <a-entity id="switch-meridian" switch="position: -0.05 0.18 0; clickActionParam: toggleMeridian"></a-entity>
-          <a-text value="Meridian" position="-0.03 0.18 0" width="0.2" color="white" align="left"></a-text>
+            <!-- Time Tab Button -->
+            <a-rounded id="tab-btn-time" width="0.1" height="0.06" radius="0.01" position="-0.05 0.12 0.001"
+              color="#8a2be2" text="value: TIME; align: center; width: 0.5" class="control-panel-button"
+              data-raycastable onclick="switchTab('time')"></a-rounded>
 
-          <a-entity id="switch-equator" switch="position: -0.05 0.15 0; clickActionParam: toggleEquator"></a-entity>
-          <a-text value="Equator" position="-0.03 0.15 0" width="0.2" color="white" align="left"></a-text>
+            <!-- Location Tab Button -->
+            <a-rounded id="tab-btn-location" width="0.1" height="0.06" radius="0.01" position="-0.05 0 0.001"
+              color="#2a2a3a" text="value: LOC; align: center; width: 0.5" class="control-panel-button" data-raycastable
+              onclick="switchTab('location')"></a-rounded>
 
-          <a-entity id="switch-ecliptic" switch="position: -0.05 0.12 0; clickActionParam: toggleEcliptic"></a-entity>
-          <a-text value="Ecliptic" position="-0.03 0.12 0" width="0.2" color="white" align="left"></a-text>
+            <!-- View Tab Button -->
+            <a-rounded id="tab-btn-view" width="0.1" height="0.06" radius="0.01" position="-0.05 -0.12 0.001"
+              color="#2a2a3a" text="value: VIEW; align: center; width: 0.5" class="control-panel-button"
+              data-raycastable onclick="switchTab('view')"></a-rounded>
+          </a-entity>
 
-          <a-entity id="switch-cardinal-points"
-            switch="position: -0.05 0.09 0; clickActionParam: toggleCardinalPoints; toggled: true"></a-entity>
-          <a-text value="Cardinal Points" position="-0.03 0.09 0" width="0.2" color="white" align="left"></a-text>
+          <!-- TAB CONTENT CONTAINER (Right Side) -->
+          <a-entity position="0.08 0 0.003">
+            <a-rounded width="0.42" height="0.48" radius="0.01" position="-0.21 -0.24 0" color="#080814"
+              opacity="0.4"></a-rounded>
 
-          <a-entity id="switch-ncp" switch="position: -0.05 0.06 0; clickActionParam: toggleNCP"></a-entity>
-          <a-text value="Celestial Poles" position="-0.03 0.06 0" width="0.2" color="white" align="left"></a-text>
+            <!-- TAB 1: TIME -->
+            <a-entity id="tab-time" visible="true">
+              <a-text value="TIME SETTINGS" position="0 0.20 0.002" width="0.8" color="#a855f7" align="center"
+                font="mozillavr"></a-text>
 
-          <a-entity id="switch-boundaries"
-            switch="position: -0.05 0.03 0; clickActionParam: toggleBoundaries"></a-entity>
-          <a-text value="IAU Boundaries" position="-0.03 0.03 0" width="0.2" color="white" align="left"></a-text>
+              <!-- Date Row -->
+              <a-entity position="0 0.12 0">
+                <!-- YEAR -->
+                <a-text value="Y" position="-0.19 -0.005 0" width="0.4" color="#ccc" align="center"
+                  baseline="center"></a-text>
+                <a-rounded width="0.035" height="0.035" radius="0.005" position="-0.17 0 0.001" color="#2a2a3a"
+                  text="value: -; align: center; baseline: center; width: 0.8" class="control-panel-button"
+                  data-raycastable onclick="adjustTime('years', -1)"></a-rounded>
 
+                <a-rounded id="input-vr-year" width="0.065" height="0.035" radius="0.005" position="-0.12 0 0.001"
+                  color="#000" opacity="0.8" class="control-panel-button" data-raycastable
+                  onclick="openNumpad('input-vr-year')">
+                  <a-text value="2026" align="center" baseline="center" width="0.8" color="#00ffaa" font="monoid"
+                    position="-0.003 -0.002 0.01"></a-text>
+                </a-rounded>
 
-          <!-- Coordinates adjusters -->
-          <a-text value="Lat" position="-0.15 0.22 0" width="0.3" color="white" align="left"></a-text>
-          <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 0.22 0.001" color="#444"
-            text="value: -; align: center; width: 0.5" class="control-panel-button" data-raycastable
-            onclick="adjustCoordinate('latitude', -0.1)"></a-rounded>
-          <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 0.22 0.001" color="#444"
-            text="value: +; align: center; width: 0.5" class="control-panel-button" data-raycastable
-            onclick="adjustCoordinate('latitude', 0.1)"></a-rounded>
+                <a-rounded width="0.035" height="0.035" radius="0.005" position="-0.07 0 0.001" color="#2a2a3a"
+                  text="value: +; align: center; baseline: center; width: 0.8" class="control-panel-button"
+                  data-raycastable onclick="adjustTime('years', 1)"></a-rounded>
 
-          <a-text value="Lon" position="-0.15 0.14 0" width="0.3" color="white" align="left"></a-text>
-          <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 0.14 0.001" color="#444"
-            text="value: -; align: center; width: 0.5" class="control-panel-button" data-raycastable
-            onclick="adjustCoordinate('longitude', -0.1)"></a-rounded>
-          <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 0.14 0.001" color="#444"
-            text="value: +; align: center; width: 0.5" class="control-panel-button" data-raycastable
-            onclick="adjustCoordinate('longitude', 0.1)"></a-rounded>
+                <!-- MONTH -->
+                <a-text value="M" position="0.01 -0.005 0" width="0.4" color="#ccc" align="center"
+                  baseline="center"></a-text>
+                <a-rounded width="0.035" height="0.035" radius="0.005" position="0.0375 0 0.001" color="#2a2a3a"
+                  text="value: -; align: center; baseline: center; width: 0.8" class="control-panel-button"
+                  data-raycastable onclick="adjustTime('months', -1)"></a-rounded>
 
-          <!-- Date/Time adjusters -->
-          <a-rounded id="now-button" width="0.08" height="0.03" radius="0.01" position="0.09 0.02 0.001" color="#222"
-            text="value: NOW; align: center; width: 0.5" class="control-panel-button" data-raycastable
-            onclick="setNow()"></a-rounded>
-          <a-text value="Year" position="-0.15 -0.02 0" width="0.3" color="white" align="left"></a-text>
-          <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 -0.02 0.001" color="#444"
-            text="value: -; align: center; width: 0.5" class="control-panel-button" data-raycastable
-            onclick="adjustTime('years', -1)"></a-rounded>
-          <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 -0.02 0.001" color="#444"
-            text="value: +; align: center; width: 0.5" class="control-panel-button" data-raycastable
-            onclick="adjustTime('years', 1)"></a-rounded>
+                <a-rounded id="input-vr-month" width="0.04" height="0.035" radius="0.005" position="0.075 0 0.001"
+                  color="#000" opacity="0.8" class="control-panel-button" data-raycastable
+                  onclick="openNumpad('input-vr-month')">
+                  <a-text value="01" align="center" baseline="center" width="0.8" color="#00ffaa" font="monoid"
+                    position="-0.002 -0.002 0.01"></a-text>
+                </a-rounded>
 
-          <a-text value="Month" position="-0.15 -0.06 0" width="0.3" color="white" align="left"></a-text>
-          <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 -0.06 0.001" color="#444"
-            text="value: -; align: center; width: 0.5" class="control-panel-button" data-raycastable
-            onclick="adjustTime('months', -1)"></a-rounded>
-          <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 -0.06 0.001" color="#444"
-            text="value: +; align: center; width: 0.5" class="control-panel-button" data-raycastable
-            onclick="adjustTime('months', 1)"></a-rounded>
+                <a-rounded width="0.035" height="0.035" radius="0.005" position="0.1125 0 0.001" color="#2a2a3a"
+                  text="value: +; align: center; baseline: center; width: 0.8" class="control-panel-button"
+                  data-raycastable onclick="adjustTime('months', 1)"></a-rounded>
 
-          <a-text value="Day" position="-0.15 -0.1 0" width="0.3" color="white" align="left"></a-text>
-          <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 -0.1 0.001" color="#444"
-            text="value: -; align: center; width: 0.5" class="control-panel-button" data-raycastable
-            onclick="adjustTime('days', -1)"></a-rounded>
-          <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 -0.1 0.001" color="#444"
-            text="value: +; align: center; width: 0.5" class="control-panel-button" data-raycastable
-            onclick="adjustTime('days', 1)"></a-rounded>
+                <!-- DAY -->
+                <a-text value="D" position="0.17 -0.005 0" width="0.4" color="#ccc" align="center"
+                  baseline="center"></a-text>
+                <a-rounded width="0.035" height="0.035" radius="0.005" position="0.1975 0 0.001" color="#2a2a3a"
+                  text="value: -; align: center; baseline: center; width: 0.8" class="control-panel-button"
+                  data-raycastable onclick="adjustTime('days', -1)"></a-rounded>
 
-          <a-text value="Sid. Day" position="-0.15 -0.14 0" width="0.3" color="white" align="left"></a-text>
-          <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 -0.14 0.001" color="#444"
-            text="value: -; align: center; width: 0.5" class="control-panel-button" data-raycastable
-            onclick="adjustTime('sidereal', -1)"></a-rounded>
-          <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 -0.14 0.001" color="#444"
-            text="value: +; align: center; width: 0.5" class="control-panel-button" data-raycastable
-            onclick="adjustTime('sidereal', 1)"></a-rounded>
+                <a-rounded id="input-vr-day" width="0.04" height="0.035" radius="0.005" position="0.235 0 0.001"
+                  color="#000" opacity="0.8" class="control-panel-button" data-raycastable
+                  onclick="openNumpad('input-vr-day')">
+                  <a-text value="10" align="center" baseline="center" width="0.8" color="#00ffaa" font="monoid"
+                    position="-0.002 -0.002 0.01"></a-text>
+                </a-rounded>
 
-          <a-text value="Hour" position="-0.15 -0.18 0" width="0.3" color="white" align="left"></a-text>
-          <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 -0.18 0.001" color="#444"
-            text="value: -; align: center; width: 0.5" class="control-panel-button" data-raycastable
-            onclick="adjustTime('hours', -1)"></a-rounded>
-          <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 -0.18 0.001" color="#444"
-            text="value: +; align: center; width: 0.5" class="control-panel-button" data-raycastable
-            onclick="adjustTime('hours', 1)"></a-rounded>
+                <a-rounded width="0.035" height="0.035" radius="0.005" position="0.2725 0 0.001" color="#2a2a3a"
+                  text="value: +; align: center; baseline: center; width: 0.8" class="control-panel-button"
+                  data-raycastable onclick="adjustTime('days', 1)"></a-rounded>
+              </a-entity>
 
-          <a-text value="Minute" position="-0.15 -0.22 0" width="0.3" color="white" align="left"></a-text>
-          <a-rounded width="0.04" height="0.03" radius="0.01" position="-0.06 -0.22 0.001" color="#444"
-            text="value: -; align: center; width: 0.5" class="control-panel-button" data-raycastable
-            onclick="adjustTime('minutes', -1)"></a-rounded>
-          <a-rounded width="0.04" height="0.03" radius="0.01" position="0.02 -0.22 0.001" color="#444"
-            text="value: +; align: center; width: 0.5" class="control-panel-button" data-raycastable
-            onclick="adjustTime('minutes', 1)"></a-rounded>
+              <!-- Sidereal Time Row -->
+              <a-entity position="0 0.01 0">
+                <a-text value="Sid.Day" position="-0.12 -0.005 0" width="0.4" color="#ccc" align="left"
+                  baseline="center"></a-text>
+                <a-rounded width="0.04" height="0.035" radius="0.005" position="0.08 0 0.001" color="#2a2a3a"
+                  text="value: -; align: center; baseline: center; width: 0.8" class="control-panel-button"
+                  data-raycastable onclick="adjustTime('sidereal', -1)"></a-rounded>
+                <a-rounded width="0.04" height="0.035" radius="0.005" position="0.16 0 0.001" color="#2a2a3a"
+                  text="value: +; align: center; baseline: center; width: 0.8" class="control-panel-button"
+                  data-raycastable onclick="adjustTime('sidereal', 1)"></a-rounded>
+              </a-entity>
+
+              <!-- Time Row - Moved Down -->
+              <a-entity position="0 -0.10 0">
+                <!-- HOUR -->
+                <a-text value="Hr" position="-0.13 -0.005 0" width="0.4" color="#ccc" align="center"
+                  baseline="center"></a-text>
+                <a-rounded width="0.035" height="0.035" radius="0.005" position="-0.0925 0 0.001" color="#2a2a3a"
+                  text="value: -; align: center; baseline: center; width: 0.8" class="control-panel-button"
+                  data-raycastable onclick="adjustTime('hours', -1)"></a-rounded>
+
+                <a-rounded id="input-vr-hour" width="0.04" height="0.035" radius="0.005" position="-0.055 0 0.001"
+                  color="#000" opacity="0.8" class="control-panel-button" data-raycastable
+                  onclick="openNumpad('input-vr-hour')">
+                  <a-text value="00" align="center" baseline="center" width="0.8" color="#00ffaa" font="monoid"
+                    position="-0.002 -0.002 0.01"></a-text>
+                </a-rounded>
+
+                <a-rounded width="0.035" height="0.035" radius="0.005" position="-0.0175 0 0.001" color="#2a2a3a"
+                  text="value: +; align: center; baseline: center; width: 0.8" class="control-panel-button"
+                  data-raycastable onclick="adjustTime('hours', 1)"></a-rounded>
+
+                <!-- MINUTE -->
+                <a-text value="Min" position="0.07 -0.005 0" width="0.4" color="#ccc" align="center"
+                  baseline="center"></a-text>
+                <a-rounded width="0.035" height="0.035" radius="0.005" position="0.1075 0 0.001" color="#2a2a3a"
+                  text="value: -; align: center; baseline: center; width: 0.8" class="control-panel-button"
+                  data-raycastable onclick="adjustTime('minutes', -1)"></a-rounded>
+
+                <a-rounded id="input-vr-minute" width="0.04" height="0.035" radius="0.005" position="0.145 0 0.001"
+                  color="#000" opacity="0.8" class="control-panel-button" data-raycastable
+                  onclick="openNumpad('input-vr-minute')">
+                  <a-text value="00" align="center" baseline="center" width="0.8" color="#00ffaa" font="monoid"
+                    position="-0.002 -0.002 0.01"></a-text>
+                </a-rounded>
+
+                <a-rounded width="0.035" height="0.035" radius="0.005" position="0.1825 0 0.001" color="#2a2a3a"
+                  text="value: +; align: center; baseline: center; width: 0.8" class="control-panel-button"
+                  data-raycastable onclick="adjustTime('minutes', 1)"></a-rounded>
+              </a-entity>
+
+              <!-- Now Button - Moved Further Down -->
+              <a-rounded id="now-button" width="0.12" height="0.04" radius="0.01" position="-0.06 -0.19 0.001"
+                color="#8a2be2" text="value: RESET (NOW); align: center; baseline: center; width: 0.6"
+                class="control-panel-button" data-raycastable onclick="setNow()"></a-rounded>
+            </a-entity>
+
+            <!-- TAB 2: LOCATION -->
+            <a-entity id="tab-location" visible="false">
+              <a-text value="LOCATION" position="0 0.20 0.002" width="0.8" color="#a855f7" align="center"
+                font="mozillavr"></a-text>
+
+              <!-- Latitude Row -->
+              <a-entity position="0 0.08 0">
+                <a-text value="Latitude" position="-0.22 -0.005 0" width="0.5" color="#ccc" align="left"
+                  baseline="center"></a-text>
+
+                <a-rounded width="0.05" height="0.04" radius="0.01" position="-0.145 0 0.001" color="#2a2a3a"
+                  text="value: -; align: center; baseline: center; width: 0.8" class="control-panel-button"
+                  data-raycastable onclick="adjustCoordinate('latitude', -0.1)"></a-rounded>
+
+                <a-rounded id="input-vr-lat" width="0.12" height="0.04" radius="0.01" position="-0.06 0 0.001"
+                  color="#000" opacity="0.8" class="control-panel-button" data-raycastable
+                  onclick="openNumpad('input-vr-lat')">
+                  <a-text value="50.0" align="center" baseline="center" width="0.8" color="#00ffaa" font="monoid"
+                    position="-0.003 -0.002 0.01"></a-text>
+                </a-rounded>
+
+                <a-rounded width="0.05" height="0.04" radius="0.01" position="0.025 0 0.001" color="#2a2a3a"
+                  text="value: +; align: center; baseline: center; width: 0.8" class="control-panel-button"
+                  data-raycastable onclick="adjustCoordinate('latitude', 0.1)"></a-rounded>
+
+                <a-rounded id="toggle-2d-ns-vr" width="0.06" height="0.04" radius="0.01" position="0.085 0 0.001"
+                  color="#8a2be2" text="value: N; align: center; baseline: center; width: 0.8"
+                  class="control-panel-button" data-raycastable onclick="onTogglerClick('toggleNS')"></a-rounded>
+              </a-entity>
+
+              <!-- Longitude Row -->
+              <a-entity position="0 -0.06 0">
+                <a-text value="Longitude" position="-0.22 -0.005 0" width="0.5" color="#ccc" align="left"
+                  baseline="center"></a-text>
+
+                <a-rounded width="0.05" height="0.04" radius="0.01" position="-0.145 0 0.001" color="#2a2a3a"
+                  text="value: -; align: center; baseline: center; width: 0.8" class="control-panel-button"
+                  data-raycastable onclick="adjustCoordinate('longitude', -0.1)"></a-rounded>
+
+                <a-rounded id="input-vr-lon" width="0.12" height="0.04" radius="0.01" position="-0.06 0 0.001"
+                  color="#000" opacity="0.8" class="control-panel-button" data-raycastable
+                  onclick="openNumpad('input-vr-lon')">
+                  <a-text value="10.0" align="center" baseline="center" width="0.8" color="#00ffaa" font="monoid"
+                    position="-0.003 -0.002 0.01"></a-text>
+                </a-rounded>
+
+                <a-rounded width="0.05" height="0.04" radius="0.01" position="0.025 0 0.001" color="#2a2a3a"
+                  text="value: +; align: center; baseline: center; width: 0.8" class="control-panel-button"
+                  data-raycastable onclick="adjustCoordinate('longitude', 0.1)"></a-rounded>
+
+                <a-rounded id="toggle-2d-ew-vr" width="0.06" height="0.04" radius="0.01" position="0.085 0 0.001"
+                  color="#8a2be2" text="value: E; align: center; baseline: center; width: 0.8"
+                  class="control-panel-button" data-raycastable onclick="onTogglerClick('toggleEW')"></a-rounded>
+              </a-entity>
+            </a-entity>
+
+            <!-- TAB 3: VIEW (VISIBILITY) -->
+            <a-entity id="tab-view" visible="false">
+              <a-text value="VISIBILITY" position="0 0.20 0.002" width="0.8" color="#a855f7" align="center"
+                font="mozillavr"></a-text>
+
+              <a-entity position="-0.08 0.02 0">
+                <a-entity id="switch-hints"
+                  switch="position: -0.06 0.11 0; clickActionParam: toggleHints; toggled: true"></a-entity>
+                <a-text value="Tooltips" position="0 0.11 0" width="0.6" color="white" align="left"></a-text>
+
+                <a-entity id="switch-meridian"
+                  switch="position: -0.06 0.06 0; clickActionParam: toggleMeridian"></a-entity>
+                <a-text value="Meridian" position="0 0.06 0" width="0.6" color="white" align="left"></a-text>
+
+                <a-entity id="switch-equator"
+                  switch="position: -0.06 0.01 0; clickActionParam: toggleEquator"></a-entity>
+                <a-text value="Equator" position="0 0.01 0" width="0.6" color="white" align="left"></a-text>
+
+                <a-entity id="switch-ecliptic"
+                  switch="position: -0.06 -0.04 0; clickActionParam: toggleEcliptic"></a-entity>
+                <a-text value="Ecliptic" position="0 -0.04 0" width="0.6" color="white" align="left"></a-text>
+
+                <a-entity id="switch-cardinal-points"
+                  switch="position: -0.06 -0.09 0; clickActionParam: toggleCardinalPoints; toggled: true"></a-entity>
+                <a-text value="Cardinal" position="0 -0.09 0" width="0.6" color="white" align="left"></a-text>
+
+                <a-entity id="switch-ncp" switch="position: -0.06 -0.14 0; clickActionParam: toggleNCP"></a-entity>
+                <a-text value="Poles" position="0 -0.14 0" width="0.6" color="white" align="left"></a-text>
+
+                <a-entity id="switch-boundaries"
+                  switch="position: -0.06 -0.19 0; clickActionParam: toggleBoundaries"></a-entity>
+                <a-text value="Boundaries" position="0 -0.19 0" width="0.6" color="white" align="left"></a-text>
+              </a-entity>
+            </a-entity>
+
+          </a-entity>
+          <!-- Numpad Overlay -->
+          <a-entity id="vr-numpad" skyvr-numpad position="0.60 0 0.05" rotation="0 -15 0"></a-entity>
         </a-control-panel>
       </a-entity>
     </a-entity>
@@ -2634,6 +2808,47 @@
       // Attach this component to the scene
       document.querySelector('a-scene').setAttribute('local-time-interpolator', '');
 
+      window.updateTimeFromInput = function (inputId, value) {
+        const val = parseInt(value);
+        if (isNaN(val)) return;
+
+        let newTime = window.simulationTime;
+        if (inputId.includes('year')) {
+          newTime = newTime.set({ year: val });
+        } else if (inputId.includes('month')) {
+          newTime = newTime.set({ month: val });
+        } else if (inputId.includes('day')) {
+          newTime = newTime.set({ day: val });
+        } else if (inputId.includes('hour')) {
+          newTime = newTime.set({ hour: val });
+        } else if (inputId.includes('minute')) {
+          newTime = newTime.set({ minute: val });
+        }
+
+        updateSimulationTime(newTime);
+        syncSky();
+        updateScene();
+      };
+
+      window.updateLocationFromInput = function (inputId, value) {
+        const val = parseFloat(value);
+        if (isNaN(val)) return;
+
+        if (inputId.includes('lat')) {
+          // preserve sign if user didn't enter it? Numpad has '-', so user can enter text.
+          // But if user just types '50' and it was '-50', we assume they want '50'.
+          window.latitude = Math.max(-90, Math.min(90, val));
+        } else if (inputId.includes('lon')) {
+          // Wrap longitude? Or clamp? usually -180 to 180
+          window.longitude = val;
+          // Normalise to -180...180 if needed, but Astronomy engine might handle loose values
+        }
+
+        // Render updates
+        updateScene();
+        syncSky();
+      };
+
       function adjustTime(unit, amount) {
         let newTime;
         if (unit === 'sidereal') {
@@ -2770,24 +2985,56 @@
 
         // Throttle UI text updates to ~10Hz
         if (now - lastUIUpdateTime > 100) {
+
+          // --- VR Control Panel Updates ---
+          const pad = (n) => String(n).padStart(2, '0');
+          const updateVRInput = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) {
+              const textEl = el.querySelector('a-text');
+              if (textEl) {
+                textEl.setAttribute('value', val);
+              } else {
+                // Fallback in case we missed one or structure differs
+                el.setAttribute('text', 'value', val);
+              }
+            }
+          };
+
+          if (simulationTime) {
+            updateVRInput('input-vr-year', simulationTime.year);
+            updateVRInput('input-vr-month', pad(simulationTime.month));
+            updateVRInput('input-vr-day', pad(simulationTime.day));
+            updateVRInput('input-vr-hour', pad(simulationTime.hour));
+            updateVRInput('input-vr-minute', pad(simulationTime.minute));
+          }
+
+          updateVRInput('input-vr-lat', Math.abs(latitude).toFixed(1));
+          updateVRInput('input-vr-lon', Math.abs(longitude).toFixed(1));
+
+          const nsBtn = document.getElementById('toggle-2d-ns-vr');
+          if (nsBtn) nsBtn.setAttribute('text', 'value', latitude >= 0 ? 'N' : 'S');
+
+          const ewBtn = document.getElementById('toggle-2d-ew-vr');
+          if (ewBtn) ewBtn.setAttribute('text', 'value', longitude >= 0 ? 'E' : 'W');
+          // --------------------------------
+
           if (dateTimeDisplay) {
-            dateTimeDisplay.setAttribute("text", `value: ${simulationTime.toLocaleString(luxon.DateTime.DATETIME_FULL_WITH_SECONDS)}; color: white; width: 0.5; align: center`);
-          }
-
-          const latLabel = latitude >= 0 ? "N" : "S";
-          if (latitudeDisplay) {
-            latitudeDisplay.setAttribute("text", `value: Latitude: ${Math.abs(latitude).toFixed(1)}° ${latLabel}; color: white; width: 1; align: center`);
-          }
-
-          const lonLabel = longitude >= 0 ? "O" : "W";
-          if (longitudeDisplay) {
-            longitudeDisplay.setAttribute("text", `value: Longitude: ${Math.abs(longitude).toFixed(1)}° ${lonLabel}; color: white; width: 1; align: center`);
+            if (latitudeDisplay) {
+              latitudeDisplay.setAttribute("text", `value: ${Math.abs(latitude).toFixed(1)}°; color: white; width: 0.7; align: center`);
+            }
+            if (longitudeDisplay) {
+              longitudeDisplay.setAttribute("text", `value: ${Math.abs(longitude).toFixed(1)}°; color: white; width: 0.7; align: center`);
+            }
+            if (dateTimeDisplay) {
+              dateTimeDisplay.setAttribute("text", `value: ${simulationTime.toLocaleString(luxon.DateTime.DATETIME_SHORT)}; color: white; width: 0.7; align: center`);
+            }
           }
           lastUIUpdateTime = now;
-        }
 
-        if (starsPointCloud && starsPointCloud.components && starsPointCloud.components.starfield) {
-          starsPointCloud.components.starfield.update();
+          if (starsPointCloud && starsPointCloud.components && starsPointCloud.components.starfield) {
+            starsPointCloud.components.starfield.update();
+          }
         }
       }
 
@@ -3007,6 +3254,17 @@
         }
       });
 
+      // Tab Switching Logic for VR Control Panel
+      window.switchTab = function (tabName) {
+        const tabs = ['time', 'location', 'view'];
+        tabs.forEach(t => {
+          const el = document.getElementById('tab-' + t);
+          const btn = document.getElementById('tab-btn-' + t);
+          if (el) el.setAttribute('visible', t === tabName);
+          if (btn) btn.setAttribute('color', t === tabName ? '#8a2be2' : '#2a2a3a');
+        });
+      };
+
       function onTogglerClick(action) { // 'action' is the clickActionParam
         const meridianEl = document.getElementById('meridian');
         const equatorEl = document.getElementById('equator');
@@ -3114,6 +3372,18 @@
               rendererB.el.setAttribute('constellation-renderer', { showBoundaries: !current });
               console.log('IAU Boundaries toggled to:', !current);
             }
+            break;
+          case 'toggleNS':
+            window.latitude = -window.latitude;
+            if (typeof updateScene === 'function') updateScene();
+            if (typeof syncSky === 'function') syncSky(true);
+            console.log('Latitude toggled to:', window.latitude);
+            break;
+          case 'toggleEW':
+            window.longitude = -window.longitude;
+            if (typeof updateScene === 'function') updateScene();
+            if (typeof syncSky === 'function') syncSky(true);
+            console.log('Longitude toggled to:', window.longitude);
             break;
           // Example for other existing actions, like 'red', if needed.
           // case 'red':
@@ -3615,6 +3885,7 @@
           follower.lastCamWorldPos.copy(camWorldPos);
         }
       }
+
 
     </script>
 

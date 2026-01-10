@@ -12,7 +12,7 @@ AFRAME.registerComponent('rounded', {
         opacity: { type: 'number', default: 1 }
     },
     init: function () {
-        this.rounded = new THREE.Mesh(this.draw(), new THREE.MeshLambertMaterial({ color: new THREE.Color(this.data.color), side: THREE.DoubleSide }));
+        this.rounded = new THREE.Mesh(this.draw(), new THREE.MeshBasicMaterial({ color: new THREE.Color(this.data.color), side: THREE.DoubleSide }));
         this.updateOpacity();
         this.el.setObject3D('mesh', this.rounded)
     },
