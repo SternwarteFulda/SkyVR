@@ -150,13 +150,12 @@ AFRAME.registerComponent('constellation-illustration', {
     tick: function (t, dt) {
         if (!dt || !this.mesh) return;
 
+        // Skip calculations if opacity is stable and not removing/highlighted
+        const alphaDiff = Math.abs(this.targetOpacity - this.currentOpacity);
+        if (alphaDiff < 0.001 && !this.isRemoving && !this.isHighlighted) return;
+
         // Faster bloom for entities (~200ms)
-        let lerpFactor;
-        if (this.targetOpacity > this.currentOpacity) {
-            lerpFactor = 1 - Math.pow(0.01, dt / 1000);
-        } else {
-            lerpFactor = 1 - Math.pow(0.01, dt / 1000);
-        }
+        const lerpFactor = 1 - Math.pow(0.01, dt / 1000);
 
         this.currentOpacity += (this.targetOpacity - this.currentOpacity) * lerpFactor;
 
@@ -329,12 +328,26 @@ AFRAME.registerComponent('constellation-stick-figure', {
                     this.renderer = comp;
                     this.rendererReady = true;
                     this.setupStickFigure();
+                    this.cacheMaterials();
                     return;
                 }
             }
             setTimeout(checkRenderer, 200);
         };
         checkRenderer();
+    },
+
+    cacheMaterials: function () {
+        this.cachedMaterials = [];
+        if (!this.mesh) return;
+        this.mesh.traverse(node => {
+            if (node.material) {
+                this.cachedMaterials.push({
+                    material: node.material,
+                    renderOrder: node.renderOrder
+                });
+            }
+        });
     },
 
     update: function (oldData) {
@@ -347,13 +360,18 @@ AFRAME.registerComponent('constellation-stick-figure', {
     tick: function (t, dt) {
         if (!dt || !this.mesh) return;
 
-        // Faster bloom for entities (~200ms)
-        let lerpFactor;
-        if (this.targetOpacity > this.currentOpacity) {
-            lerpFactor = 1 - Math.pow(0.01, dt / 1000);
-        } else {
-            lerpFactor = 1 - Math.pow(0.01, dt / 1000);
+        // Throttled material updates (30 FPS is enough for the breathing pulse and fades)
+        if (!this.throttledTick) {
+            this.throttledTick = AFRAME.utils.throttle((t, dt) => {
+                this.updateMaterials(t, dt);
+            }, 33);
         }
+        this.throttledTick(t, dt);
+    },
+
+    updateMaterials: function (t, dt) {
+        // Faster bloom for entities (~200ms)
+        const lerpFactor = 1 - Math.pow(0.01, dt / 1000);
 
         // Smooth fade
         this.currentOpacity += (this.targetOpacity - this.currentOpacity) * lerpFactor;
@@ -369,45 +387,47 @@ AFRAME.registerComponent('constellation-stick-figure', {
         const pulse = 0.75 + Math.sin((t + this.pulseOffset) / 800) * 0.25;
         const finalAlpha = this.currentOpacity * pulse * (1.0 + this.flashValue);
 
-        // Detection helper for color enforcement
         const isZod = this.renderer && this.renderer.isZodiac(this.data.constellationId);
         const zodiacColor = '#ffd700';
         const standardColor = '#00ffff';
 
-        this.mesh.traverse(node => {
-            if (node.material && node.material.transparent) {
+        for (let entry of this.cachedMaterials) {
+            const nodeMaterial = entry.material;
+            const nodeRenderOrder = entry.renderOrder;
+
+            if (nodeMaterial.transparent) {
                 // Layer system (7: Bloom, 8: Inner Glow, 9: Core)
                 let base = 1.0;
-                if (node.renderOrder === 7) base = 0.08;
-                if (node.renderOrder === 8) base = 0.15;
-                if (node.renderOrder === 9) base = 0.3;
+                if (nodeRenderOrder === 7) base = 0.08;
+                if (nodeRenderOrder === 8) base = 0.15;
+                if (nodeRenderOrder === 9) base = 0.3;
 
-                // For shader materials (Core)
-                if (node.material.uniforms && node.material.uniforms.opacity) {
-                    node.material.uniforms.opacity.value = Math.min(finalAlpha * base, 1.0);
+                const opacity = Math.min(finalAlpha * base, 1.0);
+                if (nodeMaterial.uniforms && nodeMaterial.uniforms.opacity) {
+                    nodeMaterial.uniforms.opacity.value = opacity;
                 } else {
-                    node.material.opacity = Math.min(finalAlpha * base, 1.0);
+                    nodeMaterial.opacity = opacity;
                 }
 
                 // Dynamic Color Enforcement
-                let target = (node.renderOrder === 9)
+                let targetColor = (nodeRenderOrder === 9)
                     ? (isZod ? '#fff4cc' : '#ffffff')
                     : (isZod ? zodiacColor : standardColor);
 
                 // Turn redish if up for removal OR being pointed at
                 if (this.isRemoving || this.isHighlighted) {
-                    const baseCol = new THREE.Color(target);
+                    const baseCol = new THREE.Color(targetColor);
                     const redCol = new THREE.Color('#ff4444');
-                    target = baseCol.lerp(redCol, 0.8); // 80% red shift
+                    targetColor = baseCol.lerp(redCol, 0.8);
                 }
 
-                if (node.material.uniforms && node.material.uniforms.color) {
-                    node.material.uniforms.color.value.set(target);
-                } else if (node.material.color) {
-                    node.material.color.set(target);
+                if (nodeMaterial.uniforms && nodeMaterial.uniforms.color) {
+                    nodeMaterial.uniforms.color.value.set(targetColor);
+                } else if (nodeMaterial.color) {
+                    nodeMaterial.color.set(targetColor);
                 }
             }
-        });
+        }
 
         if (this.isRemoving && this.currentOpacity < 0.01) {
             if (this.el.parentNode) this.el.parentNode.removeChild(this.el);
@@ -436,6 +456,7 @@ AFRAME.registerComponent('constellation-stick-figure', {
 
         this.mesh = this.renderer.createStickFigure(constellation, this.data.color, 0); // Create with 0 alpha
         this.el.object3D.add(this.mesh);
+        this.cacheMaterials(); // Cache the new ones
     },
 
     setHighlight: function (enabled) {

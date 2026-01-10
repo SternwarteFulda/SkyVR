@@ -170,8 +170,7 @@ AFRAME.registerComponent('constellation-renderer', {
     renderConstellationLines: function () {
         this.clearConstellationLines();
 
-        let totalLines = 0;
-
+        const points = [];
         this.constellationData.constellations.forEach(constellation => {
             if (!constellation.lines) return;
 
@@ -184,20 +183,21 @@ AFRAME.registerComponent('constellation-renderer', {
                     const pos2 = this.starPositions.get(hip2);
 
                     if (pos1 && pos2) {
-                        const geometry = new THREE.BufferGeometry().setFromPoints([pos1, pos2]);
-                        const line = new THREE.Line(geometry, this.lineMaterial);
-                        line.name = `constellation-line-${constellation.id}`;
-                        line.renderOrder = 7; // Below avatar (10)
-
-                        this.el.object3D.add(line);
-                        this.constellationLines.push(line);
-                        totalLines++;
+                        points.push(pos1, pos2);
                     }
                 }
             });
         });
 
-        console.log(`Rendered ${totalLines} constellation line segments`);
+        if (points.length > 0) {
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const lineSegments = new THREE.LineSegments(geometry, this.lineMaterial);
+            lineSegments.name = 'all-constellation-lines';
+            lineSegments.renderOrder = 7;
+            this.el.object3D.add(lineSegments);
+            this.constellationLines.push(lineSegments);
+            console.log(`Rendered ${points.length / 2} constellation line segments in 1 object`);
+        }
     },
 
     clearConstellationLines: function () {
@@ -216,12 +216,11 @@ AFRAME.registerComponent('constellation-renderer', {
             return;
         }
 
-        let totalSegments = 0;
+        const allPoints = [];
         this.constellationData.edges.forEach(edgeStr => {
             const parts = edgeStr.trim().split(/\s+/);
             if (parts.length < 6) return;
 
-            // Format: "ID Type RA1 Dec1 RA2 Dec2 ..."
             const ra1 = this.parseHms(parts[2]);
             const dec1 = this.parseDms(parts[3]);
             const ra2 = this.parseHms(parts[4]);
@@ -229,33 +228,32 @@ AFRAME.registerComponent('constellation-renderer', {
 
             if (isNaN(ra1) || isNaN(dec1) || isNaN(ra2) || isNaN(dec2)) return;
 
-            // Normalize RA difference for shortest path across 0/24h meridian
             let dra = ra2 - ra1;
             if (dra > 12) dra -= 24;
             if (dra < -12) dra += 24;
 
-            // Subdivide to follow curvature (roughly 1 step per degree of sky)
-            const points = [];
             const steps = Math.max(1, Math.floor(Math.abs(dra) * 15 + Math.abs(dec2 - dec1)));
+            let prevPoint = this.raDecToPosition(ra1, dec1, this.data.radius);
 
-            for (let i = 0; i <= steps; i++) {
+            for (let i = 1; i <= steps; i++) {
                 const t = i / steps;
                 const r = ra1 + dra * t;
                 const d = dec1 + (dec2 - dec1) * t;
-                points.push(this.raDecToPosition(r, d, this.data.radius));
+                const nextPoint = this.raDecToPosition(r, d, this.data.radius);
+                allPoints.push(prevPoint, nextPoint);
+                prevPoint = nextPoint;
             }
-
-            const geometry = new THREE.BufferGeometry().setFromPoints(points);
-            const line = new THREE.Line(geometry, this.boundaryMaterial);
-            line.name = 'iau-boundary';
-            line.renderOrder = 6;
-
-            this.el.object3D.add(line);
-            this.boundaryLines.push(line);
-            totalSegments++;
         });
 
-        console.log(`Rendered ${totalSegments} IAU boundary segments`);
+        if (allPoints.length > 0) {
+            const geometry = new THREE.BufferGeometry().setFromPoints(allPoints);
+            const lineSegments = new THREE.LineSegments(geometry, this.boundaryMaterial);
+            lineSegments.name = 'all-iau-boundaries';
+            lineSegments.renderOrder = 6;
+            this.el.object3D.add(lineSegments);
+            this.boundaryLines.push(lineSegments);
+            console.log(`Rendered ${allPoints.length / 2} IAU boundary segments in 1 object`);
+        }
     },
 
     clearBoundaries: function () {
@@ -674,30 +672,34 @@ AFRAME.registerComponent('constellation-renderer', {
         const group = new THREE.Group();
         group.name = `stick-figure-${constellation.id}`;
 
+        const points = [];
         constellation.lines.forEach(lineGroup => {
             for (let i = 0; i < lineGroup.length - 1; i++) {
                 const hip1 = lineGroup[i];
                 const hip2 = lineGroup[i + 1];
                 const p1 = this.starPositions.get(hip1);
                 const p2 = this.starPositions.get(hip2);
-
                 if (p1 && p2) {
-                    const geometry = new THREE.BufferGeometry().setFromPoints([p1, p2]);
-
-                    const lineOuter = new THREE.Line(geometry.clone(), outerGlowMaterial);
-                    lineOuter.renderOrder = 7;
-                    group.add(lineOuter);
-
-                    const lineInner = new THREE.Line(geometry.clone(), innerGlowMaterial);
-                    lineInner.renderOrder = 8;
-                    group.add(lineInner);
-
-                    const lineCore = new THREE.Line(geometry, coreMaterial);
-                    lineCore.renderOrder = 9;
-                    group.add(lineCore);
+                    points.push(p1, p2);
                 }
             }
         });
+
+        if (points.length > 0) {
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+
+            const lineOuter = new THREE.LineSegments(geometry.clone(), outerGlowMaterial);
+            lineOuter.renderOrder = 7;
+            group.add(lineOuter);
+
+            const lineInner = new THREE.LineSegments(geometry.clone(), innerGlowMaterial);
+            lineInner.renderOrder = 8;
+            group.add(lineInner);
+
+            const lineCore = new THREE.LineSegments(geometry, coreMaterial);
+            lineCore.renderOrder = 9;
+            group.add(lineCore);
+        }
 
         return group;
     },

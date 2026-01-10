@@ -401,7 +401,7 @@
             }
           }
 
-          if (Math.abs(effectiveVel) > 0.05 || Math.abs(diffSeconds) > 0.1) {
+          if (Math.abs(effectiveVel) > 0.001 || Math.abs(diffSeconds) > 0.001) {
             const step = effectiveVel * dtSec;
             updateSimulationTime(luxon.DateTime.fromMillis((currentTimeSecs + step) * 1000), false);
             updateScene();
@@ -490,67 +490,87 @@
         }
 
         const guides = {
-          'meridian': this.data.showMeridian,
-          'equator': this.data.showEquator,
-          'ecliptic': this.data.showEcliptic,
-          'cardinal-points': this.data.showCardinalPoints,
-          'ncp': this.data.showCelestialPoles,
-          'ncp_glow': this.data.showCelestialPoles,
-          'scp': this.data.showCelestialPoles,
-          'scp_glow': this.data.showCelestialPoles
+          'meridian': { val: this.data.showMeridian, old: oldData.showMeridian },
+          'equator': { val: this.data.showEquator, old: oldData.showEquator },
+          'ecliptic': { val: this.data.showEcliptic, old: oldData.showEcliptic },
+          'cardinal-points': { val: this.data.showCardinalPoints, old: oldData.showCardinalPoints },
+          'ncp': { val: this.data.showCelestialPoles, old: oldData.showCelestialPoles },
+          'ncp_glow': { val: this.data.showCelestialPoles, old: oldData.showCelestialPoles },
+          'scp': { val: this.data.showCelestialPoles, old: oldData.showCelestialPoles },
+          'scp_glow': { val: this.data.showCelestialPoles, old: oldData.showCelestialPoles }
         };
 
         for (let id in guides) {
-          let el = document.getElementById(id);
-          if (el) {
-            // Apply fader if not already present
-            if (!el.hasAttribute('fader')) {
-              el.setAttribute('fader', { active: guides[id] });
-            } else {
-              el.setAttribute('fader', 'active', guides[id]);
+          if (guides[id].val !== guides[id].old || !window.skyStateInitialized) {
+            let el = document.getElementById(id);
+            if (el) {
+              if (!el.hasAttribute('fader')) {
+                el.setAttribute('fader', { active: guides[id].val });
+              } else {
+                el.setAttribute('fader', 'active', guides[id].val);
+              }
             }
           }
         }
 
         // Apply constellation renderer toggles
-        const rendererEl = document.getElementById('constellation-lines');
-        if (rendererEl) {
-          rendererEl.setAttribute('constellation-renderer', {
-            showLines: this.data.showConstellationLines,
-            showBoundaries: this.data.showBoundaries
-          });
+        if (this.data.showConstellationLines !== oldData.showConstellationLines ||
+          this.data.showBoundaries !== oldData.showBoundaries ||
+          !window.skyStateInitialized) {
+          const rendererEl = document.getElementById('constellation-lines');
+          if (rendererEl) {
+            rendererEl.setAttribute('constellation-renderer', {
+              showLines: this.data.showConstellationLines,
+              showBoundaries: this.data.showBoundaries
+            });
+          }
         }
 
         // Apply switch toggles for VR UI
         const switches = {
-          'switch-meridian': this.data.showMeridian,
-          'switch-equator': this.data.showEquator,
-          'switch-ecliptic': this.data.showEcliptic,
-          'switch-cardinal-points': this.data.showCardinalPoints,
-          'switch-ncp': this.data.showCelestialPoles,
-          'switch-boundaries': this.data.showBoundaries,
-          'switch-hints': this.data.showHints
+          'switch-meridian': { val: this.data.showMeridian, old: oldData.showMeridian },
+          'switch-equator': { val: this.data.showEquator, old: oldData.showEquator },
+          'switch-ecliptic': { val: this.data.showEcliptic, old: oldData.showEcliptic },
+          'switch-cardinal-points': { val: this.data.showCardinalPoints, old: oldData.showCardinalPoints },
+          'switch-ncp': { val: this.data.showCelestialPoles, old: oldData.showCelestialPoles },
+          'switch-boundaries': { val: this.data.showBoundaries, old: oldData.showBoundaries },
+          'switch-hints': { val: this.data.showHints, old: oldData.showHints }
         };
 
         for (let id in switches) {
-          let el = document.getElementById(id);
-          if (el && el.components.switch) {
-            el.setAttribute('switch', 'toggled', switches[id]);
+          if (switches[id].val !== switches[id].old || !window.skyStateInitialized) {
+            let el = document.getElementById(id);
+            if (el && el.components.switch) {
+              el.setAttribute('switch', 'toggled', switches[id].val);
+            }
           }
         }
 
         // Update VR Coordinate toggles
-        const nsToggleVr = document.getElementById('toggle-2d-ns-vr');
-        if (nsToggleVr) {
-          nsToggleVr.setAttribute('text', 'value', window.latitude >= 0 ? 'N' : 'S');
+        if (this.data.latitude !== oldData.latitude || !window.skyStateInitialized) {
+          const nsToggleVr = document.getElementById('toggle-2d-ns-vr');
+          if (nsToggleVr) {
+            nsToggleVr.setAttribute('text', 'value', window.latitude >= 0 ? 'N' : 'S');
+          }
         }
-        const ewToggleVr = document.getElementById('toggle-2d-ew-vr');
-        if (ewToggleVr) {
-          ewToggleVr.setAttribute('text', 'value', window.longitude >= 0 ? 'E' : 'W');
+        if (this.data.longitude !== oldData.longitude || !window.skyStateInitialized) {
+          const ewToggleVr = document.getElementById('toggle-2d-ew-vr');
+          if (ewToggleVr) {
+            ewToggleVr.setAttribute('text', 'value', window.longitude >= 0 ? 'E' : 'W');
+          }
         }
 
-        if (typeof updateScene === 'function') {
-          updateScene();
+        // Only trigger updateScene if critical physical state changed
+        const physChanged = this.data.time !== oldData.time ||
+          this.data.latitude !== oldData.latitude ||
+          this.data.longitude !== oldData.longitude;
+
+        if (physChanged && typeof updateScene === 'function') {
+          const isMine = (typeof NAF !== 'undefined' && NAF.utils.isMine(this.el));
+          // If we aren't interpolating (e.g. jump), or if we are the owner, update now.
+          if (!window.interpolationEnabled || isMine) {
+            updateScene();
+          }
         }
       }
     });
@@ -2644,6 +2664,9 @@
           window.simTimeMs = newTime.toMillis();
           // Clear astro cache to force a fresh RA/Dec recalculation on the next frame/updateScene
           if (window._astroCache) window._astroCache.sunRaDec = null;
+        } else {
+          // Even during interpolation, keep the numeric MS in sync with the object
+          window.simTimeMs = window.simulationTime.toMillis();
         }
       };
 
@@ -2691,14 +2714,21 @@
           }
 
           const renderer = document.getElementById('constellation-lines')?.components['constellation-renderer'];
-          const constellationData = renderer ? JSON.stringify(
-            renderer.placedIllustrations.map(e => {
-              const id = e.dataset.constellationId;
-              const type = e.dataset.type || 'illustration';
-              // Return string for illustrations (backward compat), object for others
-              return type === 'illustration' ? id : { id: id, type: type };
-            }).filter(item => item && (typeof item === 'string' || item.id))
-          ) : sharedConst;
+          let constellationData = sharedConst;
+          if (renderer) {
+            const currentCount = renderer.placedIllustrations.length;
+            if (currentCount !== window._lastConstellationCount || !window._cachedConstellationData) {
+              window._cachedConstellationData = JSON.stringify(
+                renderer.placedIllustrations.map(e => {
+                  const id = e.dataset.constellationId;
+                  const type = e.dataset.type || 'illustration';
+                  return type === 'illustration' ? id : { id: id, type: type };
+                }).filter(item => item && (typeof item === 'string' || item.id))
+              );
+              window._lastConstellationCount = currentCount;
+            }
+            constellationData = window._cachedConstellationData;
+          }
 
           if (!silent) {
             // Only log if it's been a while to avoid console flood during scrubbing
