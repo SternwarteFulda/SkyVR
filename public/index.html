@@ -26,28 +26,30 @@
     window.reverseMouse = true; // Move sky (Default) vs Move camera
 
     // Helper to determine if we are safe to broadcast changes to the room
-    window.canUpdateSkyState = function () {
-      if (window.skyStateInitialized) return true;
+    window.canUpdateSkyState = function (forceAuthoritative = false) {
+      if (typeof NAF === 'undefined' || !NAF.connection || !NAF.connection.adapter || !NAF.connection.isConnected()) return false;
 
-      // If we are alone, we are allowed after a short grace period starting from CONNECTION
-      if (typeof NAF !== 'undefined' && NAF.connection && NAF.connection.adapter && NAF.connection.isConnected()) {
-        if (!window.nafConnectTime) window.nafConnectTime = performance.now();
+      // If we've already synced with the room, or we are explicitly forcing an authoritative action (scrubbing), we are safe.
+      if (window.skyStateInitialized || forceAuthoritative) return true;
 
-        const connectedClients = NAF.connection.getConnectedClients();
-        const skyMaster = document.getElementById('sky-master');
-        const isOwner = skyMaster && NAF.utils.isMine(skyMaster);
+      const skyMaster = document.getElementById('sky-master');
+      const isOwner = skyMaster && NAF.utils.isMine(skyMaster);
+      const connectedClients = NAF.connection.getConnectedClients();
+      const isAlone = Object.keys(connectedClients).length === 0;
 
-        // GRADUATION: We graduate to Master if:
-        // 1. We've been connected for at least 5 seconds.
-        // 2. We either see NO ONE or we are the OWNER of the sky-master entity.
-        if (performance.now() - window.nafConnectTime > 5000) {
-          if (Object.keys(connectedClients).length === 0 || isOwner) {
-            console.log("canUpdateSkyState: Graduating to Master (Owner or Alone).");
-            window.skyStateInitialized = true;
-            updateLoadingIndicator('sync', true);
-            return true;
-          }
+      if (!window.nafConnectTime) window.nafConnectTime = performance.now();
+
+      // GRADUATION: We graduate to Master if:
+      // 1. We are alone in the room (immediate).
+      // 2. We are the owner of the sky-master entity.
+      // 3. We've been connected for at least 5 seconds (safety fallback).
+      if (isAlone || isOwner || (performance.now() - window.nafConnectTime > 5000)) {
+        if (!window.skyStateInitialized) {
+          console.log("canUpdateSkyState: Graduating to Master (Owner, Alone, or Fallback).");
+          window.skyStateInitialized = true;
+          updateLoadingIndicator('sync', true);
         }
+        return true;
       }
       return false;
     };
@@ -335,7 +337,7 @@
           const timeDrift = Math.abs(window.simulationTime.diff(sharedTime, 'seconds').seconds);
           const latDrift = Math.abs(window.latitude - this.data.latitude);
 
-          const driftThreshold = (Math.abs(this.data.velocity) > 10) ? 60 : 5; // Relax during movement
+          const driftThreshold = (Math.abs(this.data.velocity) > 10) ? 60 : 1; // 1s threshold for steady state, 60s for high-speed scrubbing
           if ((timeDrift > driftThreshold || latDrift > 0.01) && !this.targetTime) {
             console.log("sky-state: Watchdog detected drift from master (and no interpolation active). Pulling state...");
             // Instead of just update(), let's explicitly copy the data to our locals
@@ -371,13 +373,14 @@
           // Reduced from 30.0 to dampen network jitter during high-speed scrubbing.
           this.timeVelocity += (this.data.velocity - this.timeVelocity) * 10.0 * dtSec;
 
-          const snapThreshold = 7200; // 2 hours
+          // Threshold 86000s (approx 23.88h) covers within-day moves, but snaps on Sidereal (86164s) & Solar (86400s) days.
+          const snapThreshold = 86000;
           // RESILIENCY FIX: If we are drastically behind but the master IS moving (scrubbing),
           // DO NOT snap-freeze. Just increase the catch-up gain (kCorrection) below.
           const isOwnerMovingFast = Math.abs(this.data.velocity) > 10;
 
           if (Math.abs(diffSeconds) > snapThreshold && !isOwnerMovingFast) {
-            updateSimulationTime(this.targetTime, false);
+            updateSimulationTime(this.targetTime, false, true); // Use forceSnap for watchdog snap
             this.targetTime = null;
             this.timeVelocity = 0;
             updateScene();
@@ -430,11 +433,18 @@
           return;
         }
 
-        // We only consider the state "Synchronized" if we've received data with a heartbeat
-        // OR if we've been promoted to Master.
+        const isInitialSync = !window.skyStateInitialized;
+
         if (isRemote && !incomingIsInit && this.data.heartbeat > 0) {
-          if (!window.skyStateInitialized) {
+          if (isInitialSync) {
             console.log("sky-state: First heartbeat received. Syncing reality...");
+            // Force immediate snap on join to avoid seeing local "Now" time
+            if (this.data.time) {
+              updateSimulationTime(luxon.DateTime.fromISO(this.data.time), true, true);
+            }
+            if (this.data.latitude !== undefined) window.latitude = this.data.latitude;
+            if (this.data.longitude !== undefined) window.longitude = this.data.longitude;
+            if (typeof updateScene === 'function') updateScene();
           }
           window.skyStateInitialized = true;
           updateLoadingIndicator('sync', true);
@@ -450,24 +460,34 @@
               this.targetTime = rawTargetTime;
               this.lastReceivedTimestamp = performance.now();
 
-              // If this is the FIRST update or a huge jump, snap instantly
-              if (!window.simulationTime || Math.abs(this.targetTime.toMillis() - window.simulationTime.toMillis()) > 3600000) {
-                updateSimulationTime(this.targetTime);
+              // If this is the FIRST update or a major jump (> 23h), snap instantly.
+              // Threshold (86000000ms) allows almost full-day glides (23.8h), 
+              // but snaps for Sidereal Day (86164090ms) and Solar Day (86400000ms).
+              if (isInitialSync || !window.simulationTime || Math.abs(this.targetTime.toMillis() - window.simulationTime.toMillis()) >= 86000000) {
+                updateSimulationTime(this.targetTime, true, true);
                 this.targetTime = null;
                 this.timeVelocity = 0;
+                updateScene(); // Ensure visual update for snap
               }
             }
           }
+
+          let needsRender = false;
+
           if (this.data.latitude !== undefined && this.data.latitude !== oldData.latitude) {
             if (!incomingIsInit) {
               window.latitude = this.data.latitude;
+              needsRender = true;
             }
           }
           if (this.data.longitude !== undefined && this.data.longitude !== oldData.longitude) {
             if (!incomingIsInit) {
               window.longitude = this.data.longitude;
+              needsRender = true;
             }
           }
+
+          if (needsRender) updateScene();
         }
         if (this.data.activeConstellations !== oldData.activeConstellations) {
           if (isRemote) console.log(`Sky State: activeConstellations changed from "${oldData.activeConstellations}" to "${this.data.activeConstellations}"`);
@@ -2644,12 +2664,13 @@
       window.lastJoystickTime = 0;
 
       // Helper to keep both Luxon and numeric time in sync
-      window.updateSimulationTime = function (newTime, updateTarget = true) {
+      window.updateSimulationTime = function (newTime, updateTarget = true, forceSnap = false) {
         if (!newTime) return;
 
-        // If jump is > 2 hours, force an instant snap even if interpolation is enabled
+        // If jump is >= 86,000 seconds (23.88h), force snap.
+        // This ensures Sidereal Day (86,164s) and Solar Day (86,400s) jumps are instant.
         const diffMs = Math.abs(newTime.toMillis() - window.simTimeMs);
-        const shouldSnap = diffMs > 7200000; // 2 hours in ms
+        const shouldSnap = diffMs >= 86000000;
 
         if (updateTarget) {
           window.targetSimulationTime = newTime;
@@ -2658,8 +2679,8 @@
         }
 
         // If interpolation is disabled or we are jumping WITHOUT interpolation, snap instantly.
-        // Also snap if the jump is very large.
-        if (!window.interpolationEnabled || !updateTarget || shouldSnap) {
+        // Also snap if the jump is very large or if forceSnap is set.
+        if (!window.interpolationEnabled || !updateTarget || shouldSnap || forceSnap) {
           window.simulationTime = newTime;
           window.simTimeMs = newTime.toMillis();
           // Clear astro cache to force a fresh RA/Dec recalculation on the next frame/updateScene
@@ -2684,34 +2705,40 @@
       window.micEnabled = false;
 
       let lastSyncTime = 0;
-      function syncSky(silent = false) {
+      function syncSky(silent = false, forceOwnership = false) {
         // Standardize 50ms (20Hz) sync rate for responsive UI and smooth motion.
         const throttleLimit = 50;
         const now = performance.now();
-        if (!silent && (now - lastSyncTime < throttleLimit)) return;
+
+        // MASTER HEARTBEAT: Every 5 seconds, we bypass the throttle to ensure 
+        // the room reality is recasted for all clients (late joiners, packet loss).
+        const isHeartbeatRecast = (now - lastSyncTime > 5000);
+
+        if (!forceOwnership && !isHeartbeatRecast && (now - lastSyncTime < throttleLimit)) return;
 
         const skyMaster = document.getElementById('sky-master');
         if (skyMaster && NAF.connection && NAF.connection.adapter && NAF.connection.isConnected()) {
-          const currentState = skyMaster.getAttribute('sky-state') || {};
-          const sharedConst = currentState.activeConstellations || 'INIT';
-
           // ROBUST SAFEGUARD:
           // Use the global helper to check if we are authorized to broadcast.
-          if (!window.canUpdateSkyState()) {
+          if (!window.canUpdateSkyState(forceOwnership)) {
             if (!silent) console.warn("syncSky: Not authorized to update yet (waiting for room state).");
             return;
           }
 
-          // Clear any pending initialization timeout once we are ready to broadcast
-          if (window.skyInitTimeout) {
-            clearTimeout(window.skyInitTimeout);
-            window.skyInitTimeout = null;
+          if (!NAF.utils.isMine(skyMaster)) {
+            if (forceOwnership) {
+              if (!silent) console.log("Taking ownership of sky-master to sync state autoritatively...");
+              NAF.utils.takeOwnership(skyMaster);
+              // Authoritative update should continue to set the attribute immediately 
+              // and also schedule follow-ups to ensure propagation.
+              [200, 1000].forEach(delay => setTimeout(() => syncSky(true, true), delay));
+            } else {
+              return;
+            }
           }
 
-          if (!NAF.utils.isMine(skyMaster)) {
-            console.log("Taking ownership of sky-master to sync state...");
-            NAF.utils.takeOwnership(skyMaster);
-          }
+          const currentState = skyMaster.getAttribute('sky-state') || {};
+          const sharedConst = currentState.activeConstellations || 'INIT';
 
           const renderer = document.getElementById('constellation-lines')?.components['constellation-renderer'];
           let constellationData = sharedConst;
@@ -2730,7 +2757,7 @@
             constellationData = window._cachedConstellationData;
           }
 
-          if (!silent) {
+          if (!silent || forceOwnership) {
             // Only log if it's been a while to avoid console flood during scrubbing
             if (now - lastSyncTime > 1000) {
               console.log("Broadcasting Sky State Update...");
@@ -2739,7 +2766,10 @@
           }
 
           const updateData = {
-            time: simulationTime.toISO(),
+            // CRITICAL: We broadcast the TARGET simulation time.
+            // This allows the master to glide locally while remote clients also see 
+            // the destination and glide towards it themselves.
+            time: window.targetSimulationTime.toISO(),
             latitude: window.latitude,
             longitude: window.longitude,
             showMeridian: document.getElementById('meridian')?.getAttribute('fader')?.active || false,
@@ -2759,8 +2789,8 @@
       }
 
       function setNow() {
-        updateSimulationTime(luxon.DateTime.now());
-        syncSky();
+        updateSimulationTime(luxon.DateTime.now()); // Reverted to default glide
+        syncSky(false, true); // Authoritative Sync
         updateScene();
       }
 
@@ -2780,6 +2810,9 @@
 
           const isSolo = new URLSearchParams(window.location.search).get('room') === 'none';
           const skyState = document.getElementById('sky-master');
+
+          // ONLY the owner (or solo player) should run the master broadcast logic.
+          // If a client wants to scrub, the interaction handler (joystick/UI) must take ownership.
           const isMine = isSolo || (skyState && NAF.utils.isMine(skyState));
 
           if (isMine) {
@@ -2855,8 +2888,8 @@
           newTime = newTime.set({ minute: val });
         }
 
-        updateSimulationTime(newTime);
-        syncSky();
+        updateSimulationTime(newTime); // Reverted to default glide
+        syncSky(false, true); // Authoritative Sync
         updateScene();
       };
 
@@ -2876,7 +2909,7 @@
 
         // Render updates
         updateScene();
-        syncSky();
+        syncSky(false, true);
       };
 
       function adjustTime(unit, amount) {
@@ -2893,21 +2926,21 @@
         } else {
           newTime = window.targetSimulationTime.plus({ [unit]: amount });
         }
-        updateSimulationTime(newTime);
+        updateSimulationTime(newTime); // Reverted to default glide
         updateScene();
-        syncSky();
+        syncSky(false, true); // AUTHORITATIVE SYNC
       }
 
       function adjustCoordinate(type, amount) {
         if (type === 'latitude') {
-          latitude = Math.max(-90, Math.min(90, latitude + amount));
+          window.latitude = Math.max(-90, Math.min(90, window.latitude + amount));
         } else if (type === 'longitude') {
-          longitude = longitude + amount;
+          window.longitude = window.longitude + amount;
           // Wrap longitude between -180 and 180
-          if (longitude > 180) longitude -= 360;
-          if (longitude < -180) longitude += 360;
+          if (window.longitude > 180) window.longitude -= 360;
+          if (window.longitude < -180) window.longitude += 360;
         }
-        syncSky();
+        syncSky(false, true); // AUTHORITATIVE SYNC
         updateScene();
       }
 
@@ -3039,22 +3072,22 @@
             updateVRInput('input-vr-minute', pad(simulationTime.minute));
           }
 
-          updateVRInput('input-vr-lat', Math.abs(latitude).toFixed(1));
-          updateVRInput('input-vr-lon', Math.abs(longitude).toFixed(1));
+          updateVRInput('input-vr-lat', Math.abs(window.latitude).toFixed(1));
+          updateVRInput('input-vr-lon', Math.abs(window.longitude).toFixed(1));
 
           const nsBtn = document.getElementById('toggle-2d-ns-vr');
-          if (nsBtn) nsBtn.setAttribute('text', 'value', latitude >= 0 ? 'N' : 'S');
+          if (nsBtn) nsBtn.setAttribute('text', 'value', window.latitude >= 0 ? 'N' : 'S');
 
           const ewBtn = document.getElementById('toggle-2d-ew-vr');
-          if (ewBtn) ewBtn.setAttribute('text', 'value', longitude >= 0 ? 'E' : 'W');
+          if (ewBtn) ewBtn.setAttribute('text', 'value', window.longitude >= 0 ? 'E' : 'W');
           // --------------------------------
 
           if (dateTimeDisplay) {
             if (latitudeDisplay) {
-              latitudeDisplay.setAttribute("text", `value: ${Math.abs(latitude).toFixed(1)}°; color: white; width: 0.7; align: center`);
+              latitudeDisplay.setAttribute("text", `value: ${Math.abs(window.latitude).toFixed(1)}°; color: white; width: 0.7; align: center`);
             }
             if (longitudeDisplay) {
-              longitudeDisplay.setAttribute("text", `value: ${Math.abs(longitude).toFixed(1)}°; color: white; width: 0.7; align: center`);
+              longitudeDisplay.setAttribute("text", `value: ${Math.abs(window.longitude).toFixed(1)}°; color: white; width: 0.7; align: center`);
             }
             if (dateTimeDisplay) {
               dateTimeDisplay.setAttribute("text", `value: ${simulationTime.toLocaleString(luxon.DateTime.DATETIME_SHORT)}; color: white; width: 0.7; align: center`);
@@ -3222,13 +3255,13 @@
         }
         if (Math.abs(event.detail.y) >= joystickThreshold) {
           let latitudeAdjustment = -event.detail.y * latitudeAdjustmentSpeed;
-          updateLatitude(latitude + latitudeAdjustment);
+          updateLatitude(window.latitude + latitudeAdjustment);
           needsSync = true; // stop smoothly
         }
 
         if (needsSync) {
           // We still sync network state (which broadcasts targetTime basically)
-          syncSky();
+          syncSky(false, true); // Force ownership if moving joystick
           // updateScene is handled by tick loop
         }
       }, 20));
@@ -3238,11 +3271,11 @@
       function updateLatitude(newLatitude) {
         // Ensure newLatitude is within -90 and 90 degrees
         if (newLatitude > 90) {
-          latitude = 90;
+          window.latitude = 90;
         } else if (newLatitude < -90) {
-          latitude = -90;
+          window.latitude = -90;
         } else {
-          latitude = newLatitude;
+          window.latitude = newLatitude;
         }
       }
 
@@ -3406,13 +3439,13 @@
           case 'toggleNS':
             window.latitude = -window.latitude;
             if (typeof updateScene === 'function') updateScene();
-            if (typeof syncSky === 'function') syncSky(true);
+            if (typeof syncSky === 'function') syncSky(false, true);
             console.log('Latitude toggled to:', window.latitude);
             break;
           case 'toggleEW':
             window.longitude = -window.longitude;
             if (typeof updateScene === 'function') updateScene();
-            if (typeof syncSky === 'function') syncSky(true);
+            if (typeof syncSky === 'function') syncSky(false, true);
             console.log('Longitude toggled to:', window.longitude);
             break;
           // Example for other existing actions, like 'red', if needed.
@@ -3423,7 +3456,7 @@
           default:
             console.warn('Unknown or unhandled toggle action:', action);
         }
-        syncSky();
+        syncSky(false, true); // Authoritative sync for toggles
       }
 
       // Rotation of the Az-Container around the y-Axis

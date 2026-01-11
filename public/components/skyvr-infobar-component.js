@@ -468,7 +468,7 @@ AFRAME.registerComponent('skyvr-infobar', {
                 e.stopPropagation();
                 const renderer = document.getElementById('constellation-lines')?.components['constellation-renderer'];
                 if (renderer) renderer.showAllIllustrations();
-                if (typeof syncSky === 'function') syncSky();
+                if (typeof syncSky === 'function') syncSky(false, true);
             });
         }
 
@@ -477,7 +477,7 @@ AFRAME.registerComponent('skyvr-infobar', {
                 e.stopPropagation();
                 const renderer = document.getElementById('constellation-lines')?.components['constellation-renderer'];
                 if (renderer) renderer.clearAllIllustrations();
-                if (typeof syncSky === 'function') syncSky();
+                if (typeof syncSky === 'function') syncSky(false, true);
             });
         }
 
@@ -487,7 +487,7 @@ AFRAME.registerComponent('skyvr-infobar', {
                 e.stopPropagation();
                 const renderer = document.getElementById('constellation-lines')?.components['constellation-renderer'];
                 if (renderer) renderer.showAllIllustrations('stick');
-                if (typeof syncSky === 'function') syncSky();
+                if (typeof syncSky === 'function') syncSky(false, true);
             });
         }
 
@@ -496,7 +496,7 @@ AFRAME.registerComponent('skyvr-infobar', {
                 e.stopPropagation();
                 const renderer = document.getElementById('constellation-lines')?.components['constellation-renderer'];
                 if (renderer) renderer.clearAllIllustrations();
-                if (typeof syncSky === 'function') syncSky();
+                if (typeof syncSky === 'function') syncSky(false, true);
             });
         }
 
@@ -530,39 +530,67 @@ AFRAME.registerComponent('skyvr-infobar', {
                     while (lon < -180) lon += 360;
                     window.longitude = lon;
                 }
-                if (typeof syncSky === 'function') syncSky(force);
+                if (typeof syncSky === 'function') syncSky(false, true);
                 if (typeof updateScene === 'function') updateScene();
             }
         };
 
-        const handleTimeChange = (unit, e, force = false) => {
-            let val = parseInt(e.target.value);
-            if (!isNaN(val)) {
-                if (!window.simulationTime) return;
-                const baseTime = window.targetSimulationTime || window.simulationTime;
-                const currentVal = baseTime[unit];
-                const diff = val - currentVal;
-                if (diff === 0) return;
+        const handleTimeChange = (unit, e) => {
+            const el = e.target;
+            let val = parseInt(el.value);
+            if (isNaN(val)) return;
 
-                let newTime;
-                if (unit === 'day') {
-                    // Use absolute 24-hour steps to compensate for DST shifts
-                    newTime = baseTime.plus({ hours: 24 * diff });
-                } else {
-                    newTime = baseTime.plus({ [unit]: diff });
-                }
+            // 1. Prevent redundant processing of the same value (e.g. from browser double-firing events)
+            if (el._lastHandledValue === val) return;
+            el._lastHandledValue = val;
 
-                if (typeof updateSimulationTime === 'function') {
-                    updateSimulationTime(newTime);
-                }
+            if (!window.simulationTime) return;
 
-                // Roll-over fix: Immediately sync all inputs 
-                // This resets "60" back to "0" and prevents cumulative hour increases
-                this.syncTimeUI(true);
+            // 2. STABLE BASE: Calculate diff relative to state at focus.
+            // This prevents "moving target" errors (doubling) during rapid interaction.
+            const baseTime = el._focusTime || window.targetSimulationTime || window.simulationTime;
+            const startVal = el._focusVal !== undefined ? el._focusVal : baseTime[unit];
 
-                if (typeof syncSky === 'function') syncSky(force);
-                if (typeof updateScene === 'function') updateScene();
+            const diff = val - startVal;
+            if (diff === 0 && !el._focusTime) return;
+
+            // 3. Match button logic: Use plural units for Luxon .plus
+            const unitMap = {
+                'year': 'years', 'month': 'months', 'day': 'days',
+                'hour': 'hours', 'minute': 'minutes'
+            };
+            const luxonUnit = unitMap[unit] || unit;
+
+            let newTime;
+            if (unit === 'day') {
+                newTime = baseTime.plus({ hours: 24 * diff });
+            } else {
+                newTime = baseTime.plus({ [luxonUnit]: diff });
             }
+
+            if (typeof updateSimulationTime === 'function') {
+                updateSimulationTime(newTime);
+            }
+
+            // 4. NORMALIZATION & RESET: If display is out of range (like 24h), snap it to normalized (00h)
+            // and shift the focus base so the NEXT click is relative to this new state.
+            const normalized = newTime[unit];
+            const isOutOfRange = (val < 0) ||
+                (unit === 'hour' && val > 23) ||
+                (unit === 'minute' && val > 59) ||
+                (unit === 'month' && val > 12) ||
+                (unit === 'day' && val > 31);
+
+            if (isOutOfRange) {
+                el.value = (unit === 'year') ? normalized : normalized.toString().padStart(2, '0');
+                el._focusTime = newTime;
+                el._focusVal = normalized;
+                el._lastHandledValue = normalized;
+            }
+
+            this.syncTimeUI(false); // Update non-focused labels
+            if (typeof syncSky === 'function') syncSky(false, true);
+            if (typeof updateScene === 'function') updateScene();
         };
 
         // Attach listeners to both 'input' (for arrows/live) and 'change' (for blur/enter)
@@ -579,13 +607,25 @@ AFRAME.registerComponent('skyvr-infobar', {
         inputs.forEach(item => {
             if (!item.el) return;
             const handler = (item.type === 'lat' || item.type === 'lon') ?
-                (e, force) => handleCoordChange(item.type === 'lat' ? 'latitude' : 'longitude', e, force) :
-                (e, force) => handleTimeChange(item.type, e, force);
+                (e) => handleCoordChange(item.type === 'lat' ? 'latitude' : 'longitude', e) :
+                (e) => handleTimeChange(item.type, e);
 
-            // 'input' fires continuously during holding/key-repeat - use throttled sync
-            item.el.addEventListener('input', (e) => handler(e, false));
-            // 'change' fires on Enter or focus lost - use forced sync to ensure the final state is locked in
-            item.el.addEventListener('change', (e) => handler(e, true));
+            item.el.addEventListener('focus', (e) => {
+                // Capture state at start of interaction
+                e.target._focusTime = window.targetSimulationTime || window.simulationTime;
+                e.target._focusVal = parseInt(e.target.value);
+                e.target._lastHandledValue = e.target._focusVal;
+            });
+
+            item.el.addEventListener('input', (e) => handler(e));
+            item.el.addEventListener('change', (e) => handler(e));
+
+            item.el.addEventListener('blur', (e) => {
+                e.target._focusTime = null;
+                e.target._focusVal = undefined;
+                e.target._lastHandledValue = undefined;
+                this.syncTimeUI(true); // Snap UI to normalized values
+            });
         });
 
         // Hemisphere Toggles
@@ -593,7 +633,7 @@ AFRAME.registerComponent('skyvr-infobar', {
             toggles.ns.addEventListener('click', () => {
                 window.latitude = -window.latitude;
                 this.syncTimeUI(true);
-                if (typeof syncSky === 'function') syncSky(true);
+                if (typeof syncSky === 'function') syncSky(false, true);
                 if (typeof updateScene === 'function') updateScene();
             });
         }
@@ -601,7 +641,7 @@ AFRAME.registerComponent('skyvr-infobar', {
             toggles.ew.addEventListener('click', () => {
                 window.longitude = -window.longitude;
                 this.syncTimeUI(true);
-                if (typeof syncSky === 'function') syncSky(true);
+                if (typeof syncSky === 'function') syncSky(false, true);
                 if (typeof updateScene === 'function') updateScene();
             });
         }
