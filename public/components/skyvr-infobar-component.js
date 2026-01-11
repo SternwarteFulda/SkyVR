@@ -564,6 +564,11 @@ AFRAME.registerComponent('skyvr-infobar', {
             let newTime;
             if (unit === 'day') {
                 newTime = baseTime.plus({ hours: 24 * diff });
+            } else if (unit === 'month' || unit === 'year') {
+                // DST FIX: Add months/years in UTC to preserve Absolute Time (Solar Time) consistency.
+                // This ensures that if we jump over a DST change, the local hour shifts (e.g. 12:00 -> 13:00)
+                // instead of preserving wall-time (12:00 -> 12:00) which would jump the Sun position.
+                newTime = baseTime.toUTC().plus({ [luxonUnit]: diff }).setZone(baseTime.zoneName);
             } else {
                 newTime = baseTime.plus({ [luxonUnit]: diff });
             }
@@ -578,15 +583,18 @@ AFRAME.registerComponent('skyvr-infobar', {
             const isOutOfRange = (val < 0) ||
                 (unit === 'hour' && val > 23) ||
                 (unit === 'minute' && val > 59) ||
-                (unit === 'month' && val > 12) ||
-                (unit === 'day' && val > 31);
+                (unit === 'month' && (val < 1 || val > 12)) ||
+                (unit === 'day' && (val < 1 || val > 31));
 
             if (isOutOfRange) {
+                // Update display immediately to normalized value
+                // For year, we just update the value, padding 4 digits if needed
                 el.value = (unit === 'year') ? normalized : normalized.toString().padStart(2, '0');
                 el._focusTime = newTime;
                 el._focusVal = normalized;
                 el._lastHandledValue = normalized;
             }
+
 
             this.syncTimeUI(false); // Update non-focused labels
             if (typeof syncSky === 'function') syncSky(false, true);

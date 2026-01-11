@@ -2667,26 +2667,84 @@
       window.updateSimulationTime = function (newTime, updateTarget = true, forceSnap = false) {
         if (!newTime) return;
 
-        // If jump is >= 86,000 seconds (23.88h), force snap.
-        // This ensures Sidereal Day (86,164s) and Solar Day (86,400s) jumps are instant.
-        const diffMs = Math.abs(newTime.toMillis() - window.simTimeMs);
-        const shouldSnap = diffMs >= 86000000;
+        // "Shortest Path" Logic:
+        // For large jumps (e.g. 1 year or 1 day), we want the logic to update instantly (so planets are correct),
+        // but the VISUAL rotation (LST) should glide via the shortest arc, not spin 365 times.
+        // We achieve this by manipulating simTimeMs to be "close" to the target in terms of rotation.
+
+        const targetMs = newTime.toMillis();
+        const diffMs = targetMs - window.simTimeMs;
+        const absDiff = Math.abs(diffMs);
+
+        // Thresholds: Sidereal Day ~86164s (~23h 56m)
+        // If jump is > 86000s, we consider it "large".
+        const isLargeJump = absDiff >= 86000000;
 
         if (updateTarget) {
           window.targetSimulationTime = newTime;
+
+          if (isLargeJump && !forceSnap && window.interpolationEnabled) {
+            // Hybrid Strategy for Optimal Visuals:
+            // 1. Default to Sidereal Modulo (Preferred)
+            //    This glides the stars to their new position via the shortest path.
+            //    E.g. Month jump = ~30 deg glide.
+            const siderealDayMs = 86164090.5;
+            let cycleMs = siderealDayMs;
+            let remainderMs = diffMs % cycleMs;
+
+            // Normalize remainder to +/- cycle/2
+            if (remainderMs > cycleMs / 2) remainderMs -= cycleMs;
+            else if (remainderMs < -cycleMs / 2) remainderMs += cycleMs;
+
+            // 2. Safety Check: Solar Drift
+            //    We want to allow Month jumps to glide (interpolate stars), 
+            //    but prevent Day/Night inversion flashes (e.g. 6 month jump = 12h drift).
+            //    1 Month jump = ~2h drift. 
+            //    Threshold: 6 hours. This allows smooth gliding for 1-3 month jumps.
+            const maxSolarDrift = 6 * 3600 * 1000;
+
+            if (Math.abs(remainderMs) > maxSolarDrift) {
+              cycleMs = 86400000; // Switch to Solar Cycle for stability
+              remainderMs = diffMs % cycleMs;
+              // Re-normalize for Solar
+              if (remainderMs > cycleMs / 2) remainderMs -= cycleMs;
+              else if (remainderMs < -cycleMs / 2) remainderMs += cycleMs;
+            }
+
+            // Apply the calculated remainder
+            window.simTimeMs = targetMs - remainderMs;
+            window.simulationTime = luxon.DateTime.fromMillis(window.simTimeMs);
+
+            // FORCE VISUAL UPDATES IMMEDIATELY
+            // Bypass the 1s throttle for planets so they don't lag
+            const starfield = document.getElementById('stars-point-cloud')?.components?.starfield;
+            if (starfield) {
+              starfield.updatePlanets(true); // Force interpolation (glide)
+              starfield.updateMoon(true);
+            }
+            updateScene();
+
+            return; // Let the interpolator handle the glide from here
+          }
         } else {
           if (!window.targetSimulationTime) window.targetSimulationTime = newTime;
         }
 
-        // If interpolation is disabled or we are jumping WITHOUT interpolation, snap instantly.
-        // Also snap if the jump is very large or if forceSnap is set.
-        if (!window.interpolationEnabled || !updateTarget || shouldSnap || forceSnap) {
+        // Standard Snap Logic (Fallback or Force)
+        if (!window.interpolationEnabled || !updateTarget || forceSnap) {
           window.simulationTime = newTime;
           window.simTimeMs = newTime.toMillis();
-          // Clear astro cache to force a fresh RA/Dec recalculation on the next frame/updateScene
           if (window._astroCache) window._astroCache.sunRaDec = null;
+
+          // FORCE VISUAL UPDATES IMMEDIATELY
+          const starfield = document.getElementById('stars-point-cloud')?.components?.starfield;
+          if (starfield) {
+            starfield.updatePlanets();
+            starfield.updateMoon();
+          }
+          updateScene(); // Ensure lighting/sky matches new time
         } else {
-          // Even during interpolation, keep the numeric MS in sync with the object
+          // Small jump: just update the numeric MS to match
           window.simTimeMs = window.simulationTime.toMillis();
         }
       };
@@ -2919,10 +2977,11 @@
           newTime = window.targetSimulationTime.plus({ seconds: 86164.0905 * amount });
         } else if (unit === 'days' || unit === 'day') {
           // 1 Solar Day = 24 absolute hours. 
-          // We use absolute hours to compensate for DST shifts; this ensures 
-          // that the sky orientation (Sun position) remains consistent 
-          // even if the local wall clock jumps by an hour.
           newTime = window.targetSimulationTime.plus({ hours: 24 * amount });
+        } else if (unit === 'months' || unit === 'month' || unit === 'years' || unit === 'year') {
+          // DST FIX: Add months/years in UTC to preserve Absolute Time (Solar Time) consistency.
+          const base = window.targetSimulationTime;
+          newTime = base.toUTC().plus({ [unit]: amount }).setZone(base.zoneName);
         } else {
           newTime = window.targetSimulationTime.plus({ [unit]: amount });
         }

@@ -326,12 +326,12 @@ AFRAME.registerComponent('starfield', {
         }
     },
 
-    updateMoon: function () {
+    updateMoon: function (forceInterpolation = false) {
         if (!this.planetsData) this.calculatePlanetsData(); // Fallback init
         const date = simulationTime.toJSDate();
 
         // Update Moon Data (Index 0 is Moon)
-        this.updateBodyData('Moon', date, 0);
+        this.updateBodyData('Moon', date, 0, forceInterpolation);
         this.updatePlanetsPositions(); // Buffer update
 
         // Calculate target Moon 3D Object state
@@ -364,8 +364,8 @@ AFRAME.registerComponent('starfield', {
             const timeJump = this.lastMoonDate ? Math.abs(date - this.lastMoonDate) : 0;
             this.lastMoonDate = date;
 
-            // Snap if first update OR if time jump > 2 hours (7,200,000 ms)
-            if (this.firstMoonUpdate || timeJump > 7200000) {
+            // Snap if first update OR if time jump > 2 hours (7,200,000 ms), unless forced interpolation
+            if (!forceInterpolation && (this.firstMoonUpdate || timeJump > 7200000)) {
                 this.moon.position.copy(this.targetMoonPosition);
                 this.moon.quaternion.copy(this.targetMoonQuaternion);
                 this.firstMoonUpdate = false;
@@ -380,13 +380,13 @@ AFRAME.registerComponent('starfield', {
         }
     },
 
-    updatePlanets: function () {
+    updatePlanets: function (forceInterpolation = false) {
         if (!this.planetsData) this.calculatePlanetsData();
         const date = simulationTime.toJSDate();
         const bodyList = ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune'];
         // Start index 1 since Moon is 0
         for (let i = 0; i < bodyList.length; i++) {
-            this.updateBodyData(bodyList[i], date, i + 1);
+            this.updateBodyData(bodyList[i], date, i + 1, forceInterpolation);
         }
         this.updatePlanetsPositions(); // Buffer update
     },
@@ -407,7 +407,7 @@ AFRAME.registerComponent('starfield', {
         return this.planetsData;
     },
 
-    updateBodyData: function (bodyName, date, index) {
+    updateBodyData: function (bodyName, date, index, forceInterpolation = false) {
         const equ_2000 = Astronomy.Equator(bodyName, date, observer, false, false);
         let mag = Astronomy.Illumination(bodyName, date).mag;
         if (bodyName === "Moon") {
@@ -437,9 +437,9 @@ AFRAME.registerComponent('starfield', {
         // Set target for interpolation
         data.targetPosition.set(x, y, z);
 
-        // Huge jump detection - snap if > 2 hours or first update
+        // Huge jump detection - snap if > 2 hours or first update, unless forced to interpolate
         const timeJump = this.lastMoonDate ? Math.abs(date - this.lastMoonDate) : 0;
-        if (this.firstMoonUpdate || timeJump > 7200000) {
+        if (!forceInterpolation && (this.firstMoonUpdate || timeJump > 7200000)) {
             data.currentPosition.copy(data.targetPosition);
         }
 
