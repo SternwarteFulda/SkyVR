@@ -28,12 +28,12 @@ AFRAME.registerComponent('drawing', {
         this.mouse = new THREE.Vector2();
         this.lastEraserPos = new THREE.Vector2();
         this.raycaster = new THREE.Raycaster();
+        this.lerpedPos = new THREE.Vector3();
         this.isPenHovering = false;
         this.isErasing = false;
 
         this.onPointerMove = this.onPointerMove.bind(this);
         this.onPointerDown = this.onPointerDown.bind(this);
-        this.onPointerUp = this.onPointerUp.bind(this);
         this.onPointerUp = this.onPointerUp.bind(this);
         this.onPointerLeave = this.onPointerLeave.bind(this);
         this.onContextMenu = this.onContextMenu.bind(this);
@@ -346,7 +346,32 @@ AFRAME.registerComponent('drawing', {
         if (!this.isDrawing) return;
         this.isDrawing = false;
 
-        if (this.currentSegmentPoints.length > 1) {
+        if (this.currentSegmentPoints.length > 2) {
+            // 0. Remove "release wiggle" (trim the last few points which often contain button-release jitter)
+            // More conservative trim for short strokes to preserve small circles (star markers)
+            if (this.currentSegmentPoints.length > 35) {
+                this.currentSegmentPoints.splice(-7);
+            } else if (this.currentSegmentPoints.length > 15) {
+                this.currentSegmentPoints.splice(-3);
+            } else if (this.currentSegmentPoints.length > 8) {
+                this.currentSegmentPoints.splice(-1);
+            }
+
+            // 1. Smooth the finished stroke
+            this.currentSegmentPoints = this.smoothPoints(this.currentSegmentPoints, 2);
+
+            // 2. Try to recognize shapes (circles or line segments)
+            this.currentSegmentPoints = this.recognizeShapes(this.currentSegmentPoints);
+
+            // 3. Simplify to keep network traffic reasonable
+            this.currentSegmentPoints = this.simplifyPoints(this.currentSegmentPoints, 0.2);
+
+            // Update local mesh so it looks smooth/snapped before being handed off to the networked entity
+            if (this.currentSegmentMesh) {
+                this.currentSegmentMesh.geometry.dispose();
+                this.currentSegmentMesh.geometry = new THREE.BufferGeometry().setFromPoints(this.currentSegmentPoints);
+            }
+
             if (this.activeStrokeEntity) {
                 // Final point sync
                 this.syncStrokeToNetwork(true);
@@ -572,12 +597,31 @@ AFRAME.registerComponent('drawing', {
             const hitPoint = worldStart.clone().add(worldDir.multiplyScalar(t));
             const localPosition = this.precessionContainerEl.object3D.worldToLocal(hitPoint);
 
+            // Live filtering: Exponential Moving Average to reduce hand tremor in real-time
+            if (this.currentSegmentPoints.length === 0) {
+                this.lerpedPos.copy(localPosition);
+            } else {
+                // Smoothing factor 0.3 (lower is smoother but higher latency)
+                this.lerpedPos.lerp(localPosition, 0.3);
+            }
+            const filteredPoint = this.lerpedPos.clone();
+
             if (this.currentSegmentPoints.length > 0) {
                 const lastPoint = this.currentSegmentPoints[this.currentSegmentPoints.length - 1];
-                const interpolatedPoints = this.calculateInterpolatedPoints(lastPoint, localPosition, 5);
-                interpolatedPoints.forEach(p => this.currentSegmentPoints.push(p));
+                const dist = lastPoint.distanceTo(filteredPoint);
+
+                // Only add points if we've moved significantly
+                if (dist > 0.01) {
+                    // Only interpolate for fast sweeps
+                    if (dist > 0.1) {
+                        const numInterpolated = dist > 1.0 ? 3 : 1;
+                        const interpolatedPoints = this.calculateInterpolatedPoints(lastPoint, filteredPoint, numInterpolated);
+                        interpolatedPoints.forEach(p => this.currentSegmentPoints.push(p));
+                    }
+                    this.currentSegmentPoints.push(filteredPoint);
+                }
             } else {
-                this.currentSegmentPoints.push(localPosition);
+                this.currentSegmentPoints.push(filteredPoint);
             }
 
             if (this.currentSegmentMesh) {
@@ -605,6 +649,273 @@ AFRAME.registerComponent('drawing', {
         let pts = [];
         for (let i = 1; i <= num; i++) {
             pts.push(start.clone().lerp(end, i / (num + 1)));
+        }
+        return pts;
+    },
+    smoothPoints: function (points, iterations = 1) {
+        if (points.length < 3) return points;
+
+        let p = points.map(pt => pt.clone());
+
+        for (let iter = 0; iter < iterations; iter++) {
+            let nextPoints = [];
+            nextPoints.push(p[0].clone()); // Keep start
+
+            // Simple 3-point moving average to de-jitter
+            for (let i = 1; i < p.length - 1; i++) {
+                const p0 = p[i - 1];
+                const p1 = p[i];
+                const p2 = p[i + 1];
+                p[i].set(
+                    (p0.x + p1.x * 2 + p2.x) / 4,
+                    (p0.y + p1.y * 2 + p2.y) / 4,
+                    (p0.z + p1.z * 2 + p2.z) / 4
+                );
+            }
+
+            // Chaikin's to round corners
+            for (let i = 0; i < p.length - 1; i++) {
+                const p1 = p[i];
+                const p2 = p[i + 1];
+
+                const q = new THREE.Vector3().copy(p1).multiplyScalar(0.75).add(new THREE.Vector3().copy(p2).multiplyScalar(0.25));
+                const r = new THREE.Vector3().copy(p1).multiplyScalar(0.25).add(new THREE.Vector3().copy(p2).multiplyScalar(0.75));
+
+                nextPoints.push(q);
+                nextPoints.push(r);
+            }
+            nextPoints.push(p[p.length - 1].clone()); // Keep end
+            p = nextPoints;
+        }
+        return p;
+    },
+    simplifyPoints: function (points, minDistance = 0.5) {
+        if (points.length < 3) return points;
+
+        let simplified = [points[0].clone()];
+        let lastPoint = points[0];
+
+        for (let i = 1; i < points.length - 1; i++) {
+            if (points[i].distanceTo(lastPoint) > minDistance) {
+                simplified.push(points[i].clone());
+                lastPoint = points[i];
+            }
+        }
+
+        simplified.push(points[points.length - 1].clone());
+        return simplified;
+    },
+    recognizeShapes: function (points) {
+        if (points.length < 10) return points;
+
+        // 1. Try to recognize a circle first
+        const circlePoints = this.checkCircle(points);
+        if (circlePoints) return circlePoints;
+
+        // 2. Fallback to line segments
+        return this.recognizeLineSegments(points);
+    },
+    recognizeLineSegments: function (points) {
+        if (points.length < 5) return points;
+
+        // 1. Try checking the WHOLE thing as a single straight line FIRST
+        // This allows long wobbly lines that don't have intentional sharp turns to be straightened.
+        const wholeSnapped = this.checkWholeLine(points);
+        if (wholeSnapped) return wholeSnapped;
+
+        // 2. Fallback to segment recognition if it's not a single straight line
+        const corners = this.findCorners(points);
+        if (corners.length <= 2) return points; // Already tried checkWholeLine
+
+        // Multiple segments detected
+        let newPoints = [];
+        for (let j = 0; j < corners.length - 1; j++) {
+            const startIdx = corners[j];
+            const endIdx = corners[j + 1];
+            const segment = points.slice(startIdx, endIdx + 1);
+
+            const snapped = this.checkWholeLine(segment);
+            if (snapped) {
+                if (newPoints.length > 0) newPoints.pop(); // Remove overlap
+                newPoints.push(...snapped);
+            } else {
+                if (newPoints.length > 0) newPoints.pop();
+                newPoints.push(...segment);
+            }
+        }
+        return newPoints;
+    },
+    checkCircle: function (points) {
+        // Reduced point count to allow small star markers
+        if (points.length < 7) return null;
+
+        // 1. Calculate Centroid
+        const centroid = new THREE.Vector3(0, 0, 0);
+        points.forEach(p => centroid.add(p));
+        centroid.divideScalar(points.length);
+
+        // Aggressive Centroid-Radius Check
+        let avgDist = 0;
+        points.forEach(p => avgDist += p.distanceTo(centroid));
+        avgDist /= points.length;
+
+        // Allow very small circles for star marking
+        if (avgDist < 0.2) return null;
+
+        let maxDev = 0;
+        points.forEach(p => {
+            const d = p.distanceTo(centroid);
+            maxDev = Math.max(maxDev, Math.abs(d - avgDist));
+        });
+
+        // Dynamic threshold: smaller circles (star markers) need wiggle room
+        // Larger circles balanced at 0.22 to capture slow/messy circles
+        const threshold = avgDist < 5.0 ? 0.35 : 0.22;
+        if (maxDev > avgDist * threshold) return null;
+
+        // NEW: Sharp Corner Protection for Circles
+        // Real circles shouldn't have sharp 'kinks'. 
+        // Increased threshold to 0.85 (~32 deg) to reject rounded squares from circle detection
+        const potentialCorners = this.findCorners(points);
+        if (potentialCorners.length > 2) {
+            for (let i = 1; i < potentialCorners.length - 1; i++) {
+                const idx = potentialCorners[i];
+                if (idx > 4 && idx < points.length - 4) {
+                    const v1 = new THREE.Vector3().subVectors(points[idx], points[idx - 4]).normalize();
+                    const v2 = new THREE.Vector3().subVectors(points[idx + 4], points[idx]).normalize();
+                    if (v1.dot(v2) < 0.85) return null; // Corner-like segment found, not a circle
+                }
+            }
+        }
+
+        // Closed check (start and end within 80% of radius or 25m)
+        const startEndDist = points[0].distanceTo(points[points.length - 1]);
+        if (startEndDist > Math.max(avgDist * 0.8, 25.0)) return null;
+
+        // Polar coverage: spans at least ~160 degrees equivalent (allow shallow C-shapes to snap)
+        let totalAngle = 0;
+        for (let i = 0; i < points.length - 1; i++) {
+            const v1 = points[i].clone().sub(centroid).normalize();
+            const v2 = points[i + 1].clone().sub(centroid).normalize();
+            let dot = v1.dot(v2);
+            dot = Math.max(-1, Math.min(1, dot));
+            totalAngle += Math.acos(dot);
+        }
+        if (totalAngle < Math.PI * 0.9) return null;
+
+        return this.interpolateCircleOnSphere(centroid, avgDist);
+    },
+    interpolateCircleOnSphere: function (centroid, radius) {
+        const pts = [];
+        const skyRadius = this.strokeDistance;
+
+        // Final center on sphere surface
+        const centerOnSphere = centroid.clone().normalize().multiplyScalar(skyRadius);
+
+        // Basis vectors for circle plane
+        const up = centerOnSphere.clone().normalize();
+        const right = new THREE.Vector3(1, 0, 0).cross(up);
+        if (right.lengthSq() < 0.001) right.set(0, 0, 1).cross(up);
+        right.normalize();
+        const forward = up.clone().cross(right).normalize();
+
+        // 64 segments for a very smooth circle
+        const segments = 64;
+        for (let i = 0; i <= segments; i++) {
+            const theta = (i / segments) * Math.PI * 2;
+            const p = centerOnSphere.clone()
+                .add(right.clone().multiplyScalar(Math.cos(theta) * radius))
+                .add(forward.clone().multiplyScalar(Math.sin(theta) * radius));
+
+            // Re-project exactly to sphere surface
+            p.normalize().multiplyScalar(skyRadius);
+            pts.push(p);
+        }
+        return pts;
+    },
+    findCorners: function (points) {
+        const corners = [0];
+        if (points.length < 8) return [0, points.length - 1];
+
+        // Apex Detection: Instead of just picking the first point that turns,
+        // we find the 'steepest' point (min dot product) in a turn.
+        const windowSize = 8;
+        const normalizedWindow = Math.min(windowSize, Math.floor(points.length / 8));
+
+        let inTurn = false;
+        let minDot = 1;
+        let minIdx = -1;
+
+        for (let i = normalizedWindow; i < points.length - normalizedWindow; i++) {
+            const v1 = new THREE.Vector3().subVectors(points[i], points[i - normalizedWindow]).normalize();
+            const v2 = new THREE.Vector3().subVectors(points[i + normalizedWindow], points[i]).normalize();
+            const dot = v1.dot(v2);
+
+            // 0.95 threshold (~18 degrees) is very sensitive to catch even rounded turns
+            if (dot < 0.95) {
+                if (!inTurn) {
+                    inTurn = true;
+                    minDot = dot;
+                    minIdx = i;
+                } else if (dot < minDot) {
+                    minDot = dot;
+                    minIdx = i;
+                }
+            } else {
+                if (inTurn) {
+                    if (minIdx - corners[corners.length - 1] > normalizedWindow) {
+                        corners.push(minIdx);
+                    }
+                    inTurn = false;
+                    minDot = 1;
+                }
+            }
+        }
+        // Catch turn at the end
+        if (inTurn && minIdx - corners[corners.length - 1] > normalizedWindow) {
+            corners.push(minIdx);
+        }
+
+        corners.push(points.length - 1);
+        return corners;
+    },
+    checkWholeLine: function (points) {
+        if (points.length < 5) return null;
+        const start = points[0];
+        const end = points[points.length - 1];
+        const chordLen = start.distanceTo(end);
+
+        // Aggressive length check (1.5m minimum)
+        if (chordLen < 1.5) return null;
+
+        const line = new THREE.Line3(start, end);
+        const temp = new THREE.Vector3();
+        let maxDev = 0;
+        for (let i = 1; i < points.length - 1; i++) {
+            line.closestPointToPoint(points[i], true, temp);
+            maxDev = Math.max(maxDev, points[i].distanceTo(temp));
+        }
+
+        // Aggressive Line Threshold: 12% of length or 3.0m 
+        // Targeted at straightening very long hand-drawn lines that may have significant wiggles
+        // while still attempting to respect deliberate curved intent.
+        if (maxDev < Math.max(3.0, chordLen * 0.12)) {
+            return this.interpolateOnSphere(start, end);
+        }
+        return null;
+    },
+    interpolateOnSphere: function (p1, p2) {
+        const dist = p1.distanceTo(p2);
+        const steps = Math.ceil(dist / 20); // Point every 20m for curvature
+        if (steps < 2) return [p1.clone(), p2.clone()];
+
+        const pts = [];
+        const radius = p1.length();
+        for (let i = 0; i <= steps; i++) {
+            const t = i / steps;
+            const p = p1.clone().lerp(p2, t);
+            p.normalize().multiplyScalar(radius);
+            pts.push(p);
         }
         return pts;
     },
