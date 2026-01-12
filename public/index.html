@@ -595,6 +595,22 @@
       }
     });
 
+    AFRAME.registerComponent('object-render-order', {
+      schema: { type: 'number', default: 0 },
+      init: function () {
+        const applyOrder = () => {
+          const mesh = this.el.getObject3D('mesh');
+          if (mesh) {
+            mesh.renderOrder = this.data;
+            this.el.object3D.renderOrder = this.data;
+          }
+        };
+        this.el.addEventListener('model-loaded', applyOrder);
+        this.el.addEventListener('object3dset', applyOrder);
+        applyOrder();
+      }
+    });
+
     AFRAME.registerComponent('fader', {
       schema: {
         active: { type: 'boolean', default: false },
@@ -824,6 +840,22 @@
               component: 'drawing-stroke',
               property: 'color'
             }
+          ]
+        });
+      }
+      if (!NAF.schemas.hasTemplate('#identified-info-template')) {
+        NAF.schemas.add({
+          template: '#identified-info-template',
+          components: [
+            {
+              component: 'identified-info',
+              property: 'name'
+            },
+            {
+              component: 'identified-info',
+              property: 'info'
+            },
+            'position'
           ]
         });
       }
@@ -1220,6 +1252,10 @@
       transition: opacity 0.3s ease, transform 0.3s ease;
     }
 
+    canvas.is-pointing {
+      cursor: crosshair !important;
+    }
+
     /* Force visibility in fullscreen */
     :fullscreen .infobar-2d,
     :-webkit-full-screen .infobar-2d {
@@ -1332,6 +1368,36 @@
     .infobar-2d-modes {
       display: flex;
       gap: 8px;
+    }
+
+    .infobar-2d-colors {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 8px;
+      background: rgba(0, 0, 0, 0.5);
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      margin-bottom: 5px;
+    }
+
+    .color-dot {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .color-dot:hover {
+      transform: scale(1.2);
+      border-color: white;
+    }
+
+    .color-dot.active {
+      border-color: white;
+      box-shadow: 0 0 8px currentColor;
     }
 
     @media (max-width: 600px) {
@@ -1821,6 +1887,13 @@
           <img src="assets/icons/draw.svg">
         </button>
         <div id="infobar-2d-draw-extras" class="infobar-extra-buttons-vertical">
+          <div id="infobar-2d-draw-colors" class="infobar-2d-colors">
+            <div class="color-dot" data-color="yellow" style="background: yellow;"></div>
+            <div class="color-dot" data-color="red" style="background: red;"></div>
+            <div class="color-dot" data-color="#00ff00" style="background: #00ff00;"></div>
+            <div class="color-dot" data-color="#00ffff" style="background: #00ffff;"></div>
+            <div class="color-dot" data-color="white" style="background: white;"></div>
+          </div>
           <button id="infobar-2d-draw-undo" class="infobar-2d-button" title="Undo Last Stroke">
             <img src="assets/icons/undo.svg">
           </button>
@@ -1851,6 +1924,20 @@
             <img src="assets/icons/show-all.svg">
           </button>
           <button id="infobar-2d-clear-all" class="infobar-2d-button" title="Clear All Illustrations">
+            <img src="assets/icons/clear.svg">
+          </button>
+        </div>
+      </div>
+
+      <div style="position: relative;">
+        <button id="infobar-2d-identify" class="infobar-2d-button" title="Identify Mode" data-mode="identify">
+          <img src="assets/icons/gps_not_fixed.svg">
+        </button>
+        <div id="infobar-2d-identify-extras" class="infobar-extra-buttons-vertical">
+          <button id="infobar-2d-identify-undo" class="infobar-2d-button" title="Remove Last Identification">
+            <img src="assets/icons/undo.svg">
+          </button>
+          <button id="infobar-2d-identify-clear" class="infobar-2d-button" title="Clear All Identifications">
             <img src="assets/icons/clear.svg">
           </button>
         </div>
@@ -2146,6 +2233,7 @@
       <img id="icon-camera-on" src="assets/icons/camera-on.svg">
       <img id="icon-camera-off" src="assets/icons/camera-off.svg">
       <img id="icon-draw" src="assets/icons/draw.svg">
+      <img id="icon-identify" src="assets/icons/gps_not_fixed.svg">
       <img id="icon-stamp" src="assets/icons/stamp.svg">
       <img id="icon-stickfigure" src="assets/icons/stickfigure.svg">
       <img id="icon-constellation" src="assets/icons/constellation.svg">
@@ -2155,6 +2243,7 @@
       <img id="icon-show-all" src="assets/icons/show-all.svg">
       <img id="icon-zoom-in" src="assets/icons/zoom-in.svg">
       <img id="icon-zoom-out" src="assets/icons/zoom-out.svg">
+      <img id="asset-crosshair" src="assets/icons/crosshair.svg">
 
       <script src="components/aframe-environment-component.js"></script>
       <script src="/js/aframe-extras/aframe-extras.primitives.min.js"></script>
@@ -2175,7 +2264,12 @@
       <script src="components/skyvr-constellation-pointer-2d-component.js"></script>
       <script src="components/skyvr-networked-components.js?v=2"></script>
       <script src="components/skyvr-offscreen-indicator-component.js"></script>
+      <script src="components/skyvr-identify-component.js"></script>
       <script src="components/skyvr-numpad-component.js"></script>
+
+      <template id="identified-info-template">
+        <a-entity identified-info></a-entity>
+      </template>
     </a-assets>
 
     <a-entity id="sky-master" networked="template:#sky-template;persistent:true;networkId:sky-master;owner:scene"
@@ -2200,7 +2294,7 @@
       <a-entity id="right-controller" player-info
         networked="template:#right-controller-template;attachTemplateToLocal:false;" meta-touch-controls="hand: right"
         laser-controls haptics raycaster="objects: [data-raycastable]; far: 600; lineOpacity: 0.5;" drawing
-        constellation-pointer offscreen-indicator>
+        constellation-pointer identify offscreen-indicator>
         <a-entity light="type: point; intensity: 0.2; distance: 0.5; decay: 1" position="0 0.05 0"></a-entity>
         <!-- Coordinate system for the right controller -->
         <a-entity>
@@ -3666,6 +3760,10 @@
                 if (typeof syncSky === 'function') syncSky();
               }
             }
+          } else if (currentMode === 'identify') {
+            if (rightController.components['identify']) {
+              rightController.components['identify'].removeLastInfo();
+            }
           }
         }
       };
@@ -3698,6 +3796,14 @@
               if (gamepad?.hapticActuators?.length > 0) gamepad.hapticActuators[0].pulse(0.5, 100);
 
               if (typeof syncSky === 'function') syncSky();
+            }
+          } else if (currentMode === 'identify') {
+            if (rightController.components['identify']) {
+              if (this.el.sceneEl.is('vr-mode')) {
+                rightController.components['identify'].stampInfo();
+              } else {
+                // 2D mode click handling is in skyvr-pointer-2d-component
+              }
             }
           }
         } else {
@@ -3931,6 +4037,11 @@
               }
               const gamepad = rightController.components['tracked-controls']?.controller;
               if (gamepad?.hapticActuators?.length > 0) gamepad.hapticActuators[0].pulse(0.8, 300);
+            }
+          } else if (currentMode === 'identify') {
+            console.log('VR A-button hold: Clearing all identifications');
+            if (rightController.components['identify']) {
+              rightController.components['identify'].removeAllInfos();
             }
           }
 

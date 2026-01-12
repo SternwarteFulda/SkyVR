@@ -49,6 +49,12 @@ AFRAME.registerComponent('drawing-stroke', {
 
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
         this.mesh = new THREE.Line(geometry, this.lineMaterial);
+
+        // Ensure material color matches current data (fixes potential sync race)
+        if (this.lineMaterial) {
+            this.lineMaterial.color.set(this.data.color);
+        }
+
         this.mesh.renderOrder = 100; // Above stars (20) and illustrations (10)
 
         const container = document.getElementById('precession-container');
@@ -499,5 +505,122 @@ AFRAME.registerComponent('constellation-stick-figure', {
                 }
             }
         });
+    }
+});
+
+AFRAME.registerComponent('identified-info', {
+    schema: {
+        name: { type: 'string', default: '' },
+        info: { type: 'string', default: '' },
+        targetOpacity: { type: 'number', default: 1.0 },
+        isRemoving: { type: 'boolean', default: false }
+    },
+
+    init: function () {
+        // Create the text entity
+        this.textEl = document.createElement('a-entity');
+        this.textEl.setAttribute('position', '0 16 0');
+        this.el.appendChild(this.textEl);
+
+        // Marker crosshair (same as preview)
+        this.markerEl = document.createElement('a-plane');
+        this.markerEl.setAttribute('width', 15.0);
+        this.markerEl.setAttribute('height', 15.0);
+        this.markerEl.setAttribute('material', {
+            src: '#asset-crosshair',
+            transparent: true,
+            shader: 'flat',
+            fog: false,
+            depthWrite: false,
+            color: '#00FF00'
+        });
+        this.markerEl.setAttribute('object-render-order', 100);
+        this.el.appendChild(this.markerEl);
+
+        // Auto-reparent to stars-point-cloud so the label rotates with the sky
+        const reparent = () => {
+            const container = document.getElementById('stars-point-cloud');
+            if (container && this.el.parentNode !== container) {
+                container.appendChild(this.el);
+            }
+        };
+
+        // If scene is loaded, reparent immediately
+        if (this.el.sceneEl.hasLoaded) {
+            reparent();
+        } else {
+            this.el.sceneEl.addEventListener('loaded', reparent);
+        }
+
+        // Also check occasionally in case container was added late
+        this.reparentInterval = setInterval(reparent, 2000);
+
+        this.opacity = 0;
+        this.targetOpacity = 1;
+        this.isRemoving = false;
+    },
+
+    remove: function () {
+        if (this.reparentInterval) clearInterval(this.reparentInterval);
+        // Ensure cleanup if parent is still there
+        if (this.el.parentNode) {
+            // No action needed normally as remove() is called during destruction
+        }
+    },
+
+    update: function (oldData) {
+        if (oldData && this.data.targetOpacity !== oldData.targetOpacity) {
+            this.targetOpacity = this.data.targetOpacity;
+        } else if (!oldData) {
+            this.targetOpacity = this.data.targetOpacity;
+        }
+
+        if (oldData && this.data.isRemoving !== oldData.isRemoving) {
+            this.isRemoving = this.data.isRemoving;
+        } else if (!oldData) {
+            this.isRemoving = this.data.isRemoving;
+        }
+
+        this.textEl.setAttribute('custom-fogless-text', {
+            value: `${this.data.name}\\n${this.data.info}`,
+            fontSize: 80,
+            textColor: '#FFFFFF',
+            worldScale: 0.1,
+            fixedWidth: 800,
+            depthTest: false,
+            renderOrder: 50,
+            opacity: this.opacity
+        });
+        if (this.markerEl) {
+            this.markerEl.setAttribute('material', 'opacity', this.opacity);
+        }
+    },
+
+    tick: function (time, dt) {
+        // Fade logic
+        if (Math.abs(this.opacity - this.targetOpacity) > 0.01) {
+            const delta = dt / 300; // 300ms fade duration
+            if (this.opacity < this.targetOpacity) {
+                this.opacity = Math.min(this.targetOpacity, this.opacity + delta);
+            } else {
+                this.opacity = Math.max(this.targetOpacity, this.opacity - delta);
+            }
+            this.update();
+
+            // Auto-remove if target was 0 and we reached it
+            if (this.isRemoving && this.opacity <= 0.01) {
+                if (this.el.parentNode) {
+                    this.el.parentNode.removeChild(this.el);
+                }
+            }
+        }
+
+        // Always face camera
+        const cam = this.el.sceneEl.camera;
+        if (!cam) return;
+
+        const camWorldPos = new THREE.Vector3();
+        cam.getWorldPosition(camWorldPos);
+        this.el.object3D.lookAt(camWorldPos);
     }
 });

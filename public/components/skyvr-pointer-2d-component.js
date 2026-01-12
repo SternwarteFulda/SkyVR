@@ -43,7 +43,7 @@ AFRAME.registerComponent('skyvr-pointer-2d', {
     tick: function () {
         if (this.el.sceneEl.is('vr-mode')) return;
 
-        const modeActive = window.currentMode === 'pointer';
+        const modeActive = window.currentMode === 'pointer' || window.currentMode === 'identify';
         const canvas = this.el.sceneEl.canvas;
         if (canvas) {
             if (modeActive) canvas.classList.add('is-pointing');

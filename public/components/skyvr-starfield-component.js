@@ -224,6 +224,41 @@ AFRAME.registerComponent('starfield', {
                 });
             })
             .then(csvData => {
+                const starData = csvData.split("\n");
+                this.starsArray = [];
+                for (let i = 1; i < starData.length - 1; i++) {
+                    const starAttributes = starData[i].split(",");
+                    const brightness = parseFloat(starAttributes[13]);
+                    if (brightness < 6.5 && brightness > -2) {
+                        const raHours = parseFloat(starAttributes[7]);
+                        const decDegrees = parseFloat(starAttributes[8]);
+                        const raDegrees = (raHours / 24) * 360;
+                        const properName = starAttributes[6].trim().replace(/"/g, '');
+                        const bfName = starAttributes[5].trim().replace(/"/g, '');
+                        const hip = starAttributes[1].trim().replace(/"/g, '');
+                        const hd = starAttributes[2].trim().replace(/"/g, '');
+                        const hr = starAttributes[3].trim().replace(/"/g, '');
+                        const constellation = starAttributes[29].trim().replace(/"/g, '');
+
+                        const distance = 400;
+                        const x = distance * Math.cos((decDegrees * Math.PI) / 180) * Math.cos((raDegrees * Math.PI) / 180);
+                        const y = distance * Math.cos((decDegrees * Math.PI) / 180) * Math.sin((raDegrees * Math.PI) / 180);
+                        const z = distance * Math.sin((decDegrees * Math.PI) / 180);
+
+                        this.starsArray.push({
+                            name: properName || bfName || (hip ? "HIP " + hip : "") || (hd ? "HD " + hd : "") || (hr ? "HR " + hr : "") || "Unknown Star",
+                            proper: properName,
+                            bf: bfName,
+                            hip: hip,
+                            hd: hd,
+                            hr: hr,
+                            position: new THREE.Vector3(x, y, z),
+                            mag: brightness,
+                            constellation: constellation
+                        });
+                    }
+                }
+
                 const halos = createStarsFromCSV(csvData, "halos");
                 el.object3D.add(halos);
                 const stars = createStarsFromCSV(csvData, "stars");

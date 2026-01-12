@@ -17,19 +17,20 @@ AFRAME.registerComponent('skyvr-infobar', {
             showAll: '#icon-show-all',
             zoomIn: '#icon-zoom-in',
             zoomOut: '#icon-zoom-out',
+            identify: '#icon-identify',
             settings: 'assets/icons/settings.svg'
         };
 
         // Layout Configuration
         this.CONFIG = {
-            totalWidth: 0.75,
+            totalWidth: 0.8,
             totalHeight: 0.05,
             bgOpacity: 0.85,
             bgColor: '#050510',
             borderColor: '#8a2be2',
             micOnColor: '#ff0000',
             iconSize: 0.035,
-            modeSpacing: 0.065
+            modeSpacing: 0.045
         };
 
         // Create container
@@ -60,6 +61,7 @@ AFRAME.registerComponent('skyvr-infobar', {
                 draw: document.getElementById('infobar-2d-draw'),
                 stickfigure: document.getElementById('infobar-2d-stickfigure'),
                 constellation: document.getElementById('infobar-2d-constellation'),
+                identify: document.getElementById('infobar-2d-identify'),
                 pointer: document.getElementById('infobar-2d-pointer')
             },
             mouseMove: document.getElementById('infobar-2d-mouse-move'),
@@ -75,6 +77,7 @@ AFRAME.registerComponent('skyvr-infobar', {
             constellationExtras: document.getElementById('infobar-2d-constellation-extras'),
             showAll: document.getElementById('infobar-2d-show-all'),
             clearAll: document.getElementById('infobar-2d-clear-all'),
+            identifyExtras: document.getElementById('infobar-2d-identify-extras'),
             controlPanel: {
                 container: document.getElementById('control-panel-2d'),
                 close: document.getElementById('control-panel-2d-close'),
@@ -128,8 +131,8 @@ AFRAME.registerComponent('skyvr-infobar', {
         this.bgEl.setAttribute('radius', 0.012);
         this.bgEl.setAttribute('color', this.CONFIG.bgColor);
         this.bgEl.setAttribute('opacity', this.CONFIG.bgOpacity);
-        // Positioned to be centered
-        this.bgEl.setAttribute('position', '0 0 -0.01');
+        // Positioned to be centered (a-rounded origin is bottom-left)
+        this.bgEl.setAttribute('position', `-${this.CONFIG.totalWidth / 2} -${this.CONFIG.totalHeight / 2} -0.01`);
         this.container.appendChild(this.bgEl);
 
         // 2. Glowing Accent Border (Top Edge)
@@ -144,9 +147,8 @@ AFRAME.registerComponent('skyvr-infobar', {
         // --- Sections ---
 
         // Room Section (Left)
-        // Icon at -0.35, Text starting at -0.32
         this.roomGroup = document.createElement('a-entity');
-        this.roomGroup.setAttribute('position', '-0.33 0 0');
+        this.roomGroup.setAttribute('position', '-0.36 0 0');
         this.container.appendChild(this.roomGroup);
 
         this.roomIcon = this.createIcon(this.ICONS.room, this.CONFIG.iconSize);
@@ -277,12 +279,12 @@ AFRAME.registerComponent('skyvr-infobar', {
 
         // Mode Group (Right)
         this.modeButtons = {};
-        this.modesList = ['draw', 'stickfigure', 'constellation']; // 'stamp' disabled
+        this.modesList = ['draw', 'stickfigure', 'constellation', 'identify']; // 'stamp' disabled
 
         // Mode container starts after the center
         this.modeGroup = document.createElement('a-entity');
         // Shift right if camera icon is present
-        const modeStart = (presenceParam === 'webcam' && !isStandalone) ? 0.25 : 0.205;
+        const modeStart = (presenceParam === 'webcam' && !isStandalone) ? 0.26 : 0.22;
         this.modeGroup.setAttribute('position', `${modeStart} 0 0`);
         this.container.appendChild(this.modeGroup);
 
@@ -290,11 +292,14 @@ AFRAME.registerComponent('skyvr-infobar', {
             { id: 'draw', icon: this.ICONS.draw },
             // { id: 'stamp', icon: this.ICONS.stamp },
             { id: 'stickfigure', icon: this.ICONS.stickfigure },
-            { id: 'constellation', icon: this.ICONS.constellation }
+            { id: 'constellation', icon: this.ICONS.constellation },
+            { id: 'identify', icon: this.ICONS.identify }
         ];
 
         modes.forEach((m, index) => {
-            const btn = this.createIcon(m.icon, this.CONFIG.iconSize);
+            // Make identify icon slightly smaller as requested
+            const size = (m.id === 'identify') ? this.CONFIG.iconSize * 0.8 : this.CONFIG.iconSize;
+            const btn = this.createIcon(m.icon, size);
             btn.setAttribute('position', `${index * this.CONFIG.modeSpacing} 0 0.001`);
             if (m.action) {
                 btn.addEventListener('click', m.action);
@@ -434,6 +439,7 @@ AFRAME.registerComponent('skyvr-infobar', {
                     const newMode = (window.currentMode === modeId) ? 'none' : modeId;
                     console.log('Mode button clicked:', modeId, 'currentMode:', window.currentMode, '-> newMode:', newMode);
                     window.currentMode = newMode;
+                    window.dispatchEvent(new CustomEvent('mode-change', { detail: { mode: newMode } }));
                 });
             }
         });
@@ -489,6 +495,40 @@ AFRAME.registerComponent('skyvr-infobar', {
                 if (cam && cam.components.drawing) cam.components.drawing.clearDrawing();
             });
         }
+
+        // Identify Extras
+        const identifyUndo = document.getElementById('infobar-2d-identify-undo');
+        if (identifyUndo) {
+            identifyUndo.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const idcomp = this.el.sceneEl.querySelector('#right-controller').components.identify;
+                if (idcomp) idcomp.removeLastInfo();
+            });
+        }
+
+        const identifyClear = document.getElementById('infobar-2d-identify-clear');
+        if (identifyClear) {
+            identifyClear.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const idcomp = this.el.sceneEl.querySelector('#right-controller').components.identify;
+                if (idcomp) idcomp.removeAllInfos();
+            });
+        }
+
+        // Drawing Color selection
+        const colorDots = document.querySelectorAll('.color-dot');
+        colorDots.forEach(dot => {
+            dot.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const color = dot.getAttribute('data-color');
+                const cam = document.getElementById('camera');
+                if (cam && cam.components.drawing) {
+                    cam.setAttribute('drawing', 'color', color);
+                }
+                // Update active states
+                colorDots.forEach(d => d.classList.toggle('active', d === dot));
+            });
+        });
 
         // Constellation Extras
         if (this.ui2d.showAll) {
@@ -770,6 +810,7 @@ AFRAME.registerComponent('skyvr-infobar', {
         icon.setAttribute('data-raycastable', '');
         icon.setAttribute('material', {
             src: src,
+            color: '#FFFFFF',
             transparent: true,
             shader: 'flat'
         });
@@ -984,6 +1025,9 @@ AFRAME.registerComponent('skyvr-infobar', {
             if (this.ui2d.constellationExtras) {
                 this.ui2d.constellationExtras.classList.toggle('show', currentMode === 'constellation');
             }
+            if (this.ui2d.identifyExtras) {
+                this.ui2d.identifyExtras.classList.toggle('show', currentMode === 'identify');
+            }
 
             // Update B-button hint text dynamically
             const bText = document.getElementById('hint-b-text');
@@ -995,6 +1039,7 @@ AFRAME.registerComponent('skyvr-infobar', {
                 else if (currentMode === 'stamp') { label = "Stamp (B)"; width = 0.12; }
                 else if (currentMode === 'stickfigure') { label = "Add stick figure (B)"; width = 0.22; }
                 else if (currentMode === 'constellation') { label = "Add Illustration (B)"; width = 0.22; }
+                else if (currentMode === 'identify') { label = "Stamp info (B)"; width = 0.15; }
                 else if (currentMode === 'pointer') { label = "Pointer Active"; width = 0.15; }
 
                 bText.setAttribute('value', label);
