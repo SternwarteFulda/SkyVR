@@ -300,6 +300,7 @@ AFRAME.registerComponent('starfield', {
         this.moon.castShadow = false;
         el.object3D.add(this.moon);
 
+
         this.moonLight = new THREE.DirectionalLight(0xffffff, 1);
         this.moonLight.target = this.moon;
         this.moonLight.castShadow = false;
@@ -445,8 +446,8 @@ AFRAME.registerComponent('starfield', {
     updateBodyData: function (bodyName, date, index, forceInterpolation = false) {
         const equ_2000 = Astronomy.Equator(bodyName, date, observer, false, false);
         let mag = Astronomy.Illumination(bodyName, date).mag;
-        if (bodyName === "Moon") {
-            mag = -26.77;
+        if (bodyName === "Moon" || bodyName === "Sun") {
+            mag = -26.7; // Hardcode brightness for Sun/Moon to ensure visibility
         }
 
         // Performance Optimization: Use radians directly and cache common trig
@@ -454,12 +455,12 @@ AFRAME.registerComponent('starfield', {
         const decRad = equ_2000.dec * 0.017453292519943295; // PI / 180
         const cosDec = Math.cos(decRad);
 
-        const distance = bodyName === "Moon" ? 398 : 400;
+        const distance = (bodyName === "Moon" || bodyName === "Sun") ? 398 : 400;
         const x = distance * cosDec * Math.cos(raRad);
         const y = distance * cosDec * Math.sin(raRad);
         const z = distance * Math.sin(decRad);
 
-        const size = mapRange(mag, -5.0, 5.5, 14.0, 0.9);
+        const size = (bodyName === "Sun") ? 15.0 : mapRange(mag, -5.0, 5.5, 14.0, 0.9);
 
         const data = this.planetsData[index];
         if (!data) return; // Safety check

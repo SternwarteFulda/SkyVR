@@ -18,10 +18,11 @@ AFRAME.registerComponent('identify', {
             shader: 'flat',
             fog: false,
             depthWrite: false,
+            depthTest: true,
             color: '#00FF00',
             opacity: 0
         });
-        this.crosshairEl.setAttribute('object-render-order', 100);
+        this.crosshairEl.setAttribute('object-render-order', 7);
         this.crosshairEl.setAttribute('animation__pulse', {
             property: 'scale',
             from: '1 1 1',
@@ -44,11 +45,12 @@ AFRAME.registerComponent('identify', {
         this.labelEl.setAttribute('position', '0 16 0');
         this.labelEl.setAttribute('custom-fogless-text', {
             fontSize: 80,
-            textColor: '#00FF00',
+            textColor: '#FFFFFF',
             worldScale: 0.1,
             fixedWidth: 800,
-            depthTest: false,
-            renderOrder: 60,
+            depthTest: true,
+            depthWrite: false, // Ensure we don't occlude things behind us via depth buffer
+            renderOrder: 7,
             opacity: 0
         });
         this.previewEl.appendChild(this.labelEl);
@@ -97,7 +99,8 @@ AFRAME.registerComponent('identify', {
 
     },
 
-    tick: function () {
+    tick: function (time, dt) {
+        if (!dt) return;
         if (!this.starfield || window.currentMode !== 'identify') {
             if (this.previewOpacity > 0.01 || this.labelOpacity > 0.01) {
                 this.targetPreviewOpacity = 0;
@@ -195,6 +198,7 @@ AFRAME.registerComponent('identify', {
 
             // Check Planets (including Moon)
             if (this.starfield.planetsData) {
+                const bodyList = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune'];
                 for (let planet of this.starfield.planetsData) {
                     if (!planet.currentPosition) continue;
                     const planetPos = planet.currentPosition;
@@ -203,11 +207,10 @@ AFRAME.registerComponent('identify', {
                     const dist = hitPoint.distanceTo(comparePoint);
                     if (dist < minDistance) {
                         minDistance = dist;
-                        let infoStr = `Planet`;
+                        let infoStr = (planet.name === 'Sun') ? 'Star' : 'Planet';
+                        if (planet.name === 'Moon') infoStr = '';
 
-                        if (planet.name === 'Moon') {
-                            infoStr = 'The Moon';
-                        } else if (planet.mag !== undefined && planet.mag !== null) {
+                        if (planet.mag !== undefined && planet.mag !== null) {
                             infoStr = `Data: Mag ${planet.mag.toFixed(1)}`;
                         }
 
@@ -225,6 +228,7 @@ AFRAME.registerComponent('identify', {
             if (this.starfield.starsArray && this.starfield.starsArray.length > 0) {
                 for (let star of this.starfield.starsArray) {
                     if (!star.position) continue;
+                    // Compare at same radius (400) for detection
                     const starPos = star.position.clone().normalize().multiplyScalar(400);
                     const dist = hitPoint.distanceTo(starPos);
                     if (dist < minDistance) {
@@ -241,14 +245,17 @@ AFRAME.registerComponent('identify', {
 
             this.nearestObj = nearestObj;
             if (nearestObj) {
-                this.targetPreviewOpacity = 1;
-                this.targetLabelOpacity = 1;
+                this.targetPreviewOpacity = 1.0;
+                this.targetLabelOpacity = 0.6;
                 this.previewEl.setAttribute('visible', true);
                 this.labelEl.setAttribute('visible', true);
-                const worldStarPos = this.starfield.el.object3D.localToWorld(nearestObj.position.clone());
 
-                // Snap the entire previewEl (crosshair + label)
+                // Move to 397 to hover slightly in front of stamped labels (398)
+                const worldStarPos = this.starfield.el.object3D.localToWorld(nearestObj.position.clone().normalize().multiplyScalar(397));
                 this.previewEl.setAttribute('position', worldStarPos);
+
+                const labelText = nearestObj.info ? `${nearestObj.name}\n${nearestObj.info}` : nearestObj.name;
+                this.labelEl.setAttribute('custom-fogless-text', 'value', labelText);
 
                 const camWorldPos = new THREE.Vector3();
                 if (this.el.sceneEl.camera) {
@@ -256,10 +263,6 @@ AFRAME.registerComponent('identify', {
                     this.previewEl.object3D.lookAt(camWorldPos);
                 }
 
-                this.labelEl.setAttribute('custom-fogless-text', 'value', `${nearestObj.name}\\n${nearestObj.info}`);
-                this.labelEl.setAttribute('custom-fogless-text', 'opacity', this.labelOpacity);
-
-                // Only pulse haptics on change
                 if (this.lastNearestName !== nearestObj.name) {
                     if (this.el.components['haptics']) {
                         this.el.components['haptics'].pulse(0.2, 40);
@@ -267,11 +270,12 @@ AFRAME.registerComponent('identify', {
                     this.lastNearestName = nearestObj.name;
                 }
             } else {
-                // No object nearby: crosshair follows pointer tip, label disappears
-                this.targetPreviewOpacity = 0.5; // Dimmer crosshair when not snapped
-                this.targetLabelOpacity = 0;
+                this.targetPreviewOpacity = 0.5;
                 this.previewEl.setAttribute('visible', true);
-                this.previewEl.setAttribute('position', hitPointWorld);
+
+                // Also project non-target crosshair to 397 for consistency
+                const worldHit = hitPointWorld.clone().normalize().multiplyScalar(397);
+                this.previewEl.setAttribute('position', worldHit);
 
                 if (this.el.sceneEl.camera) {
                     const camWorldPos = new THREE.Vector3();
@@ -283,19 +287,18 @@ AFRAME.registerComponent('identify', {
             }
         }
 
-        // Apply fading logic
-        const fadeSpeed = 0.15;
-        if (Math.abs(this.previewOpacity - this.targetPreviewOpacity) > 0.001) {
-            this.previewOpacity += (this.targetPreviewOpacity - this.previewOpacity) * fadeSpeed;
-            this.crosshairEl.setAttribute('material', 'opacity', this.previewOpacity);
-        }
-        if (Math.abs(this.labelOpacity - this.targetLabelOpacity) > 0.001) {
-            this.labelOpacity += (this.targetLabelOpacity - this.labelOpacity) * fadeSpeed;
+        // Apply instant updates (No Fading)
+        this.previewOpacity = this.targetPreviewOpacity;
+        this.labelOpacity = this.targetLabelOpacity;
+
+        this.crosshairEl.setAttribute('material', 'opacity', this.previewOpacity);
+        if (this.labelEl) {
             this.labelEl.setAttribute('custom-fogless-text', 'opacity', this.labelOpacity);
+            this.labelEl.setAttribute('visible', this.labelOpacity > 0);
         }
 
-        // Hide if fully faded
-        if (this.previewOpacity < 0.01 && this.labelOpacity < 0.01 && !isIdentifyMode) {
+        // Hide if fully hidden
+        if (this.previewOpacity < 0.01 && this.targetLabelOpacity === 0 && !isIdentifyMode) {
             this.previewEl.setAttribute('visible', false);
             this.labelEl.setAttribute('visible', false);
         }
@@ -323,64 +326,80 @@ AFRAME.registerComponent('identify', {
         if (!this.nearestObj) return;
 
         // Snap to the actual object position for perfect projection
-        const localPos = this.nearestObj.position;
+        // FIX: Pull in to radius 398 to prevent "Plane vs Sphere" Z-fighting (clipping at corners)
+        let localPos = this.nearestObj.position.clone();
+        localPos.normalize().multiplyScalar(398);
 
-        const el = document.createElement('a-entity');
-        el.setAttribute('networked', {
-            template: '#identified-info-template'
-        });
-        el.setAttribute('identified-info', {
+        const newLabel = {
             name: this.nearestObj.name,
-            info: this.nearestObj.info
-        });
-        el.setAttribute('position', { x: localPos.x, y: localPos.y, z: localPos.z });
+            info: this.nearestObj.info,
+            type: this.nearestObj.type || 'star',
+            position: { x: localPos.x, y: localPos.y, z: localPos.z }
+        };
 
-        const container = document.getElementById('stars-point-cloud');
-        if (container) {
-            container.appendChild(el);
-            this.stampedInfos.push(el);
+        const skyMaster = document.getElementById('sky-master');
+        if (skyMaster && skyMaster.components['sky-state']) {
+            if (!NAF.utils.isMine(skyMaster)) {
+                NAF.utils.takeOwnership(skyMaster);
+            }
+            const state = skyMaster.getAttribute('sky-state');
+            let labels = [];
+            try {
+                labels = JSON.parse(state.identifiedLabels || '[]');
+            } catch (e) { labels = []; }
+
+            // Check for duplicates
+            const exists = labels.some(l => l.name === newLabel.name);
+            if (exists) {
+                console.log("Identify: Label already exists for", newLabel.name);
+                return;
+            }
+
+            labels.push(newLabel);
+            console.log("Identify: Adding label, count:", labels.length);
+            skyMaster.setAttribute('sky-state', 'identifiedLabels', JSON.stringify(labels));
         }
 
         if (this.el.components['haptics']) {
-            this.el.components['haptics'].pulse(0.3, 100);
+            this.el.components['haptics'].pulse(0.5, 30);
         }
     },
 
     removeLastInfo: function () {
-        if (this.stampedInfos.length > 0) {
-            const last = this.stampedInfos.pop();
-            if (last) {
-                console.log("Identify: Removing last stamp (fade)");
-                // Use setAttribute to ensure it works even if component hasn't ticked yet
-                last.setAttribute('identified-info', {
-                    targetOpacity: 0,
-                    isRemoving: true
-                });
-                // Fallback for non-networked or uninitialized components
-                setTimeout(() => {
-                    if (last && last.parentNode) last.parentNode.removeChild(last);
-                }, 500); // 500ms allows the 300ms fade-out to finish
+        const skyMaster = document.getElementById('sky-master');
+        if (skyMaster && skyMaster.components['sky-state']) {
+            if (!NAF.utils.isMine(skyMaster)) {
+                NAF.utils.takeOwnership(skyMaster);
+            }
+            const state = skyMaster.getAttribute('sky-state');
+            let labels = [];
+            try {
+                labels = JSON.parse(state.identifiedLabels || '[]');
+            } catch (e) { labels = []; }
+
+            if (labels.length > 0) {
+                labels.pop(); // Remove last added
+                console.log("Identify: Removing last label, count:", labels.length);
+                skyMaster.setAttribute('sky-state', 'identifiedLabels', JSON.stringify(labels));
             }
         }
+
         if (this.el.components['haptics']) {
             this.el.components['haptics'].pulse(0.2, 50);
         }
     },
 
     removeAllInfos: function () {
-        console.log("Identify: Removing all stamped information with fade");
-        while (this.stampedInfos.length > 0) {
-            const el = this.stampedInfos.pop();
-            if (el) {
-                el.setAttribute('identified-info', {
-                    targetOpacity: 0,
-                    isRemoving: true
-                });
-                setTimeout(() => {
-                    if (el && el.parentNode) el.parentNode.removeChild(el);
-                }, 500);
+        console.log("Identify: Removing ALL identifications (Global)");
+        const skyMaster = document.getElementById('sky-master');
+        if (skyMaster && skyMaster.components['sky-state']) {
+            if (!NAF.utils.isMine(skyMaster)) {
+                NAF.utils.takeOwnership(skyMaster);
             }
+            // Just clear the list
+            skyMaster.setAttribute('sky-state', 'identifiedLabels', '[]');
         }
+
         if (this.el.components['haptics']) {
             this.el.components['haptics'].pulse(0.5, 200);
         }

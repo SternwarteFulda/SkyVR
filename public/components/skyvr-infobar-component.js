@@ -131,8 +131,8 @@ AFRAME.registerComponent('skyvr-infobar', {
         this.bgEl.setAttribute('radius', 0.012);
         this.bgEl.setAttribute('color', this.CONFIG.bgColor);
         this.bgEl.setAttribute('opacity', this.CONFIG.bgOpacity);
-        // Positioned to be centered (a-rounded origin is bottom-left)
-        this.bgEl.setAttribute('position', `-${this.CONFIG.totalWidth / 2} -${this.CONFIG.totalHeight / 2} -0.01`);
+        // Positioned to be centered (a-rounded origin is now centered in skyvr-rounded-component.js)
+        this.bgEl.setAttribute('position', '0 0 -0.01');
         this.container.appendChild(this.bgEl);
 
         // 2. Glowing Accent Border (Top Edge)
@@ -146,9 +146,9 @@ AFRAME.registerComponent('skyvr-infobar', {
 
         // --- Sections ---
 
-        // Room Section (Left)
+        // Room Section (Left) - Adjusted for centered BG
         this.roomGroup = document.createElement('a-entity');
-        this.roomGroup.setAttribute('position', '-0.36 0 0');
+        this.roomGroup.setAttribute('position', '-0.35 0 0');
         this.container.appendChild(this.roomGroup);
 
         this.roomIcon = this.createIcon(this.ICONS.room, this.CONFIG.iconSize);
@@ -962,6 +962,13 @@ AFRAME.registerComponent('skyvr-infobar', {
                 if (isConnected) {
                     const roomName = urlParams.get('room') || 'n/a';
                     this.roomText.setAttribute('value', roomName);
+                    // Identified Info: Ensure text opacity is multiplied by 0.6, marker opacity remains full
+                    if (this.textEl) {
+                        this.textEl.setAttribute('custom-fogless-text', 'opacity', this.opacity * 0.6);
+                    }
+                    if (this.markerEl) {
+                        this.markerEl.setAttribute('material', 'opacity', this.opacity);
+                    }
                 } else {
                     this.roomText.setAttribute('value', 'Connecting...');
                 }

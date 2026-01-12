@@ -12,6 +12,7 @@ AFRAME.registerComponent('custom-fogless-text', {
     worldScale: { type: 'number', default: 0.1 }, // Scales canvas pixel size to world units for the plane
     fixedWidth: { type: 'number', default: 0 }, // If > 0, forces this canvas width (pixels)
     depthTest: { type: 'boolean', default: true },
+    depthWrite: { type: 'boolean', default: true },
     renderOrder: { type: 'number', default: 0 },
     opacity: { type: 'number', default: 1.0, min: 0, max: 1 }
   },
@@ -24,7 +25,7 @@ AFRAME.registerComponent('custom-fogless-text', {
       transparent: true,
       fog: false,
       alphaTest: this.data.materialAlphaTestThreshold,
-      depthWrite: true,
+      depthWrite: this.data.depthWrite,
       depthTest: this.data.depthTest
     });
   },
@@ -44,6 +45,10 @@ AFRAME.registerComponent('custom-fogless-text', {
 
     if (oldData.depthTest !== data.depthTest) {
       this.material.depthTest = data.depthTest;
+    }
+
+    if (oldData.depthWrite !== data.depthWrite) {
+      this.material.depthWrite = data.depthWrite;
     }
 
     if (oldData.opacity !== data.opacity) {

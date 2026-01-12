@@ -54,6 +54,63 @@
       return false;
     };
 
+    // Global Label Syncer (Reconciles DOM with desired state)
+    window.syncIdentifiedLabels = function (targetLabels) {
+      const container = document.getElementById('stars-point-cloud') || document.querySelector('a-scene');
+      if (!container) return;
+
+      // Current labels identifying as 'local-identified-info'
+      const currentEls = Array.from(document.querySelectorAll('.local-identified-info'));
+
+      // 1. Mark all for potential removal
+      const toKeep = new Set();
+
+      targetLabels.forEach(labelData => {
+        // Find if exists (match by unique ID if possible, or name/position)
+        // We'll use a composite key of name + position for uniqueness if no ID
+        const existing = currentEls.find(el => {
+          const d = el.getAttribute('identified-info');
+          // Use close-enough position matching since floats vary
+          const pos = el.object3D.position;
+          const dist = pos.distanceTo(new THREE.Vector3(labelData.position.x, labelData.position.y, labelData.position.z));
+          return d.name === labelData.name && dist < 1.0;
+        });
+
+        if (existing) {
+          // It exists, keep it alive
+          toKeep.add(existing);
+          // Ensure it's not removing
+          existing.setAttribute('identified-info', 'isRemoving', false);
+          existing.setAttribute('identified-info', 'targetTextOpacity', 0.6);
+          existing.setAttribute('identified-info', 'targetMarkerOpacity', 1.0);
+        } else {
+          // Create New
+          const el = document.createElement('a-entity');
+          el.classList.add('local-identified-info');
+          el.setAttribute('identified-info', {
+            name: labelData.name,
+            info: labelData.info,
+            type: labelData.type,
+            targetTextOpacity: 0.6,
+            targetMarkerOpacity: 1.0,
+            isRemoving: false
+          });
+          el.setAttribute('position', labelData.position);
+          container.appendChild(el);
+        }
+      });
+
+      // 2. Fade out and remove extras
+      currentEls.forEach(el => {
+        if (!toKeep.has(el)) {
+          // Set to remove (component handles fade out then self-destruct)
+          el.setAttribute('identified-info', 'isRemoving', true);
+          el.setAttribute('identified-info', 'targetTextOpacity', 0);
+          el.setAttribute('identified-info', 'targetMarkerOpacity', 0);
+        }
+      });
+    };
+
     function checkLoadingComplete() {
       if (performance.now() % 5000 < 100) { // Log every ~5s
         console.log("Loading Status:", JSON.parse(JSON.stringify(window.loadingStatus)), "PlayerSpawned:", window.localPlayerSpawned);
@@ -285,6 +342,7 @@
         showConstellationLines: { type: 'boolean', default: false },
         showBoundaries: { type: 'boolean', default: false },
         activeConstellations: { type: 'string', default: 'INIT' },
+        identifiedLabels: { type: 'string', default: '[]' },
         velocity: { type: 'number', default: 0 },
         heartbeat: { type: 'number', default: 0 }
       },
@@ -491,7 +549,7 @@
         }
         if (this.data.activeConstellations !== oldData.activeConstellations) {
           if (isRemote) console.log(`Sky State: activeConstellations changed from "${oldData.activeConstellations}" to "${this.data.activeConstellations}"`);
-          if (this.data.activeConstellations === 'INIT') {
+          if (this.data.activeConstellations === 'INIT' || this.data.activeConstellations === 'undefined') {
             return;
           }
           const renderer = document.getElementById('constellation-lines')?.components['constellation-renderer'];
@@ -506,6 +564,20 @@
             }
           } else {
             console.warn('Sky State: constellation-renderer not found for sync. Will rely on renderer pulling state on load.');
+          }
+        }
+
+        // Sync Identified Labels (The new robust list-based approach)
+        if (this.data.identifiedLabels !== oldData.identifiedLabels) {
+          if (this.data.identifiedLabels && this.data.identifiedLabels !== 'INIT') {
+            try {
+              const labels = JSON.parse(this.data.identifiedLabels);
+              if (typeof syncIdentifiedLabels === 'function') {
+                syncIdentifiedLabels(labels);
+              }
+            } catch (e) {
+              console.error('Sky State: Error parsing identifiedLabels:', e);
+            }
           }
         }
 
@@ -854,6 +926,22 @@
             {
               component: 'identified-info',
               property: 'info'
+            },
+            {
+              component: 'identified-info',
+              property: 'type'
+            },
+            {
+              component: 'identified-info',
+              property: 'targetTextOpacity'
+            },
+            {
+              component: 'identified-info',
+              property: 'targetMarkerOpacity'
+            },
+            {
+              component: 'identified-info',
+              property: 'isRemoving'
             },
             'position'
           ]
@@ -2138,7 +2226,7 @@
       shadow: false" networked-scene="
       adapter: easyrtc;
       broadcastInterval: 2;
-      onConnect: onConnect;">
+      onConnect: onConnect;" id="scene-root">
 
     <!-- 2D Infobar Overlay (Inside scene allows it to stay visible during A-Frame's internal fullscreen mode) -->
 

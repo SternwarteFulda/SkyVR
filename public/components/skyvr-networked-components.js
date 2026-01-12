@@ -512,7 +512,9 @@ AFRAME.registerComponent('identified-info', {
     schema: {
         name: { type: 'string', default: '' },
         info: { type: 'string', default: '' },
-        targetOpacity: { type: 'number', default: 1.0 },
+        type: { type: 'string', default: 'star' }, // 'star' or 'planet'
+        targetTextOpacity: { type: 'number', default: 0.6 },
+        targetMarkerOpacity: { type: 'number', default: 1.0 },
         isRemoving: { type: 'boolean', default: false }
     },
 
@@ -534,45 +536,37 @@ AFRAME.registerComponent('identified-info', {
             depthWrite: false,
             color: '#00FF00'
         });
-        this.markerEl.setAttribute('object-render-order', 100);
+        this.markerEl.setAttribute('object-render-order', 5);
         this.el.appendChild(this.markerEl);
 
-        // Auto-reparent to stars-point-cloud so the label rotates with the sky
-        const reparent = () => {
-            const container = document.getElementById('stars-point-cloud');
-            if (container && this.el.parentNode !== container) {
-                container.appendChild(this.el);
-            }
-        };
-
-        // If scene is loaded, reparent immediately
-        if (this.el.sceneEl.hasLoaded) {
-            reparent();
-        } else {
-            this.el.sceneEl.addEventListener('loaded', reparent);
-        }
-
-        // Also check occasionally in case container was added late
-        this.reparentInterval = setInterval(reparent, 2000);
-
-        this.opacity = 0;
-        this.targetOpacity = 1;
+        this.textOpacity = 0;
+        this.markerOpacity = 0;
+        this.targetTextOpacity = 0.6;
+        this.targetMarkerOpacity = 1.0;
         this.isRemoving = false;
+        this.domRemoved = false;
+
+        // Restore starfield reference for planet tracking
+        const starsEl = document.getElementById('stars-point-cloud');
+        if (starsEl && starsEl.components && starsEl.components.starfield) {
+            this.starfield = starsEl.components.starfield;
+        }
     },
 
     remove: function () {
-        if (this.reparentInterval) clearInterval(this.reparentInterval);
-        // Ensure cleanup if parent is still there
-        if (this.el.parentNode) {
-            // No action needed normally as remove() is called during destruction
-        }
     },
 
     update: function (oldData) {
-        if (oldData && this.data.targetOpacity !== oldData.targetOpacity) {
-            this.targetOpacity = this.data.targetOpacity;
+        if (oldData && this.data.targetTextOpacity !== oldData.targetTextOpacity) {
+            this.targetTextOpacity = this.data.targetTextOpacity;
         } else if (!oldData) {
-            this.targetOpacity = this.data.targetOpacity;
+            this.targetTextOpacity = this.data.targetTextOpacity;
+        }
+
+        if (oldData && this.data.targetMarkerOpacity !== oldData.targetMarkerOpacity) {
+            this.targetMarkerOpacity = this.data.targetMarkerOpacity;
+        } else if (!oldData) {
+            this.targetMarkerOpacity = this.data.targetMarkerOpacity;
         }
 
         if (oldData && this.data.isRemoving !== oldData.isRemoving) {
@@ -582,35 +576,81 @@ AFRAME.registerComponent('identified-info', {
         }
 
         this.textEl.setAttribute('custom-fogless-text', {
-            value: `${this.data.name}\\n${this.data.info}`,
+            value: this.data.info ? `${this.data.name}\\n${this.data.info}` : this.data.name,
             fontSize: 80,
             textColor: '#FFFFFF',
             worldScale: 0.1,
             fixedWidth: 800,
-            depthTest: false,
-            renderOrder: 50,
-            opacity: this.opacity
+            depthTest: true,
+            depthWrite: false,
+            renderOrder: 5,
+            opacity: this.textOpacity
         });
         if (this.markerEl) {
-            this.markerEl.setAttribute('material', 'opacity', this.opacity);
+            this.markerEl.setAttribute('material', {
+                opacity: this.markerOpacity,
+                depthTest: true,
+                depthWrite: false,
+                transparent: true
+            });
         }
     },
 
-    tick: function (time, dt) {
-        // Fade logic
-        if (Math.abs(this.opacity - this.targetOpacity) > 0.01) {
-            const delta = dt / 300; // 300ms fade duration
-            if (this.opacity < this.targetOpacity) {
-                this.opacity = Math.min(this.targetOpacity, this.opacity + delta);
-            } else {
-                this.opacity = Math.max(this.targetOpacity, this.opacity - delta);
-            }
-            this.update();
 
-            // Auto-remove if target was 0 and we reached it
-            if (this.isRemoving && this.opacity <= 0.01) {
-                if (this.el.parentNode) {
-                    this.el.parentNode.removeChild(this.el);
+    tick: function (time, dt) {
+        // Planet Tracking
+        if (this.data.type === 'planet') {
+            // Lazy load starfield if missing
+            if (!this.starfield) {
+                const starsEl = document.getElementById('stars-point-cloud');
+                if (starsEl && starsEl.components && starsEl.components.starfield) {
+                    this.starfield = starsEl.components.starfield;
+                }
+            }
+
+            if (this.starfield && this.starfield.planetsData) {
+                const planet = this.starfield.planetsData.find(p => p.name === this.data.name);
+                if (planet && planet.currentPosition) {
+                    // Ensure we track the planet but keep our Z-fighting safe radius (398)
+                    this.el.object3D.position.copy(planet.currentPosition).normalize().multiplyScalar(398);
+                }
+            }
+        }
+
+        // Fading Logic
+        let textDiff = Math.abs(this.textOpacity - this.targetTextOpacity);
+        let markerDiff = Math.abs(this.markerOpacity - this.targetMarkerOpacity);
+
+        if (textDiff > 0.01 || markerDiff > 0.01) {
+            const delta = dt / 1000; // Slow fade for nice visual
+
+            // Text fade
+            if (this.textOpacity < this.targetTextOpacity) {
+                this.textOpacity = Math.min(this.targetTextOpacity, this.textOpacity + delta);
+            } else {
+                this.textOpacity = Math.max(this.targetTextOpacity, this.textOpacity - delta);
+            }
+
+            // Marker fade
+            if (this.markerOpacity < this.targetMarkerOpacity) {
+                this.markerOpacity = Math.min(this.targetMarkerOpacity, this.markerOpacity + delta);
+            } else {
+                this.markerOpacity = Math.max(this.targetMarkerOpacity, this.markerOpacity - delta);
+            }
+
+            this.textEl.setAttribute('custom-fogless-text', 'opacity', this.textOpacity);
+            if (this.markerEl) {
+                this.markerEl.setAttribute('material', 'opacity', this.markerOpacity);
+            }
+
+            // Reliable Removal Lifecycle
+            if (this.isRemoving) {
+                // If fully faded, remove from DOM locally
+                if (this.textOpacity <= 0.05 && this.markerOpacity <= 0.05) {
+                    if (this.el.parentNode) {
+                        this.domRemoved = true;
+                        this.el.parentNode.removeChild(this.el);
+                    }
                 }
             }
         }
@@ -621,6 +661,12 @@ AFRAME.registerComponent('identified-info', {
 
         const camWorldPos = new THREE.Vector3();
         cam.getWorldPosition(camWorldPos);
-        this.el.object3D.lookAt(camWorldPos);
+
+        if (this.el.object3D.parent) {
+            const localTarget = this.el.object3D.parent.worldToLocal(camWorldPos.clone());
+            this.el.object3D.lookAt(localTarget);
+        } else {
+            this.el.object3D.lookAt(camWorldPos);
+        }
     }
 });

@@ -952,12 +952,13 @@ AFRAME.registerComponent('constellation-renderer', {
 
         const state = skyMaster.getAttribute('sky-state');
         const raw = state?.activeConstellations;
-        if (!raw || raw === 'INIT') return null;
+        // Safety check: if raw is null, "INIT" or the string "undefined", return null
+        if (!raw || raw === 'INIT' || raw === 'undefined') return null;
 
         try {
             return JSON.parse(raw);
         } catch (e) {
-            console.error('Error parsing shared activeConstellations:', e);
+            console.error('Error parsing shared activeConstellations:', e, raw);
             return [];
         }
     },
@@ -1005,9 +1006,10 @@ AFRAME.registerComponent('constellation-renderer', {
         }
 
         const currentData = skyMaster.getAttribute('sky-state') || {};
+        const safeData = activeData || [];
         skyMaster.setAttribute('sky-state', {
             ...currentData,
-            activeConstellations: JSON.stringify(activeData)
+            activeConstellations: JSON.stringify(safeData)
         });
     },
 
