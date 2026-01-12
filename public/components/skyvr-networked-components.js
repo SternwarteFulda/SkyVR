@@ -204,7 +204,7 @@ AFRAME.registerComponent('constellation-illustration', {
         const bounds = this.renderer.getConstellationBounds(constellation, illustRadius);
         const imagePath = constellation.image ? `/assets/constellations/${constellation.image.file}` : null;
 
-        const geometry = new THREE.PlaneGeometry(bounds.width, bounds.height, 16, 16);
+        const geometry = new THREE.PlaneGeometry(1, 1, 16, 16); // Use unit plane, mapping logic is in matrix
 
         const addMesh = (texture) => {
             // Guard against async race conditions (if component removed/changed while loading)
@@ -215,16 +215,30 @@ AFRAME.registerComponent('constellation-illustration', {
                     map: { value: texture },
                     opacity: { value: 0 },
                     targetRadius: { value: illustRadius },
-                    highlightStrength: { value: 0.0 }
+                    highlightStrength: { value: 0.0 },
+                    uProjectionMatrix4: { value: this.el.object3D.userData.projectionMatrix4 || new THREE.Matrix4() },
+                    uTextureSize: { value: this.el.object3D.userData.texSize || new THREE.Vector2(512, 512) }
                 },
                 vertexShader: `
                     uniform float targetRadius;
+                    uniform mat4 uProjectionMatrix4;
+                    uniform vec2 uTextureSize;
                     varying vec2 vUv;
                     void main() {
                         vUv = uv;
-                        vec4 worldPos = modelMatrix * vec4(position, 1.0);
-                        vec3 projected = normalize(worldPos.xyz) * targetRadius;
-                        gl_Position = projectionMatrix * viewMatrix * vec4(projected, 1.0);
+                        
+                        // Map UV to pixel coordinates (Bottom-Up)
+                        float px = uv.x * uTextureSize.x;
+                        float py = uv.y * uTextureSize.y;
+                        
+                        // Calculate sky direction in local space using the spherical mapping matrix
+                        vec4 skyPos = uProjectionMatrix4 * vec4(px, py, 0.0, 1.0);
+                        
+                        // Normalize and project onto the sphere at the correct radius
+                        vec3 localSphericalPos = normalize(skyPos.xyz) * targetRadius;
+                        
+                        // Apply modelViewMatrix to ensure it rotates with the star sphere
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(localSphericalPos, 1.0);
                     }
                 `,
                 fragmentShader: `
@@ -250,16 +264,18 @@ AFRAME.registerComponent('constellation-illustration', {
 
             const mesh = new THREE.Mesh(geometry, material);
             mesh.name = 'illustration-plane'; // Essential for raycaster detection!
-            mesh.renderOrder = 3; // Bottom Layer (below stars and avatar)
+            mesh.renderOrder = 5.1; // Over Milky Way (5.0), Under Boundaries (6.0)
+            mesh.frustumCulled = false; // Shader expands it across the sky, so we disable auto-culling
             this.el.object3D.add(mesh);
             this.mesh = mesh; // Track it
 
-            // Set position of the CONTAINER entity (which has no position sync)
-            const pos = bounds.center.clone().normalize().multiplyScalar(illustRadius);
-            this.el.object3D.position.copy(pos);
-
-            // Orientation & Position
+            // Orientation & Position (Matrix logic already handled in orientToAnchors)
             this.renderer.orientToAnchors(mesh, constellation);
+
+            // Sync uniform if matrix changed in orientToAnchors
+            material.uniforms.uProjectionMatrix4.value = mesh.userData.projectionMatrix4;
+            material.uniforms.uTextureSize.value = mesh.userData.texSize;
+
             console.log(`constellation-illustration: Setup complete for ${this.data.constellationId}`);
         };
 

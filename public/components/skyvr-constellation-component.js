@@ -1029,27 +1029,33 @@ AFRAME.registerComponent('constellation-renderer', {
         let finalWidth = 0;
         let finalHeight = 0;
 
-        // Use anchor midpoint as the positioning center
+        // Calculate the centroid center and a consistent base scale
         if (constellation.image && constellation.image.anchors && constellation.image.anchors.length >= 2) {
             const anchors = constellation.image.anchors;
-            const p1 = this.starPositions.get(anchors[0].hip);
-            const p2 = this.starPositions.get(anchors[1].hip);
+            const starPositions = anchors.map(a => this.starPositions.get(a.hip)).filter(p => p);
 
-            if (p1 && p2) {
-                // Pin parent to the midpoint of the anchors
-                center.copy(p1).add(p2).multiplyScalar(0.5);
+            if (starPositions.length >= 2) {
+                // 1. Center is the average position on the sphere for all anchors
+                center.set(0, 0, 0);
+                starPositions.forEach(p => center.add(p));
+                center.normalize();
 
-                const p1_scaled = p1.clone().normalize().multiplyScalar(targetRadius);
-                const p2_scaled = p2.clone().normalize().multiplyScalar(targetRadius);
-                const worldDist = p1_scaled.distanceTo(p2_scaled);
+                // 2. Calculate base scale using the first two stars for consistency
+                const p1 = starPositions[0];
+                const p2 = starPositions[1];
+                const angle01 = p1.angleTo(p2);
+
+                // Use Gnomonic distance for sizing: R * tan(angle)
+                const worldDistGnomonic01 = targetRadius * Math.tan(angle01);
+
                 const dxPx = anchors[1].pos[0] - anchors[0].pos[0];
                 const dyPx = anchors[1].pos[1] - anchors[0].pos[1];
                 const pixelDist = Math.sqrt(dxPx * dxPx + dyPx * dyPx);
 
                 if (pixelDist > 0) {
-                    const scale = worldDist / pixelDist;
-                    finalWidth = constellation.image.size[0] * scale * 1.05;
-                    finalHeight = constellation.image.size[1] * scale * 1.05;
+                    const scale = worldDistGnomonic01 / pixelDist;
+                    finalWidth = constellation.image.size[0] * scale;
+                    finalHeight = constellation.image.size[1] * scale;
                 }
             }
         }
@@ -1075,9 +1081,8 @@ AFRAME.registerComponent('constellation-renderer', {
         };
     },
 
-    // Spherize logic moved to Vertex Shader for perfect projection
     spherizeGeometry: function (geometry, radius) {
-        // No-op: handled by GPU now
+        // No-op: handled by stereographic shader
     },
 
     orientToAnchors: function (object3D, constellation) {
@@ -1086,70 +1091,73 @@ AFRAME.registerComponent('constellation-renderer', {
             return;
         }
 
-        // Reset position/rotation for clean calculation
+        const img = constellation.image;
+        const texSizeW = img.size[0];
+        const texSizeH = img.size[1];
+        const anchors = img.anchors;
+
+        // 1. Prepare points for the 4x4 mapping matrix (Spherical Mapping)
+        // We map (pixel_x, pixel_y_inv, 0, 1) -> (sky_x, sky_y, sky_z, 1)
+        const getV = (idx) => {
+            const p = anchors[idx].pos;
+            // Uses bottom-up Y coordinate mapping
+            return new THREE.Vector4(p[0], texSizeH - p[1], 0, 1);
+        };
+
+        const getS = (idx) => {
+            const starPos = this.starPositions.get(anchors[idx].hip);
+            return starPos ? starPos.clone().normalize() : null;
+        };
+
+        const v1 = getV(0), v2 = getV(1);
+        const s1 = getS(0), s2 = getS(1);
+
+        if (!s1 || !s2) return;
+
+        let v3, s3;
+        if (anchors.length >= 3 && getS(2)) {
+            v3 = getV(2);
+            s3 = getS(2);
+        } else {
+            // Fallback (2 points): Synthesize a 3rd star to define a normal base
+            v3 = new THREE.Vector4(v1.x - (v2.y - v1.y), v1.y + (v2.x - v1.x), 0, 1);
+            const p21 = s2.clone().sub(s1);
+            const perp = s1.clone().cross(p21).normalize();
+            s3 = s1.clone().add(perp);
+        }
+
+        // Point 4: Perspective offset to make the matrix non-singular
+        // We use texSizeW as the dummy depth for the fourth basis point
+        const v4 = new THREE.Vector4(v1.x, v1.y, texSizeW, 1);
+        const s4 = s1.clone().add(s2.clone().sub(s1).cross(s3.clone().sub(s1)));
+
+        // Matrix A: Texture coordinates as columns
+        const matA = new THREE.Matrix4().set(
+            v1.x, v2.x, v3.x, v4.x,
+            v1.y, v2.y, v3.y, v4.y,
+            v1.z, v2.z, v3.z, v4.z,
+            v1.w, v2.w, v3.w, v4.w
+        );
+
+        // Matrix B: Sky unit vectors as columns
+        const matB = new THREE.Matrix4().set(
+            s1.x, s2.x, s3.x, s4.x,
+            s1.y, s2.y, s3.y, s4.y,
+            s1.z, s2.z, s3.z, s4.z,
+            1, 1, 1, 1
+        );
+
+        // Solve X = B * inv(A)
+        const matX = matB.multiply(matA.invert());
+
+        // Store for the shader
+        object3D.userData.projectionMatrix4 = matX;
+        object3D.userData.texSize = new THREE.Vector2(texSizeW, texSizeH);
+
+        // Reset local transform - shader maps directly to world space
         object3D.position.set(0, 0, 0);
         object3D.rotation.set(0, 0, 0);
-
-        const anchors = constellation.image.anchors;
-        const star1Id = anchors[0].hip;
-        const star2Id = anchors[1].hip;
-        const p1_img = anchors[0].pos; // [x, y] pixels
-        const p2_img = anchors[1].pos;
-
-        const p1_renderer = this.starPositions.get(star1Id);
-        const p2_renderer = this.starPositions.get(star2Id);
-
-        if (!p1_renderer || !p2_renderer) {
-            object3D.lookAt(0, 0, 0);
-            return;
-        }
-
-        // Ensure matrices are up to date for space conversions
-        this.el.object3D.updateWorldMatrix(true, false);
-        object3D.updateWorldMatrix(true, true);
-
-        // Convert star positions from renderer-local to world space
-        const p1_3d = p1_renderer.clone().applyMatrix4(this.el.object3D.matrixWorld);
-        const p2_3d = p2_renderer.clone().applyMatrix4(this.el.object3D.matrixWorld);
-
-        // 1. Look at center (world 0,0,0)
-        object3D.lookAt(0, 0, 0);
-        object3D.updateWorldMatrix(true, false);
-
-        // 2. Calculate roll
-        // Transform world star positions to object's local space
-        const localP1 = object3D.worldToLocal(p1_3d.clone());
-        const localP2 = object3D.worldToLocal(p2_3d.clone());
-        const localV3D = new THREE.Vector3().subVectors(localP2, localP1);
-
-        // Target angle in local XY plane (Stars)
-        const targetAngle = Math.atan2(localV3D.y, localV3D.x);
-
-        // Image angle in pixel space
-        const imgDX = p2_img[0] - p1_img[0];
-        const imgDY = p1_img[1] - p2_img[1]; // Flipped for Cartesian
-        const imgAngle = Math.atan2(imgDY, imgDX);
-
-        // Rotate object around its local Z (Forward axis pointing at observer)
-        const roll = targetAngle - imgAngle;
-        object3D.rotateZ(roll);
-
-        // 3. APPLY POSITION OFFSET
-        // Shift the mesh so that the anchor midpoint matches the star midpoint
-        const worldDist = p1_3d.distanceTo(p2_3d);
-        const pixelDist = Math.sqrt(imgDX * imgDX + (p1_img[1] - p2_img[1]) * (p1_img[1] - p2_img[1]));
-
-        if (pixelDist > 0) {
-            const scale = worldDist / pixelDist;
-            const imgSize = constellation.image.size;
-            const mx = (anchors[0].pos[0] + anchors[1].pos[0]) / 2;
-            const my = (anchors[0].pos[1] + anchors[1].pos[1]) / 2;
-            const dx = (imgSize[0] / 2) - mx;
-            const dy = (imgSize[1] / 2) - my;
-
-            object3D.translateX(dx * scale);
-            object3D.translateY(-dy * scale);
-        }
+        object3D.updateMatrix();
     },
 
     update: function (oldData) {
