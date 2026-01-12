@@ -394,11 +394,10 @@ AFRAME.registerComponent('constellation-renderer', {
             } else if (constellation.image) {
                 // Illustration Preview
                 const illustRadius = 400;
-                const bounds = this.getConstellationBounds(constellation, illustRadius);
                 const previewSet = new THREE.Group();
                 previewSet.name = 'preview-group-illust';
 
-                const illustrationGeo = new THREE.PlaneGeometry(bounds.width, bounds.height, 16, 16);
+                const illustrationGeo = new THREE.PlaneGeometry(1, 1, 16, 16);
                 const texture = this.textureCache.get(constellation.id);
 
                 if (texture) {
@@ -407,16 +406,22 @@ AFRAME.registerComponent('constellation-renderer', {
                             map: { value: texture },
                             opacity: { value: 0 },
                             targetRadius: { value: illustRadius },
-                            color: { value: new THREE.Color('#ffffff') }
+                            color: { value: new THREE.Color('#ffffff') },
+                            uProjectionMatrix4: { value: new THREE.Matrix4() },
+                            uTextureSize: { value: new THREE.Vector2(512, 512) }
                         },
                         vertexShader: `
                             uniform float targetRadius;
+                            uniform mat4 uProjectionMatrix4;
+                            uniform vec2 uTextureSize;
                             varying vec2 vUv;
                             void main() {
                                 vUv = uv;
-                                vec4 worldPos = modelMatrix * vec4(position, 1.0);
-                                vec3 projected = normalize(worldPos.xyz) * targetRadius;
-                                gl_Position = projectionMatrix * viewMatrix * vec4(projected, 1.0);
+                                float px = uv.x * uTextureSize.x;
+                                float py = uv.y * uTextureSize.y;
+                                vec4 skyPos = uProjectionMatrix4 * vec4(px, py, 0.0, 1.0);
+                                vec3 localSphericalPos = normalize(skyPos.xyz) * targetRadius;
+                                gl_Position = projectionMatrix * modelViewMatrix * vec4(localSphericalPos, 1.0);
                             }
                         `,
                         fragmentShader: `
@@ -439,19 +444,22 @@ AFRAME.registerComponent('constellation-renderer', {
                     });
                     const mesh = new THREE.Mesh(illustrationGeo, material);
                     mesh.renderOrder = 3;
+                    mesh.frustumCulled = false;
 
-                    // Initial positioning (Parent entity center)
-                    const illustPos = bounds.center.clone().normalize().multiplyScalar(illustRadius);
-                    previewSet.position.copy(illustPos);
                     previewSet.add(mesh);
                     previewSet.userData.id = constellation.id;
                     previewSet.userData.type = 'illustration';
                     this.el.object3D.add(previewSet);
                     this.previewIllustration = previewSet;
 
-                    // Orientation logic handles rotation and fine-tuning via translateX/Y
+                    // Orientation logic calculates the projectionMatrix4
                     this.orientToAnchors(mesh, constellation);
+
+                    // Sync uniforms from the calculated matrix
+                    material.uniforms.uProjectionMatrix4.value = mesh.userData.projectionMatrix4;
+                    material.uniforms.uTextureSize.value = mesh.userData.texSize;
                 } else {
+                    const bounds = this.getConstellationBounds(constellation, illustRadius);
                     // Fallback placeholder
                     this.addPlaceholderToGroup(previewSet, illustrationGeo, 0.1);
                     previewSet.position.copy(bounds.center.clone().normalize().multiplyScalar(illustRadius));
