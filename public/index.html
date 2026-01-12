@@ -111,6 +111,47 @@
       });
     };
 
+    // Global Shape Syncer
+    window.syncStampedShapes = function (targetShapes) {
+      const container = document.getElementById('stars-point-cloud') || document.querySelector('a-scene');
+      if (!container) return;
+
+      const currentEls = Array.from(document.querySelectorAll('.local-stamped-shape'));
+      const toKeep = new Set();
+
+      targetShapes.forEach(shapeData => {
+        const existing = currentEls.find(el => {
+          const d = el.getAttribute('stamped-shape');
+          const pos = el.object3D.position;
+          const dist = pos.distanceTo(new THREE.Vector3(shapeData.position.x, shapeData.position.y, shapeData.position.z));
+          return d && d.shape === shapeData.shape && dist < 1.0;
+        });
+
+        if (existing) {
+          toKeep.add(existing);
+          existing.setAttribute('stamped-shape', 'isRemoving', false);
+        } else {
+          const el = document.createElement('a-entity');
+          el.classList.add('local-stamped-shape');
+          const finalOpacity = (shapeData.shape === 'star') ? 0.3 : 1.0;
+          el.setAttribute('stamped-shape', {
+            shape: shapeData.shape,
+            color: shapeData.color || '#FFFF00',
+            opacity: finalOpacity,
+            isRemoving: false
+          });
+          el.setAttribute('position', shapeData.position);
+          container.appendChild(el);
+        }
+      });
+
+      currentEls.forEach(el => {
+        if (!toKeep.has(el)) {
+          el.setAttribute('stamped-shape', 'isRemoving', true);
+        }
+      });
+    };
+
     function checkLoadingComplete() {
       if (performance.now() % 5000 < 100) { // Log every ~5s
         console.log("Loading Status:", JSON.parse(JSON.stringify(window.loadingStatus)), "PlayerSpawned:", window.localPlayerSpawned);
@@ -343,6 +384,7 @@
         showBoundaries: { type: 'boolean', default: false },
         activeConstellations: { type: 'string', default: 'INIT' },
         identifiedLabels: { type: 'string', default: '[]' },
+        stampedShapes: { type: 'string', default: '[]' },
         velocity: { type: 'number', default: 0 },
         heartbeat: { type: 'number', default: 0 }
       },
@@ -577,6 +619,20 @@
               }
             } catch (e) {
               console.error('Sky State: Error parsing identifiedLabels:', e);
+            }
+          }
+        }
+
+        // Sync Stamped Shapes
+        if (this.data.stampedShapes !== oldData.stampedShapes) {
+          if (this.data.stampedShapes && this.data.stampedShapes !== 'INIT') {
+            try {
+              const shapes = JSON.parse(this.data.stampedShapes);
+              if (typeof syncStampedShapes === 'function') {
+                syncStampedShapes(shapes);
+              }
+            } catch (e) {
+              console.error('Sky State: Error parsing stampedShapes:', e);
             }
           }
         }
@@ -1991,6 +2047,19 @@
         </div>
       </div>
       <div style="position: relative;">
+        <button id="infobar-2d-stamp" class="infobar-2d-button" title="Stamp Mode" data-mode="stamp">
+          <img src="assets/icons/shape-star.svg">
+        </button>
+        <div id="infobar-2d-stamp-extras" class="infobar-extra-buttons-vertical">
+          <button id="infobar-2d-stamp-undo" class="infobar-2d-button" title="Remove Last Stamp">
+            <img src="assets/icons/undo.svg">
+          </button>
+          <button id="infobar-2d-stamp-clear" class="infobar-2d-button" title="Clear All Stamps">
+            <img src="assets/icons/clear.svg">
+          </button>
+        </div>
+      </div>
+      <div style="position: relative;">
         <button id="infobar-2d-stickfigure" class="infobar-2d-button" title="Stick Figure" data-mode="stickfigure">
           <img src="assets/icons/stickfigure.svg">
         </button>
@@ -2030,6 +2099,8 @@
           </button>
         </div>
       </div>
+
+
 
       <button id="infobar-2d-pointer" class="infobar-2d-button" title="Pointer Mode" data-mode="pointer">
         <img src="assets/icons/laser.svg">
@@ -2322,7 +2393,7 @@
       <img id="icon-camera-off" src="assets/icons/camera-off.svg">
       <img id="icon-draw" src="assets/icons/draw.svg">
       <img id="icon-identify" src="assets/icons/gps_not_fixed.svg">
-      <img id="icon-stamp" src="assets/icons/stamp.svg">
+      <img id="icon-stamp" src="assets/icons/shape-star.svg">
       <img id="icon-stickfigure" src="assets/icons/stickfigure.svg">
       <img id="icon-constellation" src="assets/icons/constellation.svg">
       <img id="icon-mouse-move" src="assets/icons/mouse-move.svg">
@@ -2353,6 +2424,7 @@
       <script src="components/skyvr-networked-components.js?v=2"></script>
       <script src="components/skyvr-offscreen-indicator-component.js"></script>
       <script src="components/skyvr-identify-component.js"></script>
+      <script src="components/skyvr-stamp-component.js"></script>
       <script src="components/skyvr-numpad-component.js"></script>
 
       <template id="identified-info-template">
@@ -2382,7 +2454,7 @@
       <a-entity id="right-controller" player-info
         networked="template:#right-controller-template;attachTemplateToLocal:false;" meta-touch-controls="hand: right"
         laser-controls haptics raycaster="objects: [data-raycastable]; far: 600; lineOpacity: 0.5;" drawing
-        constellation-pointer identify offscreen-indicator>
+        constellation-pointer identify stamp offscreen-indicator>
         <a-entity light="type: point; intensity: 0.2; distance: 0.5; decay: 1" position="0 0.05 0"></a-entity>
         <!-- Coordinate system for the right controller -->
         <a-entity>
@@ -3852,6 +3924,10 @@
             if (rightController.components['identify']) {
               rightController.components['identify'].removeLastInfo();
             }
+          } else if (currentMode === 'stamp') {
+            if (rightController.components['stamp']) {
+              rightController.components['stamp'].removeLastShape();
+            }
           }
         }
       };
@@ -3887,11 +3963,20 @@
             }
           } else if (currentMode === 'identify') {
             if (rightController.components['identify']) {
-              if (this.el.sceneEl.is('vr-mode')) {
+              if (this.el && this.el.sceneEl && this.el.sceneEl.is('vr-mode')) {
                 rightController.components['identify'].stampInfo();
               } else {
-                // 2D mode click handling is in skyvr-pointer-2d-component
+                if (document.querySelector('a-scene').is('vr-mode')) {
+                  rightController.components['identify'].stampInfo();
+                }
               }
+            }
+          } else if (currentMode === 'stamp') {
+            if (rightController.components['stamp']) {
+              console.log("Stamp: B Button Up detected, calling stampShape directly");
+              rightController.components['stamp'].stampShape();
+            } else {
+              console.error("Stamp: Component 'stamp' not found on rightController");
             }
           }
         } else {
@@ -4063,7 +4148,7 @@
         const stickActive = Math.abs(stickX) > 0.2 || Math.abs(stickY) > 0.2;
 
         // Standard Locomotion (Rotate Rig)
-        // ONLY if Grip is RELEASED. (User requested "Lock" when beam/pointer is shown)
+        // ONLY if Grip is RELEASED. (U"Lock" when beam/pointer is shown)
         if (!isRightControllerGripDown) {
           if (stickActive) {
             if (event.detail.x > 0.8 && isJoystickReleased) {
@@ -4130,6 +4215,11 @@
             console.log('VR A-button hold: Clearing all identifications');
             if (rightController.components['identify']) {
               rightController.components['identify'].removeAllInfos();
+            }
+          } else if (currentMode === 'stamp') {
+            console.log('VR A-button hold: Clearing all stamps');
+            if (rightController.components['stamp']) {
+              rightController.components['stamp'].removeAllShapes();
             }
           }
 

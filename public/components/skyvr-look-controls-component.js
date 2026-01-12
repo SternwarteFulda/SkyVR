@@ -474,7 +474,7 @@
                 return;
             }
 
-            if (window.currentMode === 'draw' || window.currentMode === 'pointer') { return; }
+            if (window.currentMode === 'draw' || window.currentMode === 'pointer' || window.currentMode === 'identify' || window.currentMode === 'stamp') { return; }
 
             this.mouseDown = true;
             this.previousMouseEvent.screenX = evt.screenX;

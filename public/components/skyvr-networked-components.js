@@ -670,3 +670,137 @@ AFRAME.registerComponent('identified-info', {
         }
     }
 });
+
+AFRAME.registerComponent('stamped-shape', {
+    schema: {
+        shape: { type: 'string', default: 'circle' },
+        color: { type: 'color', default: '#FFFF00' },
+        opacity: { type: 'number', default: 1.0 },
+        isRemoving: { type: 'boolean', default: false }
+    },
+
+    init: function () {
+        this.mesh = null;
+        this.targetOpacity = this.data.opacity;
+        this.currentOpacity = 0;
+        this.fadeInSpeed = 3.0;
+        this.fadeOutSpeed = 2.0;
+        this.domRemoved = false;
+
+        this.buildShape();
+    },
+
+    buildShape: function () {
+        if (this.mesh) {
+            this.el.object3D.remove(this.mesh);
+        }
+
+        let geometry;
+        const radius = 5; // Reduced from 8
+
+        if (this.data.shape === 'star') {
+            const shape = new THREE.Shape();
+            const vertices = [];
+            const points = 5;
+            const outerRadius = radius;
+            const innerRadius = radius * 0.4;
+            for (let i = 0; i < points * 2; i++) {
+                const r = (i % 2 === 0) ? outerRadius : innerRadius;
+                const a = (i / (points * 2)) * Math.PI * 2 + Math.PI / 2;
+                vertices.push(new THREE.Vector2(Math.cos(a) * r, Math.sin(a) * r));
+            }
+
+            const roundedness = 0.4;
+            // Start at vertex 1 (Inner, sharp)
+            shape.moveTo(vertices[1].x, vertices[1].y);
+
+            for (let i = 2; i <= vertices.length + 1; i++) {
+                const currIdx = i % vertices.length;
+                const curr = vertices[currIdx];
+
+                if (currIdx % 2 !== 0) {
+                    // Inner vertex: Sharp
+                    shape.lineTo(curr.x, curr.y);
+                } else {
+                    // Outer vertex: Rounded
+                    const prevIdx = (i - 1) % vertices.length;
+                    const nextIdx = (i + 1) % vertices.length;
+                    const prev = vertices[prevIdx];
+                    const next = vertices[nextIdx];
+
+                    const pA = new THREE.Vector2().lerpVectors(prev, curr, 1 - roundedness);
+                    shape.lineTo(pA.x, pA.y);
+
+                    const pB = new THREE.Vector2().lerpVectors(curr, next, roundedness);
+                    shape.quadraticCurveTo(curr.x, curr.y, pB.x, pB.y);
+                }
+            }
+
+            geometry = new THREE.ShapeGeometry(shape);
+        } else {
+            // Thin Ring (circle outline)
+            geometry = new THREE.RingGeometry(radius * 0.85, radius, 32);
+        }
+
+        const material = new THREE.MeshBasicMaterial({
+            color: this.data.color,
+            transparent: true,
+            opacity: 0,
+            depthTest: true,
+            depthWrite: false,
+            fog: false,
+            blending: THREE.AdditiveBlending
+        });
+
+        this.mesh = new THREE.Mesh(geometry, material);
+        this.mesh.renderOrder = 5.1;
+        this.el.object3D.add(this.mesh);
+    },
+
+    update: function (oldData) {
+        if (this.data.shape !== oldData.shape || this.data.color !== oldData.color) {
+            this.buildShape();
+        }
+
+        if (this.data.isRemoving && !oldData.isRemoving) {
+            this.targetOpacity = 0;
+        }
+    },
+
+    tick: function (time, dt) {
+        if (!dt || !this.mesh) return;
+
+        const dtSec = dt / 1000;
+
+        if (this.data.isRemoving) {
+            this.targetOpacity = 0;
+            this.currentOpacity -= this.fadeOutSpeed * dtSec;
+        } else {
+            this.currentOpacity += this.fadeInSpeed * dtSec;
+        }
+
+        this.currentOpacity = Math.max(0, Math.min(this.data.opacity, this.currentOpacity));
+        this.mesh.material.opacity = this.currentOpacity;
+
+        if (this.data.isRemoving && this.currentOpacity <= 0.05) {
+            if (this.el.parentNode && !this.domRemoved) {
+                this.domRemoved = true;
+                this.el.parentNode.removeChild(this.el);
+            }
+        }
+
+        // Always face camera
+        const cam = this.el.sceneEl.camera;
+        if (!cam) return;
+
+        const camWorldPos = new THREE.Vector3();
+        cam.getWorldPosition(camWorldPos);
+
+        if (this.el.object3D.parent) {
+            const localTarget = this.el.object3D.parent.worldToLocal(camWorldPos.clone());
+            this.el.object3D.lookAt(localTarget);
+        } else {
+            this.el.object3D.lookAt(camWorldPos);
+        }
+    }
+});

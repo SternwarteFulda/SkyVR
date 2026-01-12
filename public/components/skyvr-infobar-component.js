@@ -62,6 +62,7 @@ AFRAME.registerComponent('skyvr-infobar', {
                 stickfigure: document.getElementById('infobar-2d-stickfigure'),
                 constellation: document.getElementById('infobar-2d-constellation'),
                 identify: document.getElementById('infobar-2d-identify'),
+                stamp: document.getElementById('infobar-2d-stamp'),
                 pointer: document.getElementById('infobar-2d-pointer')
             },
             mouseMove: document.getElementById('infobar-2d-mouse-move'),
@@ -78,6 +79,7 @@ AFRAME.registerComponent('skyvr-infobar', {
             showAll: document.getElementById('infobar-2d-show-all'),
             clearAll: document.getElementById('infobar-2d-clear-all'),
             identifyExtras: document.getElementById('infobar-2d-identify-extras'),
+            stampExtras: document.getElementById('infobar-2d-stamp-extras'),
             controlPanel: {
                 container: document.getElementById('control-panel-2d'),
                 close: document.getElementById('control-panel-2d-close'),
@@ -279,26 +281,28 @@ AFRAME.registerComponent('skyvr-infobar', {
 
         // Mode Group (Right)
         this.modeButtons = {};
-        this.modesList = ['draw', 'stickfigure', 'constellation', 'identify']; // 'stamp' disabled
+        this.modesList = ['draw', 'stamp', 'stickfigure', 'constellation', 'identify'];
 
         // Mode container starts after the center
         this.modeGroup = document.createElement('a-entity');
         // Shift right if camera icon is present
-        const modeStart = (presenceParam === 'webcam' && !isStandalone) ? 0.26 : 0.22;
+        const modeStart = (presenceParam === 'webcam' && !isStandalone) ? 0.25 : 0.19;
         this.modeGroup.setAttribute('position', `${modeStart} 0 0`);
         this.container.appendChild(this.modeGroup);
 
         const modes = [
             { id: 'draw', icon: this.ICONS.draw },
-            // { id: 'stamp', icon: this.ICONS.stamp },
+            { id: 'stamp', icon: this.ICONS.stamp },
             { id: 'stickfigure', icon: this.ICONS.stickfigure },
             { id: 'constellation', icon: this.ICONS.constellation },
             { id: 'identify', icon: this.ICONS.identify }
         ];
 
         modes.forEach((m, index) => {
-            // Make identify icon slightly smaller as requested
-            const size = (m.id === 'identify') ? this.CONFIG.iconSize * 0.8 : this.CONFIG.iconSize;
+            // Make identify and stamp icons slightly smaller
+            let size = this.CONFIG.iconSize;
+            if (m.id === 'identify') size *= 0.8;
+            if (m.id === 'stamp') size *= 0.85;
             const btn = this.createIcon(m.icon, size);
             btn.setAttribute('position', `${index * this.CONFIG.modeSpacing} 0 0.001`);
             if (m.action) {
@@ -369,7 +373,6 @@ AFRAME.registerComponent('skyvr-infobar', {
             } else {
                 // If it's a VR device (headset connected but not presenting), we still might want to hide 2D HUD 
                 // but A-Frame button triggered 'fullscreenElement: body' logic previously.
-                // User said: "Remove 2D infobar on 3D devices completely"
                 if (isVRDevice) {
                     this.el.object3D.visible = true; // Show 3D HUD by default on headsets
                     if (this.ui2d.container) {
@@ -512,6 +515,28 @@ AFRAME.registerComponent('skyvr-infobar', {
                 e.stopPropagation();
                 const idcomp = this.el.sceneEl.querySelector('#right-controller').components.identify;
                 if (idcomp) idcomp.removeAllInfos();
+            });
+        }
+
+
+
+        // Stamp Undo
+        const stampUndo = document.getElementById('infobar-2d-stamp-undo');
+        if (stampUndo) {
+            stampUndo.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const stampComp = this.el.sceneEl.querySelector('#right-controller').components.stamp;
+                if (stampComp) stampComp.removeLastShape();
+            });
+        }
+
+        // Stamp Clear
+        const stampClear = document.getElementById('infobar-2d-stamp-clear');
+        if (stampClear) {
+            stampClear.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const stampComp = this.el.sceneEl.querySelector('#right-controller').components.stamp;
+                if (stampComp) stampComp.removeAllShapes();
             });
         }
 
@@ -1034,6 +1059,9 @@ AFRAME.registerComponent('skyvr-infobar', {
             }
             if (this.ui2d.identifyExtras) {
                 this.ui2d.identifyExtras.classList.toggle('show', currentMode === 'identify');
+            }
+            if (this.ui2d.stampExtras) {
+                this.ui2d.stampExtras.classList.toggle('show', currentMode === 'stamp');
             }
 
             // Update B-button hint text dynamically

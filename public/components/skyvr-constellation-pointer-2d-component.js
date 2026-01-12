@@ -65,8 +65,9 @@ AFRAME.registerComponent('constellation-pointer-2d', {
         const isConst = currentMode === 'constellation';
         const isStick = currentMode === 'stickfigure';
         const isIdentify = currentMode === 'identify';
+        const isStamp = currentMode === 'stamp';
 
-        if ((!isConst && !isStick && !isIdentify) || !this.renderer) return;
+        if ((!isConst && !isStick && !isIdentify && !isStamp) || !this.renderer) return;
 
         if (e.pointerType === 'pen') {
             e.preventDefault();
@@ -81,8 +82,9 @@ AFRAME.registerComponent('constellation-pointer-2d', {
         const isConst = currentMode === 'constellation';
         const isStick = currentMode === 'stickfigure';
         const isIdentify = currentMode === 'identify';
+        const isStamp = currentMode === 'stamp';
 
-        if ((!isConst && !isStick && !isIdentify) || !this.renderer) return;
+        if ((!isConst && !isStick && !isIdentify && !isStamp) || !this.renderer) return;
         if (e.target.closest('.infobar-2d') || e.target.closest('.control-panel-2d')) return;
 
         if (e.pointerType === 'pen') {
@@ -106,6 +108,12 @@ AFRAME.registerComponent('constellation-pointer-2d', {
                     const rightController = document.getElementById('right-controller');
                     if (rightController && rightController.components['identify']) {
                         rightController.components['identify'].stampInfo();
+                        if (typeof syncSky === 'function') syncSky();
+                    }
+                } else if (isStamp) {
+                    const rightController = document.getElementById('right-controller');
+                    if (rightController && rightController.components['stamp']) {
+                        rightController.components['stamp'].stampShape();
                         if (typeof syncSky === 'function') syncSky();
                     }
                 } else {
@@ -140,6 +148,12 @@ AFRAME.registerComponent('constellation-pointer-2d', {
                             rightController.components['identify'].on2DClick(this.mouse);
                             if (typeof syncSky === 'function') syncSky();
                         }
+                    } else if (isStamp) {
+                        const rightController = document.getElementById('right-controller');
+                        if (rightController && rightController.components['stamp']) {
+                            rightController.components['stamp'].on2DClick(this.mouse);
+                            if (typeof syncSky === 'function') syncSky();
+                        }
                     } else {
                         const targetType = (window.currentMode === 'stickfigure') ? 'stick' : 'illustration';
                         this.raycaster.setFromCamera(this.mouse, this.el.sceneEl.camera);
@@ -165,6 +179,12 @@ AFRAME.registerComponent('constellation-pointer-2d', {
                         rightController.components['identify'].removeLastInfo();
                         if (typeof syncSky === 'function') syncSky();
                     }
+                } else if (isStamp) {
+                    const rightController = document.getElementById('right-controller');
+                    if (rightController && rightController.components['stamp']) {
+                        rightController.components['stamp'].removeLastShape();
+                        if (typeof syncSky === 'function') syncSky();
+                    }
                 } else {
                     this.renderer.removeLastIllustration();
                     if (typeof syncSky === 'function') syncSky();
@@ -176,7 +196,7 @@ AFRAME.registerComponent('constellation-pointer-2d', {
     onPointerLeave: function (e) { },
 
     onContextMenu: function (e) {
-        if (window.currentMode === 'constellation' || window.currentMode === 'identify') {
+        if (window.currentMode === 'constellation' || window.currentMode === 'identify' || window.currentMode === 'stamp') {
             e.preventDefault();
         }
     },
