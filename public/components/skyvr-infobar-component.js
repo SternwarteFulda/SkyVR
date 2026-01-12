@@ -12,6 +12,11 @@ AFRAME.registerComponent('skyvr-infobar', {
             stickfigure: '#icon-stickfigure',
             constellation: '#icon-constellation',
             mouseMove: '#icon-mouse-move',
+            undo: '#icon-undo',
+            clear: '#icon-clear',
+            showAll: '#icon-show-all',
+            zoomIn: '#icon-zoom-in',
+            zoomOut: '#icon-zoom-out',
             settings: 'assets/icons/settings.svg'
         };
 
@@ -58,6 +63,8 @@ AFRAME.registerComponent('skyvr-infobar', {
                 pointer: document.getElementById('infobar-2d-pointer')
             },
             mouseMove: document.getElementById('infobar-2d-mouse-move'),
+            zoomIn: document.getElementById('infobar-2d-zoom-in'),
+            zoomOut: document.getElementById('infobar-2d-zoom-out'),
             settings: document.getElementById('infobar-2d-settings'),
             drawExtras: document.getElementById('infobar-2d-draw-extras'),
             drawUndo: document.getElementById('infobar-2d-draw-undo'),
@@ -289,11 +296,15 @@ AFRAME.registerComponent('skyvr-infobar', {
         modes.forEach((m, index) => {
             const btn = this.createIcon(m.icon, this.CONFIG.iconSize);
             btn.setAttribute('position', `${index * this.CONFIG.modeSpacing} 0 0.001`);
-            btn.addEventListener('click', () => {
-                window.currentMode = (window.currentMode === m.id) ? 'none' : m.id;
-            });
+            if (m.action) {
+                btn.addEventListener('click', m.action);
+            } else {
+                btn.addEventListener('click', () => {
+                    window.currentMode = (window.currentMode === m.id) ? 'none' : m.id;
+                });
+            }
             this.modeGroup.appendChild(btn);
-            this.modeButtons[m.id] = btn;
+            if (m.id) this.modeButtons[m.id] = btn;
         });
 
         // Event listener for controller Y button
@@ -432,6 +443,23 @@ AFRAME.registerComponent('skyvr-infobar', {
             this.ui2d.mouseMove.addEventListener('click', () => {
                 this.toggleMouseDirection();
             });
+        }
+
+        // Zoom listeners
+        const handleZoom = (amount) => {
+            const camera = document.getElementById('camera');
+            const controls = camera ? camera.components['skyvr-look-controls'] : null;
+            if (controls) {
+                const baseFov = controls.targetFov !== undefined ? controls.targetFov : camera.getAttribute('camera').fov;
+                controls.updateFov(baseFov + amount);
+            }
+        };
+
+        if (this.ui2d.zoomIn) {
+            this.ui2d.zoomIn.addEventListener('click', () => handleZoom(-5));
+        }
+        if (this.ui2d.zoomOut) {
+            this.ui2d.zoomOut.addEventListener('click', () => handleZoom(5));
         }
 
         // Settings button listener

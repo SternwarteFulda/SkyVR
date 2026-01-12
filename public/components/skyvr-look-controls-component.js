@@ -19,7 +19,10 @@
             reverseMouseDrag: { default: true }, // Default: Sky Move
             reverseTouchDrag: { default: false },
             touchEnabled: { default: true },
-            mouseEnabled: { default: true }
+            mouseEnabled: { default: true },
+            minFov: { default: 30 },
+            maxFov: { default: 90 },
+            fov: { default: 80 }
         },
 
         init: function () {
@@ -40,6 +43,14 @@
             this.previousMagicWindowYaw = 0;
             this.previousMagicWindowPitch = 0;
             this.activeKeys = {};
+            this.touchDistance = 0;
+            this.targetFov = this.data.fov;
+            this.currentFov = this.data.fov;
+            this.initialFov = this.data.fov;
+            this.zoomCenterNDC = { x: 0, y: 0 };
+            this.mouseNDC = { x: 0, y: 0 };
+            this.previousNDC = { x: 0, y: 0 };
+            this.initialMidpointNDC = { x: 0, y: 0 };
 
             this.setupMagicWindowControls();
 
@@ -116,6 +127,22 @@
         tick: function (t, dt) {
             var data = this.data;
             if (!data.enabled) { return; }
+
+            // Interpolate FOV
+            if (dt && this.currentFov !== this.targetFov) {
+                var oldFov = this.currentFov;
+                var lerpFactor = 1 - Math.pow(0.0001, dt / 1000);
+                this.currentFov += (this.targetFov - this.currentFov) * lerpFactor;
+                if (Math.abs(this.currentFov - this.targetFov) < 0.01) {
+                    this.currentFov = this.targetFov;
+                }
+
+                // Rotation correction to "zoom into cursor/pinch-center"
+                this.applyZoomRotationCorrection(oldFov, this.currentFov);
+
+                this.el.setAttribute('camera', 'fov', this.currentFov);
+            }
+
             this.updateKeyboardRotation(dt);
             this.updateOrientation();
         },
@@ -148,6 +175,7 @@
             this.onPointerLockError = this.onPointerLockError.bind(this);
             this.onKeyDown = this.onKeyDown.bind(this);
             this.onKeyUp = this.onKeyUp.bind(this);
+            this.onMouseWheel = this.onMouseWheel.bind(this);
         },
 
         setupMouseControls: function () {
@@ -180,6 +208,7 @@
             }
             window.addEventListener('keydown', this.onKeyDown, false);
             window.addEventListener('keyup', this.onKeyUp, false);
+            canvasEl.addEventListener('wheel', this.onMouseWheel, false);
         },
 
         removeEventListeners: function () {
@@ -199,6 +228,7 @@
             document.removeEventListener('pointerlockerror', this.onPointerLockError, false);
             window.removeEventListener('keydown', this.onKeyDown, false);
             window.removeEventListener('keyup', this.onKeyUp, false);
+            canvasEl.removeEventListener('wheel', this.onMouseWheel);
         },
 
         updateOrientation: function () {
@@ -294,33 +324,134 @@
         },
 
         onMouseMove: function (evt) {
-            if (!this.data.enabled || (!this.mouseDown && !this.pointerLocked)) { return; }
+            if (!this.data.enabled) { return; }
 
-            // Lock camera rotation if drawing/erasing with mouse/pen
-            const drawComp = this.el.components.drawing;
-            const isDrawing = window.currentMode === 'draw' && drawComp && drawComp.isDrawing;
+            // Track movement using projectively accurate angles
+            var canvas = this.el.sceneEl.canvas;
+            if (canvas) {
+                var rect = canvas.getBoundingClientRect();
+                var currentNDC = {
+                    x: ((evt.clientX - rect.left) / rect.width) * 2 - 1,
+                    y: -((evt.clientY - rect.top) / rect.height) * 2 + 1
+                };
 
-            if (isDrawing || window.isErasing || window.isPointerActive) {
-                // Update previous coordinates so we don't jump when we resume
-                this.previousMouseEvent.screenX = evt.screenX;
-                this.previousMouseEvent.screenY = evt.screenY;
-                return;
+                // Store current mouse NDC for zoom centers
+                this.mouseNDC.x = currentNDC.x;
+                this.mouseNDC.y = currentNDC.y;
+
+                if (this.mouseDown || this.pointerLocked) {
+                    // Lock camera rotation if drawing/erasing with mouse/pen
+                    const drawComp = this.el.components.drawing;
+                    const isDrawing = window.currentMode === 'draw' && drawComp && drawComp.isDrawing;
+
+                    if (isDrawing || window.isErasing || window.isPointerActive) {
+                        this.previousNDC.x = currentNDC.x;
+                        this.previousNDC.y = currentNDC.y;
+                        this.previousMouseEvent.screenX = evt.screenX;
+                        this.previousMouseEvent.screenY = evt.screenY;
+                        return;
+                    }
+
+                    var direction = this.data.reverseMouseDrag ? 1 : -1;
+
+                    if (this.pointerLocked) {
+                        var movementX = evt.movementX || evt.mozMovementX || 0;
+                        var movementY = evt.movementY || evt.mozMovementY || 0;
+                        var fovScale = (this.currentFov || 80) / 80;
+                        this.yawObject.rotation.y += movementX * 0.002 * direction * fovScale;
+                        this.pitchObject.rotation.x += movementY * 0.002 * direction * fovScale;
+                    } else {
+                        var aspect = canvas.clientWidth / canvas.clientHeight;
+                        var tanHalfY = Math.tan(THREE.MathUtils.degToRad(this.currentFov / 2));
+                        var tanHalfX = tanHalfY * aspect;
+
+                        // Spherical local coordinates
+                        var thetaXPrev = Math.atan(this.previousNDC.x * tanHalfX);
+                        var thetaYPrev = Math.atan(this.previousNDC.y * tanHalfY * Math.cos(thetaXPrev));
+
+                        var thetaXCurr = Math.atan(currentNDC.x * tanHalfX);
+                        var thetaYCurr = Math.atan(currentNDC.y * tanHalfY * Math.cos(thetaXCurr));
+
+                        var deltaYawLocal = thetaXCurr - thetaXPrev;
+                        var deltaPitchLocal = thetaYCurr - thetaYPrev;
+
+                        // Compensate for point's world pitch to get camera yaw
+                        // Point's world pitch is CameraPitch - thetaY (assuming positive pitch is down)
+                        var pointPitch = this.pitchObject.rotation.x - thetaYCurr;
+                        var cosPointPitch = Math.max(0.1, Math.abs(Math.cos(pointPitch)));
+
+                        this.yawObject.rotation.y += (deltaYawLocal * direction) / cosPointPitch;
+                        this.pitchObject.rotation.x -= deltaPitchLocal * direction;
+                    }
+                    this.pitchObject.rotation.x = Math.max(-PI_2, Math.min(PI_2, this.pitchObject.rotation.x));
+                }
+
+                this.previousNDC.x = currentNDC.x;
+                this.previousNDC.y = currentNDC.y;
             }
 
-            var movementX, movementY;
-            if (this.pointerLocked) {
-                movementX = evt.movementX || evt.mozMovementX || 0;
-                movementY = evt.movementY || evt.mozMovementY || 0;
-            } else {
-                movementX = evt.screenX - this.previousMouseEvent.screenX;
-                movementY = evt.screenY - this.previousMouseEvent.screenY;
-            }
             this.previousMouseEvent.screenX = evt.screenX;
             this.previousMouseEvent.screenY = evt.screenY;
+        },
 
-            var direction = this.data.reverseMouseDrag ? 1 : -1;
-            this.yawObject.rotation.y += movementX * 0.002 * direction;
-            this.pitchObject.rotation.x += movementY * 0.002 * direction;
+        onMouseWheel: function (evt) {
+            var sceneEl = this.el.sceneEl;
+            if (!this.data.enabled || !this.data.mouseEnabled || (sceneEl.is('vr-mode') || sceneEl.is('ar-mode'))) { return; }
+
+            // Adjust FOV based on wheel delta (Scale geometrically for smoother feel)
+            var delta = evt.deltaY > 0 ? 1.1 : 0.9;
+            var newFov = this.targetFov * delta;
+
+            // Explicitly pass mouse position to updateFov
+            this.updateFov(newFov, this.mouseNDC.x, this.mouseNDC.y);
+
+            // Prevent page scroll
+            evt.preventDefault();
+        },
+
+        updateFov: function (newFov, centerX, centerY) {
+            var data = this.data;
+            this.targetFov = Math.max(data.minFov, Math.min(data.maxFov, newFov));
+
+            // Set zoom center; if not provided, default to viewport center (0,0)
+            this.zoomCenterNDC.x = (centerX !== undefined) ? centerX : 0;
+            this.zoomCenterNDC.y = (centerY !== undefined) ? centerY : 0;
+        },
+
+        applyZoomRotationCorrection: function (oldFov, newFov) {
+            var canvas = this.el.sceneEl.canvas;
+            if (!canvas) return;
+
+            var rect = canvas.getBoundingClientRect();
+            var aspect = rect.width / rect.height;
+            var nx = this.zoomCenterNDC.x;
+            var ny = this.zoomCenterNDC.y;
+
+            // If near center, correction is negligible
+            if (Math.abs(nx) < 0.01 && Math.abs(ny) < 0.01) return;
+
+            var tanOldHalfY = Math.tan(THREE.MathUtils.degToRad(oldFov / 2));
+            var tanNewHalfY = Math.tan(THREE.MathUtils.degToRad(newFov / 2));
+            var tanOldHalfX = tanOldHalfY * aspect;
+            var tanNewHalfX = tanNewHalfY * aspect;
+
+            // Accurate spherical local angles for the point (nx, ny)
+            var thetaXOld = Math.atan(nx * tanOldHalfX);
+            var thetaYOld = Math.atan(ny * tanOldHalfY * Math.cos(thetaXOld));
+
+            var thetaXNew = Math.atan(nx * tanNewHalfX);
+            var thetaYNew = Math.atan(ny * tanNewHalfY * Math.cos(thetaXNew));
+
+            var deltaYawLocal = thetaXOld - thetaXNew;
+            var deltaPitchLocal = thetaYOld - thetaYNew;
+
+            // Apply corrections to Euler objects
+            // For Yaw, compensate for the point's world pitch
+            var pointPitch = this.pitchObject.rotation.x - thetaYNew;
+            var cosPointPitch = Math.max(0.1, Math.abs(Math.cos(pointPitch)));
+
+            this.yawObject.rotation.y -= deltaYawLocal / cosPointPitch;
+            this.pitchObject.rotation.x -= deltaPitchLocal;
             this.pitchObject.rotation.x = Math.max(-PI_2, Math.min(PI_2, this.pitchObject.rotation.x));
         },
 
@@ -328,6 +459,14 @@
             var sceneEl = this.el.sceneEl;
             if (!this.data.enabled || !this.data.mouseEnabled || ((sceneEl.is('vr-mode') || sceneEl.is('ar-mode')) && sceneEl.checkHeadsetConnected())) { return; }
             if (evt.button !== 0) { return; }
+
+            // Initialize previousNDC for projective dragging
+            var canvas = this.el.sceneEl.canvas;
+            if (canvas) {
+                var rect = canvas.getBoundingClientRect();
+                this.previousNDC.x = ((evt.clientX - rect.left) / rect.width) * 2 - 1;
+                this.previousNDC.y = -((evt.clientY - rect.top) / rect.height) * 2 + 1;
+            }
 
             // If we are in FPS mode (pointer locked), clicking should exit it
             if (this.pointerLocked) {
@@ -365,43 +504,121 @@
         },
 
         onTouchStart: function (evt) {
-            if (evt.touches.length !== 1 || !this.data.touchEnabled || this.el.sceneEl.is('vr-mode') || this.el.sceneEl.is('ar-mode')) { return; }
+            if (!this.data.touchEnabled || this.el.sceneEl.is('vr-mode') || this.el.sceneEl.is('ar-mode')) { return; }
 
             // Ignore stylus/pen if in Draw mode (allows drawing instead of rotating)
             if (window.currentMode === 'draw' && evt.touches[0].touchType === 'stylus') { return; }
 
-            this.touchStart = { x: evt.touches[0].pageX, y: evt.touches[0].pageY };
-            this.touchStarted = true;
+            if (evt.touches.length === 1) {
+                var touch = evt.touches[0];
+                var canvas = this.el.sceneEl.canvas;
+                if (canvas) {
+                    var rect = canvas.getBoundingClientRect();
+                    this.previousNDC.x = ((touch.pageX - rect.left) / rect.width) * 2 - 1;
+                    this.previousNDC.y = -((touch.pageY - rect.top) / rect.height) * 2 + 1;
+                }
+                this.touchStart = { x: touch.pageX, y: touch.pageY };
+                this.touchStarted = true;
+            }
 
             if (this.data.magicWindowTrackingEnabled) {
                 this.el.setAttribute('skyvr-look-controls', 'magicWindowTrackingEnabled', false);
             }
+
+            if (evt.touches.length === 2) {
+                var center = this.getTouchCenter(evt);
+                this.touchStart = center;
+
+                var canvas = this.el.sceneEl.canvas;
+                if (canvas) {
+                    var rect = canvas.getBoundingClientRect();
+                    this.zoomCenterNDC.x = ((center.x - rect.left) / rect.width) * 2 - 1;
+                    this.zoomCenterNDC.y = -((center.y - rect.top) / rect.height) * 2 + 1;
+                    this.previousNDC.x = this.zoomCenterNDC.x;
+                    this.previousNDC.y = this.zoomCenterNDC.y;
+                    this.initialMidpointNDC = { x: this.zoomCenterNDC.x, y: this.zoomCenterNDC.y };
+                }
+
+                this.touchDistance = this.getTouchDistance(evt);
+                this.initialFov = this.targetFov;
+            }
+        },
+
+        getTouchCenter: function (evt) {
+            return {
+                x: (evt.touches[0].pageX + evt.touches[1].pageX) / 2,
+                y: (evt.touches[0].pageY + evt.touches[1].pageY) / 2
+            };
+        },
+
+        getTouchDistance: function (evt) {
+            var dX = evt.touches[0].pageX - evt.touches[1].pageX;
+            var dY = evt.touches[0].pageY - evt.touches[1].pageY;
+            return Math.sqrt(dX * dX + dY * dY);
         },
 
         onTouchMove: function (evt) {
             if (!this.touchStarted || !this.data.touchEnabled) { return; }
+
+            var canvas = this.el.sceneEl.canvas;
+            if (!canvas) return;
 
             // Block rotation if drawing/erasing is in progress
             const drawComp = this.el.components.drawing;
             const isDrawing = window.currentMode === 'draw' && drawComp && drawComp.isDrawing;
 
             if (isDrawing || window.isErasing) {
-                // Reset touch start to current pos to prevent jump when lifting pen/finger
-                this.touchStart.x = evt.touches[0].pageX;
-                this.touchStart.y = evt.touches[0].pageY;
+                this.touchStart = { x: evt.touches[0].pageX, y: evt.touches[0].pageY };
                 return;
             }
 
-            var canvas = this.el.sceneEl.canvas;
-            var deltaY = 2 * Math.PI * (evt.touches[0].pageX - this.touchStart.x) / canvas.clientWidth;
-            var deltaX = 2 * Math.PI * (evt.touches[0].pageY - this.touchStart.y) / canvas.clientHeight;
+            // Calculate movement based on midpoint if pinching, or single finger if panning
+            var currentMidpoint = (evt.touches.length === 2) ? this.getTouchCenter(evt) : { x: evt.touches[0].pageX, y: evt.touches[0].pageY };
+            var rect = canvas.getBoundingClientRect();
+            var currentNDC = {
+                x: ((currentMidpoint.x - rect.left) / rect.width) * 2 - 1,
+                y: -((currentMidpoint.y - rect.top) / rect.height) * 2 + 1
+            };
+
+            var aspect = canvas.clientWidth / canvas.clientHeight;
+            var tanHalfY = Math.tan(THREE.MathUtils.degToRad(this.currentFov / 2));
+            var tanHalfX = tanHalfY * aspect;
+
+            // Spherical local coordinates
+            var thetaXPrev = Math.atan(this.previousNDC.x * tanHalfX);
+            var thetaYPrev = Math.atan(this.previousNDC.y * tanHalfY * Math.cos(thetaXPrev));
+
+            var thetaXCurr = Math.atan(currentNDC.x * tanHalfX);
+            var thetaYCurr = Math.atan(currentNDC.y * tanHalfY * Math.cos(thetaXCurr));
+
+            var deltaYawLocal = thetaXCurr - thetaXPrev;
+            var deltaPitchLocal = thetaYCurr - thetaYPrev;
 
             var direction = this.data.reverseTouchDrag ? 1 : -1;
-            this.yawObject.rotation.y -= deltaY * 0.5 * direction;
-            this.pitchObject.rotation.x -= deltaX * 0.5 * direction;
+
+            // Point's world pitch
+            var pointPitch = this.pitchObject.rotation.x - thetaYCurr;
+            var cosPointPitch = Math.max(0.1, Math.abs(Math.cos(pointPitch)));
+
+            this.yawObject.rotation.y -= deltaYawLocal * direction / cosPointPitch;
+            this.pitchObject.rotation.x += deltaPitchLocal * direction;
             this.pitchObject.rotation.x = Math.max(-PI_2, Math.min(PI_2, this.pitchObject.rotation.x));
 
-            this.touchStart = { x: evt.touches[0].pageX, y: evt.touches[0].pageY };
+            this.previousNDC.x = currentNDC.x;
+            this.previousNDC.y = currentNDC.y;
+            this.touchStart = currentMidpoint;
+
+            // Pinch logic
+            if (evt.touches.length === 2) {
+                this.zoomCenterNDC.x = currentNDC.x;
+                this.zoomCenterNDC.y = currentNDC.y;
+
+                var newDistance = this.getTouchDistance(evt);
+                if (this.touchDistance > 0 && newDistance > 0) {
+                    var newFov = this.initialFov * (this.touchDistance / newDistance);
+                    this.updateFov(newFov, this.zoomCenterNDC.x, this.zoomCenterNDC.y);
+                }
+            }
         },
 
         onTouchEnd: function () {

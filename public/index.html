@@ -1315,6 +1315,13 @@
       transform: translateX(-50%) translateY(0);
     }
 
+    .infobar-divider {
+      width: 1px;
+      height: 24px;
+      background: rgba(255, 255, 255, 0.2);
+      margin: 0 10px;
+    }
+
     #infobar-2d-room-text {
       font-weight: 500;
       font-size: 0.9rem;
@@ -1799,6 +1806,13 @@
       <button id="infobar-2d-settings" class="infobar-2d-button" title="Open Settings">
         <img src="assets/icons/settings.svg">
       </button>
+      <div class="infobar-divider"></div>
+      <button id="infobar-2d-zoom-in" class="infobar-2d-button" title="Zoom In">
+        <img src="assets/icons/zoom-in.svg">
+      </button>
+      <button id="infobar-2d-zoom-out" class="infobar-2d-button" title="Zoom Out">
+        <img src="assets/icons/zoom-out.svg">
+      </button>
     </div>
 
     <div class="infobar-2d-section infobar-2d-modes">
@@ -1808,10 +1822,10 @@
         </button>
         <div id="infobar-2d-draw-extras" class="infobar-extra-buttons-vertical">
           <button id="infobar-2d-draw-undo" class="infobar-2d-button" title="Undo Last Stroke">
-            <img src="assets/icons/draw.svg" style="transform: scaleX(-1); filter: hue-rotate(90deg);">
+            <img src="assets/icons/undo.svg">
           </button>
           <button id="infobar-2d-draw-clear" class="infobar-2d-button" title="Clear All Drawings">
-            <img src="assets/icons/door.svg" style="filter: hue-rotate(180deg) brightness(1.5);">
+            <img src="assets/icons/clear.svg">
           </button>
         </div>
       </div>
@@ -1821,11 +1835,10 @@
         </button>
         <div id="infobar-2d-stickfigure-extras" class="infobar-extra-buttons-vertical">
           <button id="infobar-2d-show-all-stick" class="infobar-2d-button" title="Show All Stick Figures">
-            <img src="assets/icons/stickfigure.svg" style="filter: drop-shadow(0 0 5px #8a2be2);">
+            <img src="assets/icons/show-all.svg">
           </button>
           <button id="infobar-2d-clear-all-stick" class="infobar-2d-button" title="Clear All Stick Figures">
-            <img src="assets/icons/draw.svg"
-              style="filter: hue-rotate(180deg) brightness(1.5) drop-shadow(0 0 5px #ff4444); transform: scaleX(-1);">
+            <img src="assets/icons/clear.svg">
           </button>
         </div>
       </div>
@@ -1835,11 +1848,10 @@
         </button>
         <div id="infobar-2d-constellation-extras" class="infobar-extra-buttons-vertical">
           <button id="infobar-2d-show-all" class="infobar-2d-button" title="Show All Illustrations">
-            <img src="assets/icons/constellation.svg" style="filter: drop-shadow(0 0 5px #8a2be2);">
+            <img src="assets/icons/show-all.svg">
           </button>
           <button id="infobar-2d-clear-all" class="infobar-2d-button" title="Clear All Illustrations">
-            <img src="assets/icons/draw.svg"
-              style="filter: hue-rotate(180deg) brightness(1.5) drop-shadow(0 0 5px #ff4444); transform: scaleX(-1);">
+            <img src="assets/icons/clear.svg">
           </button>
         </div>
       </div>
@@ -2138,6 +2150,11 @@
       <img id="icon-stickfigure" src="assets/icons/stickfigure.svg">
       <img id="icon-constellation" src="assets/icons/constellation.svg">
       <img id="icon-mouse-move" src="assets/icons/mouse-move.svg">
+      <img id="icon-undo" src="assets/icons/undo.svg">
+      <img id="icon-clear" src="assets/icons/clear.svg">
+      <img id="icon-show-all" src="assets/icons/show-all.svg">
+      <img id="icon-zoom-in" src="assets/icons/zoom-in.svg">
+      <img id="icon-zoom-out" src="assets/icons/zoom-out.svg">
 
       <script src="components/aframe-environment-component.js"></script>
       <script src="/js/aframe-extras/aframe-extras.primitives.min.js"></script>
