@@ -196,7 +196,7 @@ AFRAME.registerComponent('constellation-pointer-2d', {
     onPointerLeave: function (e) { },
 
     onContextMenu: function (e) {
-        if (window.currentMode === 'constellation' || window.currentMode === 'identify' || window.currentMode === 'stamp') {
+        if (window.currentMode === 'constellation' || window.currentMode === 'identify' || window.currentMode === 'stamp' || window.currentMode === 'stickfigure') {
             e.preventDefault();
         }
     },
