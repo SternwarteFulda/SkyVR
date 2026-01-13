@@ -793,6 +793,149 @@
       }
     });
 
+    AFRAME.registerComponent('binoculars-mask', {
+      init: function () {
+        this.el.addEventListener('materialtextureloaded', () => {
+          const mesh = this.el.getObject3D('mesh');
+          if (mesh && mesh.material) {
+            mesh.material.transparent = true;
+            mesh.material.onBeforeCompile = (shader) => {
+              shader.fragmentShader = shader.fragmentShader.replace(
+                'gl_FragColor = mapTexelToLinear( texelColor );',
+                `
+                gl_FragColor = mapTexelToLinear( texelColor );
+                gl_FragColor.a = 1.0 - (texelColor.r + texelColor.g + texelColor.b) / 3.0;
+                `
+              );
+            };
+            mesh.material.needsUpdate = true;
+          }
+        });
+      },
+      tick: function () {
+        if (!this.el.getAttribute('visible')) return;
+        const cameraEl = this.el.parentNode;
+        if (cameraEl && cameraEl.components.camera && cameraEl.components.camera.camera) {
+          const fov = cameraEl.components.camera.camera.fov;
+          const h = 2 * Math.abs(this.el.object3D.position.z) * Math.tan(THREE.MathUtils.degToRad(fov / 2));
+          // Apply scale to fill screen perfectly regardless of FOV
+          const s = h * 1.5; // Larger overshoot for safety in VR
+          this.el.object3D.scale.set(s, s, 1);
+        }
+      }
+    });
+
+    AFRAME.registerComponent('binoculars-handler', {
+      schema: {
+        minFov: { type: 'number', default: 8 },
+        maxFov: { type: 'number', default: 80 }
+      },
+      init: function () {
+        this.camera = document.getElementById('camera');
+        this.holding = false;
+        this.zoomed = false;
+        this.worldPos = new THREE.Vector3();
+        this.headPos = new THREE.Vector3();
+      },
+      tick: function () {
+        if (!this.holding) return;
+
+        // Proximity detection
+        this.el.object3D.getWorldPosition(this.worldPos);
+        this.camera.object3D.getWorldPosition(this.headPos);
+        const distance = this.worldPos.distanceTo(this.headPos);
+
+        const overlay = document.getElementById('binocular-overlay');
+
+        // Trigger immersive view when bringing to eyes
+        if (distance < 0.35 && !this.zoomed) {
+          this.zoomed = true;
+          if (overlay) overlay.setAttribute('visible', true);
+          this.pulse(0.7, 100);
+          console.log("Binoculars: Active");
+        } else if (distance >= 0.40 && this.zoomed) {
+          this.zoomed = false;
+          if (overlay) overlay.setAttribute('visible', false);
+          this.pulse(0.3, 50);
+        }
+      },
+      pulse: function (strength, duration) {
+        const controller = this.el.closest('[haptics]');
+        if (controller && controller.components.haptics) {
+          controller.components.haptics.pulse(strength, duration);
+        }
+      },
+      toggle: function () {
+        this.holding = !this.holding;
+        this.el.setAttribute('visible', this.holding);
+        if (!this.holding && this.zoomed) {
+          this.zoomed = false;
+          const overlay = document.getElementById('binocular-overlay');
+          if (overlay) overlay.setAttribute('visible', false);
+        }
+        this.pulse(0.3, 100);
+
+        // Update hint text
+        const hintXText = document.getElementById('hint-x-text');
+        const hintXBg = document.getElementById('hint-x-bg');
+        if (hintXText) hintXText.setAttribute('value', this.holding ? 'Ditch Bino (X)' : 'Binoculars (X)');
+        if (hintXBg) hintXBg.setAttribute('width', this.holding ? 0.16 : 0.14);
+        if (hintXBg) hintXBg.setAttribute('position', this.holding ? '-0.08 -0.0125 0' : '-0.07 -0.0125 0');
+      }
+    });
+
+    AFRAME.registerComponent('binoculars-magnifier', {
+      init: function () {
+        this.renderer = this.el.sceneEl.renderer;
+        this.renderTarget = new THREE.WebGLRenderTarget(512, 512);
+        this.secondaryCamera = new THREE.PerspectiveCamera(10, 1, 0.1, 1000); // Higher near plane to avoid bino interior
+        this.el.object3D.add(this.secondaryCamera);
+
+        // Look down the local -Z axis (towards the objective lenses)
+        this.secondaryCamera.rotation.set(0, 0, 0);
+        this.secondaryCamera.position.set(0, 0, -0.2); // Further out to avoid hand/controller clipping
+
+        // Manual texture application for lenses
+        this.applyTexture = () => {
+          const lenses = this.el.querySelectorAll('.lens');
+          lenses.forEach(lens => {
+            const mesh = lens.getObject3D('mesh');
+            if (mesh) {
+              mesh.material = new THREE.MeshBasicMaterial({
+                map: this.renderTarget.texture,
+                fog: false
+              });
+            }
+          });
+        };
+
+        setTimeout(this.applyTexture, 500); // Wait for primitives to initialize
+      },
+      tick: function () {
+        if (!this.el.getAttribute('visible')) return;
+
+        this.secondaryCamera.updateMatrixWorld();
+
+        this.secondaryCamera.updateMatrixWorld();
+
+        // Hide binos temporarily so they don't occlude their own magnified view
+        const hiddenNodes = [];
+        this.el.object3D.traverse(node => {
+          if (node.isMesh && node.visible) {
+            hiddenNodes.push(node);
+            node.visible = false;
+          }
+        });
+
+        const currentRenderTarget = this.renderer.getRenderTarget();
+        this.renderer.setRenderTarget(this.renderTarget);
+        this.renderer.render(this.el.sceneEl.object3D, this.secondaryCamera);
+        this.renderer.setRenderTarget(currentRenderTarget);
+
+        hiddenNodes.forEach(node => node.visible = true);
+      }
+    });
+
     // see issue https://github.com/networked-aframe/networked-aframe/issues/267
     NAF.schemas.getComponentsOriginal = NAF.schemas.getComponents;
     NAF.schemas.getComponents = (template) => {
@@ -1945,8 +2088,8 @@
         </li>
         <li id="status-stars-progress" class="status-item sub-item" style="display: none;">
           <div class="progress-bar-container">
-            <div id="stars-progress-bar" class="progress-bar"></div>
-            <span id="stars-progress-text" class="progress-text">0%</span>
+            <div id="assets-progress-bar" class="progress-bar"></div>
+            <span id="assets-progress-text" class="progress-text">0%</span>
           </div>
         </li>
         <li id="status-stars-sub" class="status-item sub-item" style="display: none;">
@@ -2031,7 +2174,7 @@
           <img src="assets/icons/draw.svg">
         </button>
         <div id="infobar-2d-draw-extras" class="infobar-extra-buttons-vertical">
-          <div id="infobar-2d-draw-colors" class="infobar-2d-colors">
+          <div class="infobar-2d-colors">
             <div class="color-dot" data-color="yellow" style="background: yellow;"></div>
             <div class="color-dot" data-color="red" style="background: red;"></div>
             <div class="color-dot" data-color="#00ff00" style="background: #00ff00;"></div>
@@ -2319,14 +2462,12 @@
           </a-sphere>
           <a-entity class="face" position="0 0.05 0">
             <a-sphere class="eye" color="#efefef" position="0.06 0.05 -0.16" scale="0.04 0.04 0.04">
-              <a-cylinder class="pupil" color="#000" position="0 0 -1" rotation="90 0 0" radius="0.2"
-                height="0.05"></a-cylinder>
+              <a-cylinder class="pupil" color="#000" position="0 0 -1" rotation="90 0 0" height="0.05"></a-cylinder>
             </a-sphere>
             <a-sphere class="eyelid" position="0.06 0.05 -0.16" scale="0.042 0.042 0.042" theta-length="90"
               rotation="20 0 0"></a-sphere>
             <a-sphere class="eye" color="#efefef" position="-0.06 0.05 -0.16" scale="0.04 0.04 0.04">
-              <a-cylinder class="pupil" color="#000" position="0 0 -1" rotation="90 0 0" radius="0.2"
-                height="0.05"></a-cylinder>
+              <a-cylinder class="pupil" color="#000" position="0 0 -1" rotation="90 0 0" height="0.05"></a-cylinder>
             </a-sphere>
             <a-sphere class="eyelid" position="-0.06 0.05 -0.16" scale="0.042 0.042 0.042" theta-length="90"
               rotation="20 0 0"></a-sphere>
@@ -2445,9 +2586,13 @@
     <a-entity id="camera-rig" rig-follower networked="template:#rig-template;attachTemplateToLocal:false;"
       spawn-in-spots="radius:4" position="0 0 0" rotation="0 0 0">
       <a-entity id="camera" player-info networked="template:#camera-template;attachTemplateToLocal:false;"
-        camera="near: 0.1; far: 3600" skyvr-look-controls="reverseMouseDrag: true; reverseTouchDrag: false"
+        camera="near: 0.1; far: 3600" skyvr-look-controls="reverseMouseDrag: true; reverseTouchDrag: false; minFov: 2"
         constellation-pointer-2d skyvr-pointer-2d drawing="pointerMode: 2d" position="0 1.6 0">
         <a-sphere class="head" visible="false" random-color></a-sphere>
+        <!-- Binoculars Overlay -->
+        <a-image id="binocular-overlay" src="assets/binoculars_mask.png" position="0 0 -0.1" width="0.3" height="0.3"
+          visible="false" material="transparent: true; shader: flat; fog: false; depthTest: false; depthWrite: false;"
+          binoculars-mask></a-image>
       </a-entity>
       <!-- Infobar placed in front of user, visible when looking down -->
       <a-entity id="infobar" skyvr-infobar position="0 0.8 -0.6" rotation="-40 0 0"></a-entity>
@@ -2488,7 +2633,7 @@
           <a-rounded width="0.10" height="0.025" radius="0.005" color="#111" opacity="0.9"
             position="-0.05 -0.0125 0"></a-rounded>
           <a-text value="Rotate" width="0.25" align="center" color="white" position="0 0 0.001"></a-text>
-          <a-entity line="start: 0 0 0; end: -0.01 -0.01 0.01; color: white; opacity: 0.5"></a-entity>
+          <a-entity line="start: 0.01 -0.01 0.01; end: -0.01 -0.01 0.01; color: white; opacity: 0.5"></a-entity>
         </a-entity>
 
         <a-entity id="hint-right-grip" class="controller-hint" position="0.06 0 0.08" rotation="-90 90 0">
@@ -2513,13 +2658,59 @@
           <a-entity line="start: 0 0 0; end: -0.01 -0.03 -0.01; color: white; opacity: 0.5"></a-entity>
         </a-entity>
       </a-entity>
-      <a-entity id="left-controller" player-info meta-touch-controls="hand: left" position="0 0 0">
+      <a-entity id="left-controller" player-info meta-touch-controls="hand: left" haptics position="0 0 0">
         <a-entity light="type: point; intensity: 0.2; distance: 0.5; decay: 1" position="0 0.05 0"></a-entity>
+
+        <a-entity binoculars-handler binoculars-magnifier id="binoculars-model" visible="false" position="0.12 0 -0.05"
+          rotation="-30 180 0">
+          <!-- Left Barrel -->
+          <a-entity position="-0.03 0 0">
+            <a-cylinder radius="0.024" height="0.12" color="#1a1a1a" rotation="90 0 0"
+              material="roughness: 0.8; metalness: 0.2"></a-cylinder>
+            <!-- Eyepiece (LOOK HERE) -->
+            <a-circle class="lens" radius="0.020" color="white" position="0 0 0.051" rotation="0 0 0"></a-circle>
+            <a-torus radius="0.020" radius-tubular="0.006" color="#030303" position="0 0 0.055"
+              rotation="0 0 0"></a-torus>
+            <a-ring radius-inner="0.021" radius-outer="0.025" color="#00ff00" position="0 0 0.058" rotation="0 0 0"
+              material="emissive: #00ff00; emissiveIntensity: 5; opacity: 0.8; transparent: true"></a-ring>
+            <!-- Objective Lens (Sky side) -->
+            <a-cylinder radius="0.026" height="0.02" color="#0a0a0a" position="0 0 -0.055"
+              rotation="90 0 0"></a-cylinder>
+            <a-circle radius="0.022" color="#111" position="0 0 -0.061" rotation="0 180 0"
+              material="metalness: 0.9; roughness: 0.1"></a-circle>
+          </a-entity>
+          <!-- Right Barrel -->
+          <a-entity position="0.03 0 0">
+            <a-cylinder radius="0.024" height="0.12" color="#1a1a1a" rotation="90 0 0"
+              material="roughness: 0.8; metalness: 0.2"></a-cylinder>
+            <!-- Eyepiece (LOOK HERE) -->
+            <a-circle class="lens" radius="0.020" color="white" position="0 0 0.051" rotation="0 0 0"></a-circle>
+            <a-torus radius="0.020" radius-tubular="0.006" color="#030303" position="0 0 0.055"
+              rotation="0 0 0"></a-torus>
+            <a-ring radius-inner="0.021" radius-outer="0.025" color="#00ff00" position="0 0 0.058" rotation="0 0 0"
+              material="emissive: #00ff00; emissiveIntensity: 5; opacity: 0.8; transparent: true"></a-ring>
+            <!-- Objective Lens (Sky side) -->
+            <a-cylinder radius="0.026" height="0.02" color="#0a0a0a" position="0 0 -0.055"
+              rotation="90 0 0"></a-cylinder>
+            <a-circle radius="0.022" color="#111" position="0 0 -0.061" rotation="0 180 0"
+              material="metalness: 0.9; roughness: 0.1"></a-circle>
+          </a-entity>
+          <!-- Bridge -->
+          <a-box width="0.04" height="0.015" depth="0.035" color="#222" position="0 0 0"
+            material="roughness: 0.9"></a-box>
+          <!-- Tooltip labels -->
+          <a-text value="EYE SIDE" width="0.4" align="center" position="0 0.07 0.06" rotation="45 0 0" color="#00ff00"
+            material="shader: flat; fog: false"></a-text>
+          <a-text value="SKY SIDE" width="0.3" align="center" position="0 0.07 -0.06" rotation="45 180 0" color="#555"
+            opacity="0.5"></a-text>
+        </a-entity>
+
         <!-- Controller Hints -->
         <a-entity id="hint-x" class="controller-hint" position="-0.04 0.05 0.02" rotation="-120 0 0">
-          <a-rounded width="0.1" height="0.025" radius="0.005" color="#111" opacity="0.9"
-            position="-0.05 -0.0125 0"></a-rounded>
-          <a-text value="Menu (X)" width="0.25" align="center" color="white" position="0 0 0.001"></a-text>
+          <a-rounded id="hint-x-bg" width="0.14" height="0.025" radius="0.005" color="#111" opacity="0.9"
+            position="-0.07 -0.0125 0"></a-rounded>
+          <a-text id="hint-x-text" value="Binoculars (X)" width="0.25" align="center" color="white"
+            position="0 0 0.001"></a-text>
           <a-entity line="start: 0 0 0; end: 0.01 -0.02 -0.01; color: white; opacity: 0.5"></a-entity>
         </a-entity>
 
@@ -2975,9 +3166,9 @@
             else if (remainderMs < -cycleMs / 2) remainderMs += cycleMs;
 
             // 2. Safety Check: Solar Drift
-            //    We want to allow Month jumps to glide (interpolate stars), 
+            //    We want to allow Month jumps to glide (interpolate stars),
             //    but prevent Day/Night inversion flashes (e.g. 6 month jump = 12h drift).
-            //    1 Month jump = ~2h drift. 
+            //    1 Month jump = ~2h drift.
             //    Threshold: 6 hours. This allows smooth gliding for 1-3 month jumps.
             const maxSolarDrift = 6 * 3600 * 1000;
 
@@ -3046,7 +3237,7 @@
         const throttleLimit = 50;
         const now = performance.now();
 
-        // MASTER HEARTBEAT: Every 5 seconds, we bypass the throttle to ensure 
+        // MASTER HEARTBEAT: Every 5 seconds, we bypass the throttle to ensure
         // the room reality is recasted for all clients (late joiners, packet loss).
         const isHeartbeatRecast = (now - lastSyncTime > 5000);
 
@@ -3065,7 +3256,7 @@
             if (forceOwnership) {
               if (!silent) console.log("Taking ownership of sky-master to sync state autoritatively...");
               NAF.utils.takeOwnership(skyMaster);
-              // Authoritative update should continue to set the attribute immediately 
+              // Authoritative update should continue to set the attribute immediately
               // and also schedule follow-ups to ensure propagation.
               [200, 1000].forEach(delay => setTimeout(() => syncSky(true, true), delay));
             } else {
@@ -3103,7 +3294,7 @@
 
           const updateData = {
             // CRITICAL: We broadcast the TARGET simulation time.
-            // This allows the master to glide locally while remote clients also see 
+            // This allows the master to glide locally while remote clients also see
             // the destination and glide towards it themselves.
             time: window.targetSimulationTime.toISO(),
             latitude: window.latitude,
@@ -3168,7 +3359,7 @@
               window.simTimeMs += window.currentTimeVelocity * 1000 * dtSec;
               window.simulationTime = luxon.DateTime.fromMillis(window.simTimeMs);
 
-              // CRITICAL: While moving via velocity (scrubbing), target follows current 
+              // CRITICAL: While moving via velocity (scrubbing), target follows current
               // to prevent the Gap Correction (Part 4) from pulling us back.
               window.targetSimulationTime = window.simulationTime;
 
@@ -3254,7 +3445,7 @@
           // 1 Sidereal Day = 86164.0905 seconds (360° star rotation)
           newTime = window.targetSimulationTime.plus({ seconds: 86164.0905 * amount });
         } else if (unit === 'days' || unit === 'day') {
-          // 1 Solar Day = 24 absolute hours. 
+          // 1 Solar Day = 24 absolute hours.
           newTime = window.targetSimulationTime.plus({ hours: 24 * amount });
         } else if (unit === 'months' || unit === 'month' || unit === 'years' || unit === 'year') {
           // DST FIX: Add months/years in UTC to preserve Absolute Time (Solar Time) consistency.
@@ -3341,7 +3532,7 @@
           cachedLongitudeDeg15 = longitude / 15; // Update cache when longitude changes
         }
 
-        // Sun RA/Dec solving: Removed 1Hz throttle to eliminate "jump-back" artifacts 
+        // Sun RA/Dec solving: Removed 1Hz throttle to eliminate "jump-back" artifacts
         // during time interpolation or jumps. RA/Dec for a single body is high-performance.
         window._astroCache.sunRaDec = Astronomy.Equator('Sun', astroTime, observer, false, false);
         window._astroCache.lastAstroUpdate = now;
@@ -3626,35 +3817,34 @@
       // }
 
       // Toggle visibility of control panel with X button
-      const controlPanels = document.querySelectorAll('a-control-panel');
-      let lastEnabledControlPanel = null;
-      console.log("Control Panels:", controlPanels);
-
-      leftController.addEventListener("xbuttonup", function (event) {
-        if (!lastEnabledControlPanel) {
-          lastEnabledControlPanel = document.querySelector('a-control-panel');
-        }
-        if (lastEnabledControlPanel) {
-          const isEnabled = lastEnabledControlPanel.getAttribute("enabled") === "true";
-          lastEnabledControlPanel.setAttribute("enabled", !isEnabled);
-        }
-      });
-
-      // Support for the recessed Menu button on the left controller
-      // A-Frame's meta-touch-controls mapping often maps this to index 2 as "none"
       const togglePanel = () => {
-        if (!lastEnabledControlPanel) {
-          lastEnabledControlPanel = document.querySelector('a-control-panel');
-        }
-        if (lastEnabledControlPanel) {
-          const isEnabled = lastEnabledControlPanel.getAttribute("enabled") === "true";
-          lastEnabledControlPanel.setAttribute("enabled", !isEnabled);
+        const panel = document.querySelector('a-control-panel');
+        if (panel) {
+          const isEnabled = panel.getAttribute("enabled") === "true";
+          panel.setAttribute("enabled", !isEnabled);
+          if (leftController.components['haptics']) leftController.components['haptics'].pulse(0.3, 60);
         }
       };
+
+      const handleBinocularsToggle = () => {
+        const binocModel = document.getElementById('binoculars-model');
+        if (binocModel && binocModel.components['binoculars-handler']) {
+          binocModel.components['binoculars-handler'].toggle();
+        }
+      };
+
+      leftController.addEventListener("xbuttondown", handleBinocularsToggle);
 
       leftController.addEventListener("buttonchanged", function (event) {
         const id = event.detail.id;
         const state = event.detail.state;
+
+        // X Button (Index 4) toggle fallback
+        if (id === 4 && state.pressed) {
+          // Handled by xbuttondown, but keeping for robustness
+        }
+
+        // Menu Button (Index 2 or unmapped)
         if (state.pressed && ![0, 1, 3, 4, 5].includes(id)) {
           if (!this.lastMenuToggle || performance.now() - this.lastMenuToggle > 500) {
             this.lastMenuToggle = performance.now();
@@ -3662,6 +3852,9 @@
           }
         }
       });
+
+      // Named event fallback for menu button
+      leftController.addEventListener("noneup", togglePanel);
 
       leftController.addEventListener("gripdown", function (event) {
         if (sceneEl.is('vr-mode') && NAF.connection && NAF.connection.adapter) {
