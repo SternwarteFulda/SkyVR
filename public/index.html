@@ -3647,6 +3647,33 @@
         }
       });
 
+      const onYButtonDown = () => {
+        yButtonIsPhysicallyDown = true;
+        yButtonDownTimestamp = performance.now();
+        yHoldActionTriggered = false;
+        if (yHoldIntervalId) clearInterval(yHoldIntervalId);
+        yHoldIntervalId = setInterval(checkYHoldWithInterval, 16);
+      };
+
+      const onYButtonUp = () => {
+        const wasPhysicallyDown = yButtonIsPhysicallyDown;
+        yButtonIsPhysicallyDown = false;
+        if (yHoldIntervalId) {
+          clearInterval(yHoldIntervalId);
+          yHoldIntervalId = null;
+        }
+        if (wasPhysicallyDown && !yHoldActionTriggered) {
+          // Short press: Cycle Mode via infobar
+          const infobar = document.querySelector('[skyvr-infobar]');
+          if (infobar && infobar.components['skyvr-infobar']) {
+            infobar.components['skyvr-infobar'].cycleMode();
+          }
+        }
+      };
+
+      leftController.addEventListener('ybuttondown', onYButtonDown);
+      leftController.addEventListener('ybuttonup', onYButtonUp);
+
       // Tab Switching Logic for VR Control Panel
       window.switchTab = function (tabName) {
         const tabs = ['time', 'location', 'view'];
@@ -3803,12 +3830,15 @@
       let aButtonIsPhysicallyDown = false;
       let bButtonDownTimestamp = 0;
       let bButtonIsPhysicallyDown = false;
+      let yButtonDownTimestamp = 0;
+      let yButtonIsPhysicallyDown = false;
       const HOLD_DURATION_THRESHOLD = 1000; // 1 second for hold
       let aHoldActionTriggered = false;
       let bHoldActionTriggered = false;
+      let yHoldActionTriggered = false;
       let aHoldIntervalId = null;
       let bHoldIntervalId = null;
-      // let frameCount = 0; // No longer using frameCount
+      let yHoldIntervalId = null;
 
       rightController.addEventListener("gripdown", function (event) {
         const pointer = document.getElementById("pointer");
@@ -4267,6 +4297,63 @@
           }
         }
       }
+
+      function checkYHoldWithInterval() {
+        if (!yButtonIsPhysicallyDown || yHoldActionTriggered) {
+          if (yHoldIntervalId) {
+            clearInterval(yHoldIntervalId);
+            yHoldIntervalId = null;
+          }
+          return;
+        }
+        const currentHoldDuration = performance.now() - yButtonDownTimestamp;
+        if (currentHoldDuration >= HOLD_DURATION_THRESHOLD) {
+          window.clearEverything();
+          yHoldActionTriggered = true;
+          if (yHoldIntervalId) {
+            clearInterval(yHoldIntervalId);
+            yHoldIntervalId = null;
+          }
+        }
+      }
+
+      window.clearEverything = function () {
+        console.log("Global Clear All: Removing everything creation-related");
+        const rightController = document.getElementById('right-controller');
+        const leftController = document.getElementById('left-controller');
+
+        // 1. Drawing
+        if (rightController && rightController.components.drawing) {
+          rightController.components.drawing.clearDrawing();
+        }
+
+        // 2. Identify
+        if (rightController && rightController.components['identify']) {
+          rightController.components['identify'].removeAllInfos();
+        }
+
+        // 3. Stamp
+        if (rightController && rightController.components['stamp']) {
+          rightController.components['stamp'].removeAllShapes();
+        }
+
+        // 4. Constellations & Stick Figures
+        const constellationLines = document.getElementById('constellation-lines');
+        if (constellationLines && constellationLines.components['constellation-renderer']) {
+          const renderer = constellationLines.components['constellation-renderer'];
+          renderer.clearAllIllustrations();
+        }
+
+        // 5. Deactivate mode
+        window.currentMode = 'none';
+
+        // Synchronize state across network
+        if (typeof syncSky === 'function') syncSky();
+
+        // Haptic feedback
+        if (rightController && rightController.components['haptics']) rightController.components['haptics'].pulse(1.0, 500);
+        if (leftController && leftController.components['haptics']) leftController.components['haptics'].pulse(1.0, 500);
+      };
 
       function rotateCameraRig(rotationStep) {
         const rig = document.getElementById('camera-rig');

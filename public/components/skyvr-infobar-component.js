@@ -316,13 +316,12 @@ AFRAME.registerComponent('skyvr-infobar', {
             if (m.id) this.modeButtons[m.id] = btn;
         });
 
-        // Event listener for controller Y button
-        this.onYButtonDown = () => {
+        // Cycle mode function (can be called via long-press logic in index.html)
+        this.cycleMode = () => {
             const currentIndex = this.modesList.indexOf(window.currentMode || 'draw');
             const nextIndex = (currentIndex + 1) % this.modesList.length;
             window.currentMode = this.modesList[nextIndex];
         };
-        window.addEventListener('ybuttondown', this.onYButtonDown);
 
         // State tracking
         this.lastMic = null;
@@ -341,7 +340,6 @@ AFRAME.registerComponent('skyvr-infobar', {
     },
 
     remove: function () {
-        window.removeEventListener('ybuttondown', this.onYButtonDown);
         this.el.sceneEl.removeEventListener('enter-vr', this.onEnterVR);
         this.el.sceneEl.removeEventListener('exit-vr', this.onExitVR);
     },
