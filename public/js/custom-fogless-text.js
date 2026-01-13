@@ -71,8 +71,8 @@ AFRAME.registerComponent('custom-fogless-text', {
     // 1. Setup font and measure text for canvas sizing
     ctx.font = `bold ${data.fontSize}px ${data.fontFamily}`;
 
-    // Split text by newlines
-    const lines = data.value.split('\\n');
+    // Split text by newlines (handle both actual newlines and literal \n strings)
+    const lines = data.value.replace(/\\n/g, '\n').split('\n');
 
     // Measure widest line and total height
     let maxLineWidth = 0;
