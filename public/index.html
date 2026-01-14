@@ -3544,6 +3544,7 @@
             showCelestialPoles: document.getElementById('ncp')?.getAttribute('fader')?.active || false,
             showConstellationLines: renderer ? renderer.data.showLines : false,
             showBoundaries: renderer ? renderer.data.showBoundaries : false,
+            activeConstellations: constellationData || 'INIT',
             velocity: window.currentTimeVelocity,
             heartbeat: performance.now()
           };
