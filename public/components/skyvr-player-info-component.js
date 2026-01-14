@@ -38,6 +38,7 @@ AFRAME.registerComponent('player-info', {
 
         if (this.head) this.head.object3D.renderOrder = avatarBase;
         this.el.querySelectorAll('.eye, .pupil, .eyelid').forEach(p => p.object3D.renderOrder = avatarBase + 2);
+        this.el.querySelectorAll('.binoculars-model').forEach(p => p.object3D.renderOrder = avatarBase + 3);
         this.nametags.forEach(p => p.object3D.renderOrder = avatarBase + 5);
         if (this.micIcons) this.micIcons.forEach(p => p.object3D.renderOrder = avatarBase + 6);
 
@@ -147,10 +148,10 @@ AFRAME.registerComponent('player-info', {
         };
 
         if (this.nametags) {
-            this.nametags.forEach(n => apply(n, -0.35));
+            this.nametags.forEach(n => apply(n, -0.45));
         }
         if (this.micIndicator) {
-            apply(this.micIndicator, 0.42);
+            apply(this.micIndicator, 0.32);
         }
 
         // 3. DYNAMIC SCALING: Scale remote video based on distance (2D devices only)
@@ -286,7 +287,7 @@ AFRAME.registerComponent('player-info', {
 
     setAvatarOpacity: function (opacity) {
         // Find all parts that should fade
-        const parts = this.el.querySelectorAll('.head, .eye, .pupil, .eyelid, .nametag, .mic-icon');
+        const parts = this.el.querySelectorAll('.head, .eye, .pupil, .eyelid, .nametag, .mic-icon, .binoculars-model');
         parts.forEach(part => {
             if (part.tagName.toLowerCase() === 'a-text') {
                 part.setAttribute('opacity', opacity);
@@ -359,7 +360,7 @@ AFRAME.registerComponent('player-info', {
             // BEAM VISIBILITY CHECK:
             // Only show 'in' beams if this is a remote player.
             if (mode === 'in' && this.ownedByLocalUser) {
-                const avatarParts = el.querySelectorAll('.head, .eye, .pupil, .eyelid, .nametag, .mic-icon');
+                const avatarParts = el.querySelectorAll('.head, .eye, .pupil, .eyelid, .nametag, .mic-icon, .binoculars-model');
                 avatarParts.forEach(part => {
                     const isText = part.tagName.toLowerCase() === 'a-text';
                     const property = isText ? 'opacity' : 'material.opacity';
@@ -402,9 +403,8 @@ AFRAME.registerComponent('player-info', {
 
             if (mode === 'in') {
                 // Fade in original avatar components
-                // Fade in original avatar components
                 // Include webcam parts in the fade-in logic
-                const parts = el.querySelectorAll('.head, .eye, .pupil, .eyelid, .nametag, .mic-icon');
+                const parts = el.querySelectorAll('.head, .eye, .pupil, .eyelid, .nametag, .mic-icon, .binoculars-model');
                 parts.forEach(part => {
                     const isText = part.tagName.toLowerCase() === 'a-text';
                     const property = isText ? 'opacity' : 'material.opacity';
@@ -425,10 +425,11 @@ AFRAME.registerComponent('player-info', {
                         const isText = node.tagName && node.tagName.toLowerCase() === 'a-text';
                         const isHead = node.classList && node.classList.contains('head');
                         const isFace = node.classList && node.classList.contains('face');
+                        const isBinoc = node.classList && node.classList.contains('binoculars-model');
                         const isEyePart = node.classList && (node.classList.contains('eye') || node.classList.contains('pupil') || node.classList.contains('eyelid'));
 
                         // Ensure avatar is visible for the exit effect even if it was hidden (e.g. in webcam mode)
-                        if (isHead || isFace) {
+                        if (isHead || isFace || isBinoc) {
                             node.setAttribute('visible', true);
                         }
 
@@ -459,6 +460,7 @@ AFRAME.registerComponent('player-info', {
                             const rs = this.el.sceneEl.systems['render-order'];
                             const base = rs ? rs.order['avatars'] : 10;
                             if (isHead) node.object3D.renderOrder = base;
+                            else if (isBinoc) node.object3D.renderOrder = base + 3;
                             else if (isEyePart) node.object3D.renderOrder = base + 2;
                             else if (isText) node.object3D.renderOrder = base + 5;
                         };

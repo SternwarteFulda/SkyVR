@@ -888,7 +888,7 @@
         const targetQuat = new THREE.Quaternion();
 
         if (this.zoomed) {
-          // Snap target: 15cm in front of camera (to clear near clip 0.1)
+          // Snap target: 15cm in front of camera
           const p = new THREE.Vector3(0, 0, -0.15);
           this.camera.object3D.localToWorld(p);
           this.el.object3D.parent.worldToLocal(p);
@@ -1124,6 +1124,35 @@
       }
     });
 
+    // Component to offset the internal THREE.js camera object from the entity origin.
+    // This allows the entity to act as a pivot (e.g. neck/head center) while the
+    // viewpoint stays at the eyes.
+    AFRAME.registerComponent('skyvr-camera-pivot', {
+      schema: {
+        offset: { type: 'vec3', default: { x: 0, y: 0.05, z: -0.16 } }
+      },
+      init: function () {
+        this.onCameraSet = this.onCameraSet.bind(this);
+        this.el.addEventListener('camera-set', this.onCameraSet);
+
+        // If camera already exists
+        const camera = this.el.getObject3D('camera');
+        if (camera) this.applyOffset(camera);
+      },
+      onCameraSet: function (evt) {
+        this.applyOffset(evt.detail.camera);
+      },
+      applyOffset: function (camera) {
+        console.log("skyvr-camera-pivot: Applying offset to internal camera object:", this.data.offset);
+        camera.position.copy(this.data.offset);
+      },
+      remove: function () {
+        this.el.removeEventListener('camera-set', this.onCameraSet);
+        const camera = this.el.getObject3D('camera');
+        if (camera) camera.position.set(0, 0, 0);
+      }
+    });
+
     // see issue https://github.com/networked-aframe/networked-aframe/issues/267
     NAF.schemas.getComponentsOriginal = NAF.schemas.getComponents;
     NAF.schemas.getComponents = (template) => {
@@ -1233,6 +1262,61 @@
             },
             {
               selector: '.pointer-arrow',
+              component: 'rotation'
+            },
+            {
+              component: 'player-info',
+              property: 'name'
+            },
+            {
+              component: 'player-info',
+              property: 'color'
+            },
+            {
+              component: 'player-info',
+              property: 'spawned'
+            },
+            {
+              component: 'player-info',
+              property: 'spotId'
+            },
+            {
+              component: 'player-info',
+              property: 'micStatus'
+            },
+            {
+              component: 'player-info',
+              property: 'presence'
+            },
+            {
+              component: 'player-info',
+              property: 'videoEnabled'
+            }
+          ]
+        });
+      }
+      if (!NAF.schemas.hasTemplate('#left-controller-template')) {
+        NAF.schemas.add({
+          template: '#left-controller-template',
+          components: [
+            {
+              component: 'position',
+              requiresNetworkUpdate: NAF.utils.vectorRequiresUpdate(0.001)
+            },
+            {
+              component: 'rotation',
+              requiresNetworkUpdate: NAF.utils.vectorRequiresUpdate(0.5)
+            },
+            {
+              selector: '.binoculars-model',
+              component: 'visible'
+            },
+            {
+              selector: '.binoculars-model',
+              component: 'position'
+            },
+            {
+              selector: '.binoculars-model',
               component: 'rotation'
             },
             {
@@ -2645,17 +2729,19 @@
       <template id="camera-template">
         <a-entity class="avatar-camera">
           <a-entity light="type: point; intensity: 0.4; distance: 4; decay: 2" position="0 0.5 -1.5"></a-entity>
-          <a-sphere class="head" scale="0.2 0.22 0.2">
+          <a-sphere class="head" scale="0.2 0.22 0.2" position="0 -0.1 0">
             <a-entity networked-audio-source></a-entity>
           </a-sphere>
-          <a-entity class="face" position="0 0.05 0">
+          <a-entity class="face" position="0 -0.05 0">
             <a-sphere class="eye" color="#efefef" position="0.06 0.05 -0.16" scale="0.04 0.04 0.04">
-              <a-cylinder class="pupil" color="#000" position="0 0 -1" rotation="90 0 0" radius="0.2" height="0.05"></a-cylinder>
+              <a-cylinder class="pupil" color="#000" position="0 0 -1" rotation="90 0 0" radius="0.2"
+                height="0.05"></a-cylinder>
             </a-sphere>
             <a-sphere class="eyelid" position="0.06 0.05 -0.16" scale="0.042 0.042 0.042" theta-length="90"
               rotation="20 0 0"></a-sphere>
             <a-sphere class="eye" color="#efefef" position="-0.06 0.05 -0.16" scale="0.04 0.04 0.04">
-              <a-cylinder class="pupil" color="#000" position="0 0 -1" rotation="90 0 0" radius="0.2" height="0.05"></a-cylinder>
+              <a-cylinder class="pupil" color="#000" position="0 0 -1" rotation="90 0 0" radius="0.2"
+                height="0.05"></a-cylinder>
             </a-sphere>
             <a-sphere class="eyelid" position="-0.06 0.05 -0.16" scale="0.042 0.042 0.042" theta-length="90"
               rotation="20 0 0"></a-sphere>
@@ -2682,6 +2768,61 @@
           <!-- here we add a text component for a nametag; the value will be updated by the player-info component -->
           <a-text class="nametag" value="?" rotation="0 0 0" position="0 -.35 0" align="center" font="mozillavr"
             side="front" scale=".5 .5 .5"></a-text>
+        </a-entity>
+      </template>
+      <template id="left-controller-template">
+        <a-entity player-info>
+          <a-entity class="binoculars-model" visible="false" scale="1.76 1.76 1.76">
+            <!-- Visual Offset Wrapper: 
+                 Offsets the model forward relative to the synced controller position.
+                 This ensures the binoculars look correct on the remote face 
+                 without affecting the owner's immersive internal viewpoint. -->
+            <a-entity position="0 0 -0.1">
+              <!-- Left Barrel -->
+              <a-entity position="-0.034 0 0">
+                <a-cylinder radius="0.025" height="0.12" color="#1a1a1a" rotation="90 0 0" open-ended="true"
+                  material="roughness: 0.8; metalness: 0.2; side: double"></a-cylinder>
+                <a-cylinder radius="0.027" height="0.02" color="#111" position="0 0 -0.05" rotation="90 0 0"
+                  open-ended="true" material="roughness: 0.4; metalness: 0.6; side: double"></a-cylinder>
+                <a-ring radius-inner="0.025" radius-outer="0.027" color="#111" position="0 0 -0.06" rotation="0 180 0"
+                  material="roughness: 0.4; metalness: 0.6; side: double"></a-ring>
+                <a-ring radius-inner="0.025" radius-outer="0.027" color="#111" position="0 0 -0.04" rotation="0 0 0"
+                  material="roughness: 0.4; metalness: 0.6; side: double"></a-ring>
+                <a-sphere radius="0.024" scale="1 1 0.4" position="0 0 -0.055" rotation="180 0 0"
+                  material="color: #050510; metalness: 1.0; roughness: 0.02; emissive: #0a400a; emissiveIntensity: 0.1">
+                </a-sphere>
+                <a-circle radius="0.026" color="#050505" position="0 0 0.055"
+                  material="roughness: 1; side: double"></a-circle>
+                <a-cylinder radius="0.026" height="0.02" color="#111" position="0 0 0.065" rotation="90 0 0"
+                  open-ended="true" material="side: double; roughness: 1"></a-cylinder>
+                <a-torus radius="0.026" radius-tubular="0.001" color="#111" position="0 0 0.075" rotation="0 0 0"
+                  material="roughness: 1"></a-torus>
+              </a-entity>
+              <!-- Right Barrel -->
+              <a-entity position="0.034 0 0">
+                <a-cylinder radius="0.025" height="0.12" color="#1a1a1a" rotation="90 0 0" open-ended="true"
+                  material="roughness: 0.8; metalness: 0.2; side: double"></a-cylinder>
+                <a-cylinder radius="0.027" height="0.02" color="#111" position="0 0 -0.05" rotation="90 0 0"
+                  open-ended="true" material="roughness: 0.4; metalness: 0.6; side: double"></a-cylinder>
+                <a-ring radius-inner="0.025" radius-outer="0.027" color="#111" position="0 0 -0.06" rotation="0 180 0"
+                  material="roughness: 0.4; metalness: 0.6; side: double"></a-ring>
+                <a-ring radius-inner="0.025" radius-outer="0.027" color="#111" position="0 0 -0.04" rotation="0 0 0"
+                  material="roughness: 0.4; metalness: 0.6; side: double"></a-ring>
+                <a-sphere radius="0.024" scale="1 1 0.4" position="0 0 -0.055" rotation="180 0 0"
+                  material="color: #050510; metalness: 1.0; roughness: 0.02; emissive: #0a400a; emissiveIntensity: 0.1">
+                </a-sphere>
+                <a-circle radius="0.026" color="#050505" position="0 0 0.055"
+                  material="roughness: 1; side: double"></a-circle>
+                <a-cylinder radius="0.026" height="0.02" color="#111" position="0 0 0.065" rotation="90 0 0"
+                  open-ended="true" material="side: double; roughness: 1"></a-cylinder>
+                <a-torus radius="0.026" radius-tubular="0.001" color="#111" position="0 0 0.075" rotation="0 0 0"
+                  material="roughness: 1"></a-torus>
+              </a-entity>
+              <!-- Bridge -->
+              <a-box width="0.04" height="0.015" depth="0.035" color="#222" position="0 0 0.03"
+                material="roughness: 0.9"></a-box>
+            </a-entity>
+          </a-entity>
         </a-entity>
       </template>
       <template id="right-controller-template">
@@ -2776,9 +2917,10 @@
     <a-entity id="camera-rig" rig-follower networked="template:#rig-template;attachTemplateToLocal:false;"
       spawn-in-spots="radius:4" position="0 0 0" rotation="0 0 0">
       <a-entity id="camera" player-info networked="template:#camera-template;attachTemplateToLocal:false;"
-        camera="near: 0.02; far: 3600" skyvr-look-controls="reverseMouseDrag: true; reverseTouchDrag: false; minFov: 2"
-        constellation-pointer-2d skyvr-pointer-2d drawing="pointerMode: 2d" position="0 1.6 0">
-        <a-sphere class="head" visible="false" random-color></a-sphere>
+        camera="near: 0.02; far: 3600" skyvr-camera-pivot="offset: 0 0.05 -0.16"
+        skyvr-look-controls="reverseMouseDrag: true; reverseTouchDrag: false; minFov: 2" constellation-pointer-2d
+        skyvr-pointer-2d drawing="pointerMode: 2d" position="0 1.6 0">
+        <a-sphere class="head" visible="false" random-color position="0 -0.1 0"></a-sphere>
         <!-- Binoculars Overlay -->
         <a-image id="binocular-overlay" src="assets/binoculars_mask.png" position="0 0 -0.11" width="1.0" height="1.0"
           visible="false"
@@ -2848,10 +2990,13 @@
           <a-entity line="start: 0 0 0; end: -0.01 -0.03 -0.01; color: white; opacity: 0.5"></a-entity>
         </a-entity>
       </a-entity>
-      <a-entity id="left-controller" player-info meta-touch-controls="hand: left" haptics position="0 0 0">
+      <a-entity id="left-controller" player-info
+        networked="template:#left-controller-template;attachTemplateToLocal:false;" meta-touch-controls="hand: left"
+        haptics position="0 0 0">
         <a-entity light="type: point; intensity: 0.2; distance: 0.5; decay: 1" position="0 0.05 0"></a-entity>
 
-        <a-entity binoculars-handler id="binoculars-model" visible="false" position="0.12 0 -0.05" rotation="-120 0 0">
+        <a-entity binoculars-handler id="binoculars-model" class="binoculars-model" visible="false"
+          position="0.12 0 -0.05" rotation="-120 0 0">
 
           <!-- Secondary Camera (Magnifier) -->
           <!-- Positioned forward (-0.4) to clear controller geometry -->
