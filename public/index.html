@@ -929,26 +929,26 @@
           this.el.object3D.quaternion.slerp(targetQuat, Math.min(lerpFactor, 1));
         }
 
-        // 5. Dynamic Eye Pupil Scaling
+        // 5. Dynamic Binocular Exit Pupil Scaling
         // Use actual binocular distance for visual accuracy
         const binoWorldPos = new THREE.Vector3().setFromMatrixPosition(this.el.object3D.matrixWorld);
         const realBinoDist = binoWorldPos.distanceTo(headWorldPos);
 
         // Transition: End precisely at snap point (0.15m), Start as they get very close (0.18m)
-        let pupilRadius = 0.004;
+        let exitPupilRadius = 0.004;
         if (realBinoDist <= 0.15) {
-          pupilRadius = 0.024; // Full viewing diameter
+          exitPupilRadius = 0.024; // Full viewing diameter
         } else if (realBinoDist < 0.18) {
           // Eased interpolation for late expansion
           const t = (realBinoDist - 0.15) / (0.18 - 0.15);
           const easedT = t * t * (3 - 2 * t); // Smoothstep
-          pupilRadius = 0.024 * (1 - easedT) + 0.004 * easedT;
+          exitPupilRadius = 0.024 * (1 - easedT) + 0.004 * easedT;
         }
 
         const leftLens = document.getElementById('left-lens');
         const rightLens = document.getElementById('right-lens');
-        if (leftLens) leftLens.setAttribute('radius', pupilRadius);
-        if (rightLens) rightLens.setAttribute('radius', pupilRadius);
+        if (leftLens) leftLens.setAttribute('radius', exitPupilRadius);
+        if (rightLens) rightLens.setAttribute('radius', exitPupilRadius);
       },
       pulse: function (strength, duration) {
         const controller = this.el.closest('[haptics]');
@@ -2650,12 +2650,12 @@
           </a-sphere>
           <a-entity class="face" position="0 0.05 0">
             <a-sphere class="eye" color="#efefef" position="0.06 0.05 -0.16" scale="0.04 0.04 0.04">
-              <a-cylinder class="pupil" color="#000" position="0 0 -1" rotation="90 0 0" height="0.05"></a-cylinder>
+              <a-cylinder class="pupil" color="#000" position="0 0 -1" rotation="90 0 0" radius="0.2" height="0.05"></a-cylinder>
             </a-sphere>
             <a-sphere class="eyelid" position="0.06 0.05 -0.16" scale="0.042 0.042 0.042" theta-length="90"
               rotation="20 0 0"></a-sphere>
             <a-sphere class="eye" color="#efefef" position="-0.06 0.05 -0.16" scale="0.04 0.04 0.04">
-              <a-cylinder class="pupil" color="#000" position="0 0 -1" rotation="90 0 0" height="0.05"></a-cylinder>
+              <a-cylinder class="pupil" color="#000" position="0 0 -1" rotation="90 0 0" radius="0.2" height="0.05"></a-cylinder>
             </a-sphere>
             <a-sphere class="eyelid" position="-0.06 0.05 -0.16" scale="0.042 0.042 0.042" theta-length="90"
               rotation="20 0 0"></a-sphere>
