@@ -22,7 +22,8 @@ AFRAME.registerComponent('identify', {
             color: '#00FF00',
             opacity: 0
         });
-        this.crosshairEl.setAttribute('object-render-order', 7);
+        const renderSystem = this.el.sceneEl.systems['render-order'];
+        this.crosshairEl.setAttribute('render-order', renderSystem ? 'ui' : '7');
         this.crosshairEl.setAttribute('animation__pulse', {
             property: 'scale',
             from: '1 1 1',
@@ -50,7 +51,7 @@ AFRAME.registerComponent('identify', {
             fixedWidth: 800,
             depthTest: true,
             depthWrite: false, // Ensure we don't occlude things behind us via depth buffer
-            renderOrder: 7,
+            renderOrder: this.el.sceneEl.systems['render-order'] ? this.el.sceneEl.systems['render-order'].order['ui'] : 7,
             opacity: 0
         });
         this.previewEl.appendChild(this.labelEl);

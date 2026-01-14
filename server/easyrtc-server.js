@@ -38,6 +38,13 @@ if (process.env.NODE_ENV === "development") {
 	);
 }
 
+app.get('/config', (req, res) => {
+	res.json({
+		imprintUrl: process.env.IMPRINT_URL,
+		privacyPolicyUrl: process.env.PRIVACY_POLICY_URL
+	});
+});
+
 // Serve the files from the public folder
 const publicPath = path.resolve(__dirname, "..", "public");
 // If someone asks for the homepage, send them skyvr.html
@@ -56,25 +63,11 @@ app.get('/js/aframe/aframe.min.js', (req, res) => {
 	res.sendFile(path.resolve(__dirname, "..", "node_modules", "aframe", "dist", `aframe-v${aframePackage.version}.min.js`));
 });
 app.use('/js/aframe', express.static(path.resolve(__dirname, "..", "node_modules", "aframe", "dist")));
-
-app.get('/config', (req, res) => {
-	res.json({
-		imprintUrl: process.env.IMPRINT_URL,
-		privacyPolicyUrl: process.env.PRIVACY_POLICY_URL
-	});
-});
-
 app.use('/js/luxon', express.static(path.resolve(__dirname, "..", "node_modules", "luxon", "build", "global")));
 app.use('/js/socket.io', express.static(path.resolve(__dirname, "..", "node_modules", "socket.io", "client-dist")));
 app.use('/js/networked-aframe', express.static(path.resolve(__dirname, "..", "node_modules", "networked-aframe", "dist")));
 app.use('/js/aframe-extras', express.static(path.resolve(__dirname, "..", "node_modules", "aframe-extras", "dist")));
-
-
-
-
-
-// Serve the files from the examples folder
-//app.use(express.static(path.resolve(__dirname, "..", "examples")));
+app.use('/js/aframe-render-order-component', express.static(path.resolve(__dirname, "..", "node_modules", "aframe-render-order-component", "dist")));
 
 
 

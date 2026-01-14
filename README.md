@@ -54,6 +54,7 @@ Open your browser and navigate to `http://localhost:8080` (or the port specified
 *   **[A-Frame Environment](https://github.com/supermedium/aframe-environment-component)** (MIT) - Infinite backgrounds for A-Frame.
 *   **[A-Frame Extras](https://github.com/c-frame/aframe-extras)** (MIT) - Add-ons and helpers for A-Frame.
 *   **[A-Frame Multi-Camera](https://github.com/diarmidmackenzie/aframe-multi-camera)** (MIT) - System for multiple cameras in A-Frame.
+*   **[A-Frame Render Order](https://github.com/supermedium/superframe/tree/master/components/render-order)** (MIT) - Component to manually set rendering order for A-Frame entities.
 *   **[Astronomy Engine](https://github.com/cosinekitty/astronomy)** (MIT) - Rigorous calculations of celestial body positions.
 *   **[Socket.IO](https://socket.io/)** (MIT) - Real-time bidirectional event-based communication.
 *   **[Luxon](https://moment.github.io/luxon/)** (MIT) - Powerful date and time wrapper for JavaScript.

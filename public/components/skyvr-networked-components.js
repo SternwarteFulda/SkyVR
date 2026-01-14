@@ -55,7 +55,8 @@ AFRAME.registerComponent('drawing-stroke', {
             this.lineMaterial.color.set(this.data.color);
         }
 
-        this.mesh.renderOrder = 100; // Above stars (20) and illustrations (10)
+        const renderSystem = this.el.sceneEl.systems['render-order'];
+        this.mesh.renderOrder = renderSystem ? renderSystem.order['ui'] : 100; // Above stars and illustrations
 
         const container = document.getElementById('precession-container');
         if (container) {
@@ -270,7 +271,8 @@ AFRAME.registerComponent('constellation-illustration', {
 
             const mesh = new THREE.Mesh(geometry, material);
             mesh.name = 'illustration-plane'; // Essential for raycaster detection!
-            mesh.renderOrder = 5.1; // Over Milky Way (5.0), Under Boundaries (6.0)
+            const renderSystem = this.el.sceneEl.systems['render-order'];
+            mesh.renderOrder = renderSystem ? renderSystem.order['illustrations'] : 5.1; // Over Milky Way, Under Boundaries
             mesh.frustumCulled = false; // Shader expands it across the sky, so we disable auto-culling
             this.el.object3D.add(mesh);
             this.mesh = mesh; // Track it
@@ -418,11 +420,13 @@ AFRAME.registerComponent('constellation-stick-figure', {
             const nodeRenderOrder = entry.renderOrder;
 
             if (nodeMaterial.transparent) {
-                // Layer system (7: Bloom, 8: Inner Glow, 9: Core)
+                // Layer system (Bloom, Inner Glow, Core)
+                const rs = this.renderer ? this.renderer.el.sceneEl.systems['render-order'] : null;
+                const baseOrder = rs ? rs.order['lines'] : 7;
                 let base = 1.0;
-                if (nodeRenderOrder === 7) base = 0.08;
-                if (nodeRenderOrder === 8) base = 0.15;
-                if (nodeRenderOrder === 9) base = 0.3;
+                if (nodeRenderOrder === baseOrder) base = 0.08;
+                if (nodeRenderOrder === baseOrder + 1) base = 0.15;
+                if (nodeRenderOrder === baseOrder + 2) base = 0.3;
 
                 const opacity = Math.min(finalAlpha * base, 1.0);
                 if (nodeMaterial.uniforms && nodeMaterial.uniforms.opacity) {
@@ -432,7 +436,7 @@ AFRAME.registerComponent('constellation-stick-figure', {
                 }
 
                 // Dynamic Color Enforcement
-                let targetColor = (nodeRenderOrder === 9)
+                let targetColor = (nodeRenderOrder === baseOrder + 2)
                     ? (isZod ? '#fff4cc' : '#ffffff')
                     : (isZod ? zodiacColor : standardColor);
 
@@ -496,7 +500,9 @@ AFRAME.registerComponent('constellation-stick-figure', {
 
         this.mesh.traverse(node => {
             if (node.material) {
-                const target = (node.renderOrder === 9) ? coreColor : color;
+                const rs = this.renderer ? this.renderer.el.sceneEl.systems['render-order'] : null;
+                const baseOrder = rs ? rs.order['lines'] : 7;
+                const target = (node.renderOrder === baseOrder + 2) ? coreColor : color;
 
                 if (node.material.uniforms && node.material.uniforms.color) {
                     node.material.uniforms.color.value.set(target);
@@ -536,7 +542,8 @@ AFRAME.registerComponent('identified-info', {
             depthWrite: false,
             color: '#00FF00'
         });
-        this.markerEl.setAttribute('object-render-order', 5);
+        const renderSystem = this.el.sceneEl.systems['render-order'];
+        this.markerEl.setAttribute('render-order', renderSystem ? 'ui' : '5');
         this.el.appendChild(this.markerEl);
 
         this.textOpacity = 0;
@@ -583,7 +590,7 @@ AFRAME.registerComponent('identified-info', {
             fixedWidth: 800,
             depthTest: true,
             depthWrite: false,
-            renderOrder: 5,
+            renderOrder: this.el.sceneEl.systems['render-order'] ? this.el.sceneEl.systems['render-order'].order['ui'] : 5,
             opacity: this.textOpacity
         });
         if (this.markerEl) {
@@ -753,7 +760,8 @@ AFRAME.registerComponent('stamped-shape', {
         });
 
         this.mesh = new THREE.Mesh(geometry, material);
-        this.mesh.renderOrder = 5.1;
+        const renderSystem = this.el.sceneEl.systems['render-order'];
+        this.mesh.renderOrder = renderSystem ? renderSystem.order['ui'] : 5.1;
         this.el.object3D.add(this.mesh);
     },
 

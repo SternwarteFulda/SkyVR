@@ -389,7 +389,8 @@ AFRAME.registerComponent('stamp', {
         });
 
         this.shapePreviewMesh = new THREE.LineLoop(geometry, material);
-        this.shapePreviewMesh.renderOrder = 7;
+        const renderSystem = this.el.sceneEl.systems['render-order'];
+        this.shapePreviewMesh.renderOrder = renderSystem ? renderSystem.order['ui'] : 7;
         this.shapePreviewEl.object3D.add(this.shapePreviewMesh);
     },
 

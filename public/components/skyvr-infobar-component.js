@@ -897,8 +897,10 @@ AFRAME.registerComponent('skyvr-infobar', {
         warpTunnel.setAttribute('position', '0 0 0');
 
         // Ensure render order is high but below black fade
-        warpContainer.object3D.renderOrder = 99998;
-        warpTunnel.object3D.renderOrder = 99998;
+        let renderSystem = this.el.sceneEl.systems['render-order'];
+        const overlayBase = renderSystem ? renderSystem.order['overlay'] : 99998;
+        warpContainer.object3D.renderOrder = overlayBase - 1;
+        warpTunnel.object3D.renderOrder = overlayBase - 1;
 
         // Animations on the Tunnel ("Swoosh" speed)
 
@@ -938,7 +940,8 @@ AFRAME.registerComponent('skyvr-infobar', {
             depthTest: false
         });
         fadeSphere.setAttribute('position', '0 0 0');
-        fadeSphere.object3D.renderOrder = 99999;
+        renderSystem = this.el.sceneEl.systems['render-order'];
+        fadeSphere.object3D.renderOrder = renderSystem ? renderSystem.order['overlay'] : 99999;
 
         camera.appendChild(fadeSphere);
 

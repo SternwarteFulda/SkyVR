@@ -2594,7 +2594,9 @@
     </div>
   </div>
 
-  <a-scene loading-screen="enabled: false" vr-mode-ui="enabled: true" high-res renderer="
+  <a-scene loading-screen="enabled: false" vr-mode-ui="enabled: true" high-res
+    render-order="background, atmosphere, starfield, milkyway, illustrations, boundaries, lines, stars, avatars, ui, overlay"
+    renderer="
 
       antialias: true;
       highRefreshRate: true;
@@ -2731,6 +2733,7 @@
       <img id="icon-zoom-out" src="assets/icons/zoom-out.svg">
       <img id="asset-crosshair" src="assets/icons/crosshair.svg">
 
+      <script src="/js/aframe-render-order-component/aframe-render-order-component.min.js"></script>
       <script src="components/aframe-environment-component.js"></script>
       <script src="/js/aframe-extras/aframe-extras.primitives.min.js"></script>
       <script src="components/spawn-in-spots.component.js"></script>

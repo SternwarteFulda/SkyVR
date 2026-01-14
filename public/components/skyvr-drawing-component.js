@@ -632,7 +632,8 @@ AFRAME.registerComponent('drawing', {
             if (this.currentSegmentPoints.length > 1) {
                 const geometry = new THREE.BufferGeometry().setFromPoints(this.currentSegmentPoints);
                 this.currentSegmentMesh = new THREE.Line(geometry, this.lineMaterial);
-                this.currentSegmentMesh.renderOrder = 100;
+                const renderSystem = this.el.sceneEl.systems['render-order'];
+                this.currentSegmentMesh.renderOrder = renderSystem ? renderSystem.order['ui'] : 100;
                 this.precessionContainerEl.object3D.add(this.currentSegmentMesh);
             }
 

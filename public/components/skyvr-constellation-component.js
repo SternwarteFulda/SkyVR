@@ -193,7 +193,8 @@ AFRAME.registerComponent('constellation-renderer', {
             const geometry = new THREE.BufferGeometry().setFromPoints(points);
             const lineSegments = new THREE.LineSegments(geometry, this.lineMaterial);
             lineSegments.name = 'all-constellation-lines';
-            lineSegments.renderOrder = 7;
+            const renderSystem = this.el.sceneEl.systems['render-order'];
+            lineSegments.renderOrder = renderSystem ? renderSystem.order['lines'] : 7;
             this.el.object3D.add(lineSegments);
             this.constellationLines.push(lineSegments);
             console.log(`Rendered ${points.length / 2} constellation line segments in 1 object`);
@@ -249,7 +250,8 @@ AFRAME.registerComponent('constellation-renderer', {
             const geometry = new THREE.BufferGeometry().setFromPoints(allPoints);
             const lineSegments = new THREE.LineSegments(geometry, this.boundaryMaterial);
             lineSegments.name = 'all-iau-boundaries';
-            lineSegments.renderOrder = 6;
+            const renderSystem = this.el.sceneEl.systems['render-order'];
+            lineSegments.renderOrder = renderSystem ? renderSystem.order['boundaries'] : 6;
             this.el.object3D.add(lineSegments);
             this.boundaryLines.push(lineSegments);
             console.log(`Rendered ${allPoints.length / 2} IAU boundary segments in 1 object`);
@@ -443,7 +445,8 @@ AFRAME.registerComponent('constellation-renderer', {
                         blending: THREE.NormalBlending
                     });
                     const mesh = new THREE.Mesh(illustrationGeo, material);
-                    mesh.renderOrder = 3;
+                    const renderSystem = this.el.sceneEl.systems['render-order'];
+                    mesh.renderOrder = renderSystem ? renderSystem.order['illustrations'] : 3;
                     mesh.frustumCulled = false;
 
                     previewSet.add(mesh);
@@ -484,7 +487,8 @@ AFRAME.registerComponent('constellation-renderer', {
             depthTest: false
         });
         const mesh = new THREE.Mesh(geometry, material);
-        mesh.renderOrder = 3;
+        const renderSystem = this.el.sceneEl.systems['render-order'];
+        mesh.renderOrder = renderSystem ? renderSystem.order['illustrations'] : 3;
         group.add(mesh);
     },
 
@@ -696,16 +700,22 @@ AFRAME.registerComponent('constellation-renderer', {
         if (points.length > 0) {
             const geometry = new THREE.BufferGeometry().setFromPoints(points);
 
+            const renderSystem = this.el.sceneEl.systems['render-order'];
+            const lineBaseOrder = renderSystem ? renderSystem.order['lines'] : 7;
+
             const lineOuter = new THREE.LineSegments(geometry.clone(), outerGlowMaterial);
-            lineOuter.renderOrder = 7;
+            lineOuter.renderOrder = lineBaseOrder;
+            lineOuter.userData.layerType = 'bloom';
             group.add(lineOuter);
 
             const lineInner = new THREE.LineSegments(geometry.clone(), innerGlowMaterial);
-            lineInner.renderOrder = 8;
+            lineInner.renderOrder = lineBaseOrder + 1;
+            lineInner.userData.layerType = 'inner';
             group.add(lineInner);
 
             const lineCore = new THREE.LineSegments(geometry, coreMaterial);
-            lineCore.renderOrder = 9;
+            lineCore.renderOrder = lineBaseOrder + 2;
+            lineCore.userData.layerType = 'core';
             group.add(lineCore);
         }
 
@@ -1220,20 +1230,27 @@ AFRAME.registerComponent('constellation-renderer', {
 
             this.previewIllustration.traverse(node => {
                 if (node.material) {
+                    const rs = this.el.sceneEl.systems['render-order'];
+                    const baseOrderLines = rs ? rs.order['lines'] : 7;
+                    const baseOrderIllustrations = rs ? rs.order['illustrations'] : 3;
+
+                    // Boost pointed illustration slightly (+0.01) to win z-layer against neighbors
+                    node.renderOrder = (type === 'stick' ? baseOrderLines : baseOrderIllustrations) + 0.01;
+
                     if (node.material.uniforms && node.material.uniforms.opacity) {
                         node.material.uniforms.opacity.value = this.previewOpacity * pulse;
                     } else if (node.material.transparent) {
-                        // Apply base alpha for our 3-layer system
                         let base = 1.0;
-                        if (node.renderOrder === 7) base = 0.08; // Bloom
-                        if (node.renderOrder === 8) base = 0.15; // Inner Glow
-                        if (node.renderOrder === 9) base = 0.3;  // Core
+                        if (node.userData.layerType === 'bloom') base = 0.08;
+                        if (node.userData.layerType === 'inner') base = 0.15;
+                        if (node.userData.layerType === 'core') base = 0.3;
+
                         node.material.opacity = Math.min(this.previewOpacity * pulse * base, 1.0);
 
                         // Enforce colors in preview
-                        if (node.renderOrder < 9) {
+                        if (node.userData.layerType !== 'core' && node.userData.layerType !== undefined) {
                             node.material.color.set(isZod ? '#ffd700' : '#00ffff');
-                        } else if (node.renderOrder === 9) {
+                        } else if (node.userData.layerType === 'core') {
                             node.material.color.set(isZod ? '#fff4cc' : '#ffffff');
                         }
                     }
@@ -1251,16 +1268,14 @@ AFRAME.registerComponent('constellation-renderer', {
             item.obj.traverse(node => {
                 if (node.material && node.material.transparent) {
                     let base = 1.0;
-                    if (node.renderOrder === 7) base = 0.08;
-                    if (node.renderOrder === 8) base = 0.15;
-                    if (node.renderOrder === 9) base = 0.3;
-
-                    const final = Math.min(item.opacity * base, 1.0);
+                    if (node.userData.layerType === 'bloom') base = 0.08;
+                    if (node.userData.layerType === 'inner') base = 0.15;
+                    if (node.userData.layerType === 'core') base = 0.3;
 
                     if (node.material.uniforms && node.material.uniforms.opacity) {
-                        node.material.uniforms.opacity.value = final;
+                        node.material.uniforms.opacity.value = item.opacity * base;
                     } else {
-                        node.material.opacity = final;
+                        node.material.opacity = item.opacity * base;
                     }
                 }
             });

@@ -33,10 +33,13 @@ AFRAME.registerComponent('player-info', {
         this.webcamFrame = this.el.querySelector('.webcam-frame');
 
         // Initial render order setup to fix "transparent sorting" (head occluding eyes)
-        if (this.head) this.head.object3D.renderOrder = 10;
-        this.el.querySelectorAll('.eye, .pupil, .eyelid').forEach(p => p.object3D.renderOrder = 12);
-        this.nametags.forEach(p => p.object3D.renderOrder = 15);
-        if (this.micIcons) this.micIcons.forEach(p => p.object3D.renderOrder = 16);
+        const renderSystem = this.el.sceneEl.systems['render-order'];
+        const avatarBase = renderSystem ? renderSystem.order['avatars'] : 10;
+
+        if (this.head) this.head.object3D.renderOrder = avatarBase;
+        this.el.querySelectorAll('.eye, .pupil, .eyelid').forEach(p => p.object3D.renderOrder = avatarBase + 2);
+        this.nametags.forEach(p => p.object3D.renderOrder = avatarBase + 5);
+        if (this.micIcons) this.micIcons.forEach(p => p.object3D.renderOrder = avatarBase + 6);
 
         // Track initialization time to distinguish pre-existing players from new ones
         this.initTime = performance.now();
@@ -453,9 +456,11 @@ AFRAME.registerComponent('player-info', {
 
                         // Apply renderOrder to fix sorting
                         const setRO = () => {
-                            if (isHead) node.object3D.renderOrder = 10;
-                            else if (isEyePart) node.object3D.renderOrder = 12;
-                            else if (isText) node.object3D.renderOrder = 15;
+                            const rs = this.el.sceneEl.systems['render-order'];
+                            const base = rs ? rs.order['avatars'] : 10;
+                            if (isHead) node.object3D.renderOrder = base;
+                            else if (isEyePart) node.object3D.renderOrder = base + 2;
+                            else if (isText) node.object3D.renderOrder = base + 5;
                         };
                         if (node.hasLoaded) setRO();
                         else node.addEventListener('loaded', setRO, { once: true });
@@ -506,7 +511,8 @@ AFRAME.registerComponent('player-info', {
                     depthTest: false, // Bypass depth check to avoid shadow artifact from the avatar
                     depthWrite: false
                 });
-                beam.object3D.renderOrder = 100; // Render over the avatar
+                const renderSystem = this.el.sceneEl.systems['render-order'];
+                beam.object3D.renderOrder = renderSystem ? renderSystem.order['ui'] : 100; // Render over the avatar
 
                 const dur = 1000 + Math.random() * 1000;
                 const startDelay = Math.random() * 500;
@@ -543,7 +549,8 @@ AFRAME.registerComponent('player-info', {
                     depthTest: false, // Bypass depth check
                     depthWrite: false
                 });
-                sparkle.object3D.renderOrder = 100;
+                const renderSystem = this.el.sceneEl.systems['render-order'];
+                sparkle.object3D.renderOrder = renderSystem ? renderSystem.order['ui'] : 100;
 
                 const duration = 1500 + Math.random() * 1000;
                 const startDelay = Math.random() * 1000;

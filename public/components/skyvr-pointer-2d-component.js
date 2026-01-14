@@ -120,7 +120,8 @@ AFRAME.registerComponent('skyvr-pointer-2d', {
             const child = this.arrowEl.querySelector('a-entity');
             const mesh = child ? child.getObject3D('mesh') : null;
             if (mesh) {
-                mesh.renderOrder = 20000;
+                const renderSystem = this.el.sceneEl.systems['render-order'];
+                mesh.renderOrder = renderSystem ? renderSystem.order['ui'] : 20000;
                 if (mesh.material) {
                     mesh.material.depthTest = false;
                     mesh.material.depthWrite = false;
