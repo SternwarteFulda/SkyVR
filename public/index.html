@@ -834,29 +834,92 @@
         this.camera = document.getElementById('camera');
         this.holding = false;
         this.zoomed = false;
-        this.worldPos = new THREE.Vector3();
-        this.headPos = new THREE.Vector3();
+        this.isLocked = false; // Flag for hard-snapping once arrived at eyes
+
+        // Store original local transforms to return to when released
+        this.originalPos = new THREE.Vector3(0.12, 0, -0.05);
+        this.originalRot = new THREE.Euler(
+          THREE.MathUtils.degToRad(-120),
+          0,
+          THREE.MathUtils.degToRad(180)
+        );
+
+        this.tempVec = new THREE.Vector3();
+        this.tempQuat = new THREE.Quaternion();
       },
-      tick: function () {
-        if (!this.holding) return;
+      tick: function (t, dt) {
+        if (!this.holding || !dt) return;
 
-        // Proximity detection
-        this.el.object3D.getWorldPosition(this.worldPos);
-        this.camera.object3D.getWorldPosition(this.headPos);
-        const distance = this.worldPos.distanceTo(this.headPos);
+        // Force both coordinate systems to be fresh to prevent frame-lag
+        this.camera.object3D.updateWorldMatrix(true, false);
+        this.el.object3D.parent.updateWorldMatrix(true, false);
 
-        const overlay = document.getElementById('binocular-overlay');
+        // 1. Get positions for proximity logic
+        const parentWorldPos = this.tempVec.setFromMatrixPosition(this.el.object3D.parent.matrixWorld);
+        const headWorldPos = new THREE.Vector3().setFromMatrixPosition(this.camera.object3D.matrixWorld);
+        const distance = parentWorldPos.distanceTo(headWorldPos);
 
-        // Trigger immersive view when bringing to eyes
-        if (distance < 0.35 && !this.zoomed) {
+        // 2. State transitions for zooming
+        if (distance < 0.22 && !this.zoomed) {
           this.zoomed = true;
-          if (overlay) overlay.setAttribute('visible', true);
+          this.isLocked = false; // Reset lock when starting a new snap transition
           this.pulse(0.7, 100);
-          console.log("Binoculars: Active");
-        } else if (distance >= 0.40 && this.zoomed) {
+          // const overlay = document.getElementById('binocular-overlay');
+          // if (overlay) overlay.setAttribute('visible', true);
+        } else if (distance >= 0.32 && this.zoomed) {
           this.zoomed = false;
-          if (overlay) overlay.setAttribute('visible', false);
+          this.isLocked = false;
           this.pulse(0.3, 50);
+          // const overlay = document.getElementById('binocular-overlay');
+          // if (overlay) overlay.setAttribute('visible', false);
+        }
+
+        // 3. Calculate Target Local Transform
+        const targetPos = new THREE.Vector3();
+        const targetQuat = new THREE.Quaternion();
+
+        if (this.zoomed) {
+          // Snap target: 15cm in front of camera (to clear near clip 0.1)
+          const p = new THREE.Vector3(0, 0, -0.15);
+          this.camera.object3D.localToWorld(p);
+          this.el.object3D.parent.worldToLocal(p);
+          targetPos.copy(p);
+
+          // Snap rotation target: Align with camera + 180 Z flip
+          const cameraWorldQuat = new THREE.Quaternion();
+          this.camera.object3D.getWorldQuaternion(cameraWorldQuat);
+          const parentWorldQuat = new THREE.Quaternion();
+          this.el.object3D.parent.getWorldQuaternion(parentWorldQuat);
+
+          targetQuat.copy(parentWorldQuat.invert().multiply(cameraWorldQuat));
+          const zFlip = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI);
+          targetQuat.multiply(zFlip);
+        } else {
+          // Return to controller
+          targetPos.copy(this.originalPos);
+          targetQuat.setFromEuler(this.originalRot);
+        }
+
+        // 4. Transform Application (Lerp vs Hard Lock)
+        const dTarget = this.el.object3D.position.distanceTo(targetPos);
+
+        if (this.zoomed) {
+          // If we reach within 1cm of the eye-snap target, lock it hard to prevent any lerp-drag/lag
+          if (dTarget < 0.01) this.isLocked = true;
+
+          if (this.isLocked) {
+            this.el.object3D.position.copy(targetPos);
+            this.el.object3D.quaternion.copy(targetQuat);
+          } else {
+            // Smoothly move towards the eyes from the controller
+            this.el.object3D.position.lerp(targetPos, 0.2);
+            this.el.object3D.quaternion.slerp(targetQuat, 0.2);
+          }
+        } else {
+          // Return to controller with standard smoothing
+          const lerpFactor = 1 - Math.pow(0.0001, dt / 1000);
+          this.el.object3D.position.lerp(targetPos, Math.min(lerpFactor, 1));
+          this.el.object3D.quaternion.slerp(targetQuat, Math.min(lerpFactor, 1));
         }
       },
       pulse: function (strength, duration) {
@@ -884,55 +947,117 @@
       }
     });
 
-    AFRAME.registerComponent('binoculars-magnifier', {
+    // Logarithmic depth buffer component to fix Z-fighting with extreme near/far ratios
+    AFRAME.registerComponent('logarithmic-depth-buffer', {
       init: function () {
-        this.renderer = this.el.sceneEl.renderer;
-        this.renderTarget = new THREE.WebGLRenderTarget(512, 512);
-        this.secondaryCamera = new THREE.PerspectiveCamera(10, 1, 0.1, 1000); // Higher near plane to avoid bino interior
-        this.el.object3D.add(this.secondaryCamera);
+        this.el.sceneEl.addEventListener('camera-set-active', (evt) => {
+          const camera = evt.detail.cameraEl.components.camera.camera;
+          if (camera) {
+            // Override the projection matrix update to use logarithmic depth
+            camera.onBeforeRender = (renderer, scene, camera) => {
+              // Store original values
+              const near = camera.near;
+              const far = camera.far;
 
-        // Look down the local -Z axis (towards the objective lenses)
-        this.secondaryCamera.rotation.set(0, 0, 0);
-        this.secondaryCamera.position.set(0, 0, -0.2); // Further out to avoid hand/controller clipping
-
-        // Manual texture application for lenses
-        this.applyTexture = () => {
-          const lenses = this.el.querySelectorAll('.lens');
-          lenses.forEach(lens => {
-            const mesh = lens.getObject3D('mesh');
-            if (mesh) {
-              mesh.material = new THREE.MeshBasicMaterial({
-                map: this.renderTarget.texture,
-                fog: false
-              });
-            }
-          });
-        };
-
-        setTimeout(this.applyTexture, 500); // Wait for primitives to initialize
-      },
-      tick: function () {
-        if (!this.el.getAttribute('visible')) return;
-
-        this.secondaryCamera.updateMatrixWorld();
-
-        this.secondaryCamera.updateMatrixWorld();
-
-        // Hide binos temporarily so they don't occlude their own magnified view
-        const hiddenNodes = [];
-        this.el.object3D.traverse(node => {
-          if (node.isMesh && node.visible) {
-            hiddenNodes.push(node);
-            node.visible = false;
+              // Use a logarithmic depth calculation
+              // This redistributes depth precision more evenly
+              camera.projectionMatrix.elements[10] = -1;
+              camera.projectionMatrix.elements[14] = -2 * near;
+            };
           }
         });
+      }
+    });
 
-        const currentRenderTarget = this.renderer.getRenderTarget();
-        this.renderer.setRenderTarget(this.renderTarget);
-        this.renderer.render(this.el.sceneEl.object3D, this.secondaryCamera);
-        this.renderer.setRenderTarget(currentRenderTarget);
+    // Component to force specific camera settings for magnification
+    // Accesses the internal camera of secondary-camera component
+    AFRAME.registerComponent('force-bino-settings', {
+      tick: function () {
+        let cam = null;
+        // 1. Try to get the internal camera from the secondary-camera component
+        if (this.el.components['secondary-camera']) {
+          cam = this.el.components['secondary-camera'].camera;
+        }
+        // 2. Fallback to entity's camera object
+        if (!cam) {
+          cam = this.el.getObject3D('camera');
+        }
 
-        hiddenNodes.forEach(node => node.visible = true);
+        if (cam && cam.fov !== 2.5) {
+          if (cam.isPerspectiveCamera) {
+            cam.fov = 2.5; // Force high magnification (approx 35x)
+            cam.updateProjectionMatrix();
+          }
+        }
+      }
+    });
+
+    // Component to optimize the bino view:
+    // 1. Isolate stars/planets to Layer 1 to avoid 'washed out' atmosphere
+    // 2. Manage resolution for better star visibility
+    AFRAME.registerComponent('bino-optimizer', {
+      init: function () {
+        this.optimized = false;
+      },
+      tick: function () {
+        const secondary = this.el.components['secondary-camera'];
+        if (!secondary) return;
+
+        // Set layers on the entity itself if isolation is needed (disabled for troubleshooting)
+        // if (this.el.object3D.layers.mask !== 2) {
+        //   this.el.object3D.layers.set(1);
+        // }
+
+        // Stars isolation (disabled to ensure visibility)
+        /*
+        const starsEntity = document.getElementById('stars-point-cloud');
+        if (starsEntity && starsEntity.object3D) {
+          starsEntity.object3D.traverse(obj => {
+            if (obj.layers) obj.layers.enable(1);
+          });
+
+          // Also handle Moon and Planets which are added to the starfield's object3D
+          const comp = starsEntity.components.starfield;
+          if (comp) {
+            if (comp.moon) comp.moon.layers.enable(1);
+            if (comp.planets) comp.planets.layers.enable(1);
+            if (comp.planetsHalos) comp.planetsHalos.layers.enable(1);
+          }
+        }
+        */
+
+        // Also move constellation lines to Layer 1
+        const constLines = document.getElementById('constellation-lines');
+        if (constLines && constLines.object3D) {
+          constLines.object3D.traverse(obj => {
+            if (obj.layers) obj.layers.enable(1);
+          });
+        }
+
+        // Adjust Resolution if it's too high/low
+        if (secondary.renderTargets && !this.optimized) {
+          const size = 1024; // 1k is perfect for the lens
+          secondary.renderTargets.forEach(rt => {
+            if (rt.width !== size) {
+              rt.setSize(size, size);
+            }
+          });
+          this.optimized = true;
+        }
+      }
+    });
+
+    // Simple component to share the magnified texture between lenses
+    AFRAME.registerComponent('copy-material', {
+      schema: { from: { type: 'selector' } },
+      tick: function () {
+        if (!this.data.from) return;
+        const meshA = this.data.from.getObject3D('mesh');
+        const meshB = this.el.getObject3D('mesh');
+        // If source has a map (texture) and we don't match, copy the entire material reference
+        if (meshA && meshB && meshA.material.map && meshB.material !== meshA.material) {
+          meshB.material = meshA.material;
+        }
       }
     });
 
@@ -2446,6 +2571,8 @@
 
 
 
+    <script
+      src="https://cdn.jsdelivr.net/gh/diarmidmackenzie/aframe-multi-camera@latest/src/multi-camera.min.js"></script>
     <a-assets timeout="60000">
 
       <!-- Templates -->
@@ -2586,13 +2713,13 @@
     <a-entity id="camera-rig" rig-follower networked="template:#rig-template;attachTemplateToLocal:false;"
       spawn-in-spots="radius:4" position="0 0 0" rotation="0 0 0">
       <a-entity id="camera" player-info networked="template:#camera-template;attachTemplateToLocal:false;"
-        camera="near: 0.1; far: 3600" skyvr-look-controls="reverseMouseDrag: true; reverseTouchDrag: false; minFov: 2"
+        camera="near: 0.02; far: 3600" skyvr-look-controls="reverseMouseDrag: true; reverseTouchDrag: false; minFov: 2"
         constellation-pointer-2d skyvr-pointer-2d drawing="pointerMode: 2d" position="0 1.6 0">
         <a-sphere class="head" visible="false" random-color></a-sphere>
         <!-- Binoculars Overlay -->
-        <a-image id="binocular-overlay" src="assets/binoculars_mask.png" position="0 0 -0.1" width="0.3" height="0.3"
-          visible="false" material="transparent: true; shader: flat; fog: false; depthTest: false; depthWrite: false;"
-          binoculars-mask></a-image>
+        <a-image id="binocular-overlay" src="assets/binoculars_mask.png" position="0 0 -0.11" width="1.0" height="1.0"
+          visible="false"
+          material="transparent: true; shader: flat; fog: false; depthTest: false; depthWrite: false;"></a-image>
       </a-entity>
       <!-- Infobar placed in front of user, visible when looking down -->
       <a-entity id="infobar" skyvr-infobar position="0 0.8 -0.6" rotation="-40 0 0"></a-entity>
@@ -2661,47 +2788,44 @@
       <a-entity id="left-controller" player-info meta-touch-controls="hand: left" haptics position="0 0 0">
         <a-entity light="type: point; intensity: 0.2; distance: 0.5; decay: 1" position="0 0.05 0"></a-entity>
 
-        <a-entity binoculars-handler binoculars-magnifier id="binoculars-model" visible="false" position="0.12 0 -0.05"
-          rotation="-30 180 0">
-          <!-- Left Barrel -->
-          <a-entity position="-0.03 0 0">
-            <a-cylinder radius="0.024" height="0.12" color="#1a1a1a" rotation="90 0 0"
-              material="roughness: 0.8; metalness: 0.2"></a-cylinder>
-            <!-- Eyepiece (LOOK HERE) -->
-            <a-circle class="lens" radius="0.020" color="white" position="0 0 0.051" rotation="0 0 0"></a-circle>
-            <a-torus radius="0.020" radius-tubular="0.006" color="#030303" position="0 0 0.055"
-              rotation="0 0 0"></a-torus>
-            <a-ring radius-inner="0.021" radius-outer="0.025" color="#00ff00" position="0 0 0.058" rotation="0 0 0"
-              material="emissive: #00ff00; emissiveIntensity: 5; opacity: 0.8; transparent: true"></a-ring>
-            <!-- Objective Lens (Sky side) -->
-            <a-cylinder radius="0.026" height="0.02" color="#0a0a0a" position="0 0 -0.055"
-              rotation="90 0 0"></a-cylinder>
-            <a-circle radius="0.022" color="#111" position="0 0 -0.061" rotation="0 180 0"
-              material="metalness: 0.9; roughness: 0.1"></a-circle>
+        <a-entity binoculars-handler id="binoculars-model" visible="false" position="0.12 0 -0.05"
+          rotation="-120 0 180">
+
+          <!-- Secondary Camera (Magnifier) -->
+          <!-- Positioned forward (-0.4) to clear controller geometry -->
+          <!-- MUST specify cameraType: perspective for celestial viewing -->
+          <a-entity id="bino-secondary-cam" camera="active: false; near: 0.02"
+            secondary-camera="outputElement: #left-lens; output: plane; quality: high; sequence: before; cameraType: perspective"
+            force-bino-settings bino-optimizer position="0 0 -0.4" rotation="0 0 0">
           </a-entity>
-          <!-- Right Barrel -->
-          <a-entity position="0.03 0 0">
-            <a-cylinder radius="0.024" height="0.12" color="#1a1a1a" rotation="90 0 0"
-              material="roughness: 0.8; metalness: 0.2"></a-cylinder>
-            <!-- Eyepiece (LOOK HERE) -->
-            <a-circle class="lens" radius="0.020" color="white" position="0 0 0.051" rotation="0 0 0"></a-circle>
-            <a-torus radius="0.020" radius-tubular="0.006" color="#030303" position="0 0 0.055"
-              rotation="0 0 0"></a-torus>
-            <a-ring radius-inner="0.021" radius-outer="0.025" color="#00ff00" position="0 0 0.058" rotation="0 0 0"
-              material="emissive: #00ff00; emissiveIntensity: 5; opacity: 0.8; transparent: true"></a-ring>
-            <!-- Objective Lens (Sky side) -->
-            <a-cylinder radius="0.026" height="0.02" color="#0a0a0a" position="0 0 -0.055"
-              rotation="90 0 0"></a-cylinder>
-            <a-circle radius="0.022" color="#111" position="0 0 -0.061" rotation="0 180 0"
-              material="metalness: 0.9; roughness: 0.1"></a-circle>
+
+          <!-- Left Barrel (IPD: 68mm, positioned at -0.034) -->
+          <a-entity position="-0.034 0 0">
+            <!-- Open-ended to prevent clipping through the cap -->
+            <!-- Barrel radius 0.025 = 5cm diameter -->
+            <a-cylinder radius="0.025" height="0.12" color="#1a1a1a" rotation="90 0 0" open-ended="true"
+              material="roughness: 0.8; metalness: 0.2; side: double"></a-cylinder>
+            <!-- Eyepiece: Lens radius 0.024 = 4.8cm diameter -->
+            <a-circle id="left-lens" class="lens" radius="0.024" color="white" position="0 0 0.055" rotation="0 0 0"
+              material="shader: flat; fog: false"></a-circle>
+          </a-entity>
+          <!-- Right Barrel (IPD: 68mm, positioned at 0.034) -->
+          <a-entity position="0.034 0 0">
+            <!-- Open-ended to prevent clipping through the cap -->
+            <!-- Barrel radius 0.025 = 5cm diameter -->
+            <a-cylinder radius="0.025" height="0.12" color="#1a1a1a" rotation="90 0 0" open-ended="true"
+              material="roughness: 0.8; metalness: 0.2; side: double"></a-cylinder>
+            <!-- Eyepiece: Lens radius 0.024 = 4.8cm diameter -->
+            <a-circle id="right-lens" class="lens" radius="0.024" color="white" position="0 0 0.055" rotation="0 0 0"
+              copy-material="from: #left-lens" material="shader: flat; fog: false"></a-circle>
           </a-entity>
           <!-- Bridge -->
           <a-box width="0.04" height="0.015" depth="0.035" color="#222" position="0 0 0"
             material="roughness: 0.9"></a-box>
           <!-- Tooltip labels -->
-          <a-text value="EYE SIDE" width="0.4" align="center" position="0 0.07 0.06" rotation="45 0 0" color="#00ff00"
+          <a-text value="EYE SIDE" width="0.4" align="center" position="0 0.07 0.06" rotation="45 0 180" color="#00ff00"
             material="shader: flat; fog: false"></a-text>
-          <a-text value="SKY SIDE" width="0.3" align="center" position="0 0.07 -0.06" rotation="45 180 0" color="#555"
+          <a-text value="SKY SIDE" width="0.3" align="center" position="0 0.07 -0.06" rotation="45 180 180" color="#555"
             opacity="0.5"></a-text>
         </a-entity>
 
@@ -3079,6 +3203,7 @@
           <a-entity id="stars-point-cloud" position="0 0 0" rotation="-23.43619 0 0" starfield></a-entity>
 
           <a-sphere id="milkyway" radius="400" rotation="6.45 29.85 90.06" scale="-1.0 1.0 1.0" object-render-order="0"
+            visible="false"
             material="shader: flat; src: url(assets/gaia.png); side: back; fog: false; transparent: true; opacity: 0.0; blending: additive; depthWrite: false;">
           </a-sphere>
 

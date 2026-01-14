@@ -11,6 +11,7 @@ AFRAME.registerComponent('starfield', {
             vertexShader: `
           attribute float size;
           attribute vec3 color;
+          attribute float magnitude;
           uniform float skyBrightness;
           varying vec3 vColor;
           varying float vVisibility;
@@ -20,8 +21,18 @@ AFRAME.registerComponent('starfield', {
             float sizeScaleFactor = pow(size, 1.75);
             float brightnessEffect = pow(1.0 - skyBrightness, 2.0);
             float adjustedSize = min(size * sizeScaleFactor * brightnessEffect, size);
-            gl_PointSize = max(min(adjustedSize, size), 0.1) * (200.0 / -mvPosition.z);
+            float zoomFactor = pow(projectionMatrix[1][1], 0.4); 
+            gl_PointSize = max(min(adjustedSize, size), 0.1) * (200.0 / -mvPosition.z) * zoomFactor;
             gl_Position = projectionMatrix * mvPosition;
+            
+            // Dynamic magnitude limit based on zoom
+            // Normal view (zoomFactor ~1): limit 6.5
+            // Bino view (zoomFactor ~4): limit 8.0
+            float magLimit = 6.5 + clamp((zoomFactor - 1.0) / 3.0, 0.0, 1.0) * 1.5;
+            if (magnitude > magLimit) {
+                gl_Position.z = -2000.0; 
+            }
+
             float baselineSize = 0.2;
             if (gl_PointSize > baselineSize) {
               vVisibility = clamp((gl_PointSize - baselineSize) / (baselineSize * 2.0), 0.0, 1.0);
@@ -57,6 +68,7 @@ AFRAME.registerComponent('starfield', {
             vertexShader: `
           attribute float size;
           attribute vec3 color;
+          attribute float magnitude;
           uniform float skyBrightness;
           varying vec3 vColor;
           varying float vVisibility;
@@ -66,8 +78,16 @@ AFRAME.registerComponent('starfield', {
             float sizeScaleFactor = pow(size, 0.75);
             float brightnessEffect = pow(1.0 - skyBrightness, 2.0);
             float adjustedSize = min(size * sizeScaleFactor * brightnessEffect, size);
-            gl_PointSize = max(min(adjustedSize, size), 0.1) * (960.0 / -mvPosition.z);
+            float zoomFactor = pow(projectionMatrix[1][1], 0.2);
+            gl_PointSize = max(min(adjustedSize, size), 0.1) * (960.0 / -mvPosition.z) * zoomFactor;
             gl_Position = projectionMatrix * mvPosition;
+
+            // Same limit for halos
+            float magLimit = 6.5 + clamp((zoomFactor - 1.0) / 3.0, 0.0, 1.0) * 1.5;
+            if (magnitude > magLimit) {
+                gl_Position.z = -2000.0; 
+            }
+
             float baselineSize = 0.2;
             if (gl_PointSize > baselineSize) {
               vVisibility = clamp((gl_PointSize - baselineSize) / (baselineSize * 2.0), 0.0, 1.0);
@@ -100,6 +120,7 @@ AFRAME.registerComponent('starfield', {
             const starsPositions = [];
             const starsSizes = [];
             const starsColors = [];
+            const starsMags = [];
             const starData = csvData.split("\n");
             for (let i = 1; i < starData.length - 1; i++) {
                 const starAttributes = starData[i].split(",");
@@ -109,7 +130,7 @@ AFRAME.registerComponent('starfield', {
                     spectralClass = spectralClass[0] + starAttributes[15].trim()[2];
                 }
                 const color = spectralClassToColor(spectralClass);
-                if (brightness < 6.5 && brightness > -2) {
+                if (brightness < 8.0 && brightness > -2) {
                     const raHours = parseFloat(starAttributes[7]);
                     const decDegrees = parseFloat(starAttributes[8]);
                     const distance = 400;
@@ -118,13 +139,22 @@ AFRAME.registerComponent('starfield', {
                     const y = distance * Math.cos((decDegrees * Math.PI) / 180) * Math.sin((raDegrees * Math.PI) / 180);
                     const z = distance * Math.sin((decDegrees * Math.PI) / 180);
                     starsPositions.push(x, y, z);
-                    const size = mapRange(brightness, -5.0, 5.5, 14.0, 0.9);
+                    // Adjusted mapping: Mag -5 to 8 maps to size 14 to 0.4
+                    // Linear at high brightness, then tapers off for dim stars
+                    let size = 0.9;
+                    if (brightness <= 5.5) {
+                        size = mapRange(brightness, -5.0, 5.5, 14.0, 0.9);
+                    } else {
+                        size = mapRange(brightness, 5.5, 8.0, 0.9, 0.4);
+                    }
                     starsSizes.push(size);
                     starsColors.push(color.r, color.g, color.b);
+                    starsMags.push(brightness);
                 }
             }
             starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsPositions, 3));
             starsGeometry.setAttribute('size', new THREE.Float32BufferAttribute(starsSizes, 1));
+            starsGeometry.setAttribute('magnitude', new THREE.Float32BufferAttribute(starsMags, 1));
             starsGeometry.setAttribute('color', new THREE.Float32BufferAttribute(starsColors, 3));
             let shader = starShaderMaterial;
             if (type === "halos") {
@@ -229,7 +259,7 @@ AFRAME.registerComponent('starfield', {
                 for (let i = 1; i < starData.length - 1; i++) {
                     const starAttributes = starData[i].split(",");
                     const brightness = parseFloat(starAttributes[13]);
-                    if (brightness < 6.5 && brightness > -2) {
+                    if (brightness < 8.0 && brightness > -2) {
                         const raHours = parseFloat(starAttributes[7]);
                         const decDegrees = parseFloat(starAttributes[8]);
                         const raDegrees = (raHours / 24) * 360;
