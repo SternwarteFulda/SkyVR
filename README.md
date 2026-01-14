@@ -51,8 +51,9 @@ Open your browser and navigate to `http://localhost:8080` (or the port specified
 
 *   **[A-Frame](https://aframe.io/)** (MIT) - WebVR framework for building virtual reality experiences.
 *   **[Networked-Aframe](https://github.com/networked-aframe/networked-aframe)** (MPL 2.0) - Multi-user networking for A-Frame.
-*   **[A-Frame Extras](https://github.com/c-frame/aframe-extras)** (MIT) - Add-ons and helpers for A-Frame.
 *   **[A-Frame Environment](https://github.com/supermedium/aframe-environment-component)** (MIT) - Infinite backgrounds for A-Frame.
+*   **[A-Frame Extras](https://github.com/c-frame/aframe-extras)** (MIT) - Add-ons and helpers for A-Frame.
+*   **[A-Frame Multi-Camera](https://github.com/diarmidmackenzie/aframe-multi-camera)** (MIT) - System for multiple cameras in A-Frame.
 *   **[Astronomy Engine](https://github.com/cosinekitty/astronomy)** (MIT) - Rigorous calculations of celestial body positions.
 *   **[Socket.IO](https://socket.io/)** (MIT) - Real-time bidirectional event-based communication.
 *   **[Luxon](https://moment.github.io/luxon/)** (MIT) - Powerful date and time wrapper for JavaScript.
