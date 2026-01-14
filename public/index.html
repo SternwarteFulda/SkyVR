@@ -848,12 +848,14 @@
         this.tempQuat = new THREE.Quaternion();
 
         // Simply activate bino by default in 2D for debugging
-        if (!AFRAME.utils.device.checkHeadsetConnected()) {
+        /*
+          if (!AFRAME.utils.device.checkHeadsetConnected()) {
           this.holding = true;
           this.zoomed = true;
           this.isLocked = true;
           this.el.setAttribute('visible', true);
         }
+        */
       },
       tick: function (t, dt) {
         if (!this.holding || !dt) return;
@@ -926,6 +928,27 @@
           this.el.object3D.position.lerp(targetPos, Math.min(lerpFactor, 1));
           this.el.object3D.quaternion.slerp(targetQuat, Math.min(lerpFactor, 1));
         }
+
+        // 5. Dynamic Eye Pupil Scaling
+        // Use actual binocular distance for visual accuracy
+        const binoWorldPos = new THREE.Vector3().setFromMatrixPosition(this.el.object3D.matrixWorld);
+        const realBinoDist = binoWorldPos.distanceTo(headWorldPos);
+
+        // Transition: End precisely at snap point (0.15m), Start as they get very close (0.18m)
+        let pupilRadius = 0.004;
+        if (realBinoDist <= 0.15) {
+          pupilRadius = 0.024; // Full viewing diameter
+        } else if (realBinoDist < 0.18) {
+          // Eased interpolation for late expansion
+          const t = (realBinoDist - 0.15) / (0.18 - 0.15);
+          const easedT = t * t * (3 - 2 * t); // Smoothstep
+          pupilRadius = 0.024 * (1 - easedT) + 0.004 * easedT;
+        }
+
+        const leftLens = document.getElementById('left-lens');
+        const rightLens = document.getElementById('right-lens');
+        if (leftLens) leftLens.setAttribute('radius', pupilRadius);
+        if (rightLens) rightLens.setAttribute('radius', pupilRadius);
       },
       pulse: function (strength, duration) {
         const controller = this.el.closest('[haptics]');
@@ -2835,28 +2858,84 @@
             force-bino-settings bino-optimizer position="0 0 -0.4" rotation="0 0 0">
           </a-entity>
 
-          <!-- Left Barrel (IPD: 68mm, positioned at -0.034) -->
+          <!-- Left Barrel -->
           <a-entity position="-0.034 0 0">
-            <!-- Open-ended to prevent clipping through the cap -->
-            <!-- Barrel radius 0.025 = 5cm diameter -->
+            <!-- Main Barrel Body -->
             <a-cylinder radius="0.025" height="0.12" color="#1a1a1a" rotation="90 0 0" open-ended="true"
               material="roughness: 0.8; metalness: 0.2; side: double"></a-cylinder>
-            <!-- Eyepiece: Lens radius 0.024 = 4.8cm diameter -->
-            <a-circle id="left-lens" class="lens" radius="0.024" color="white" position="0 0 0.055" rotation="0 0 0"
+
+            <!-- Front Lens Cap (2cm solid pipe) -->
+            <a-cylinder radius="0.027" height="0.02" color="#111" position="0 0 -0.05" rotation="90 0 0"
+              open-ended="true" material="roughness: 0.4; metalness: 0.6; side: double"></a-cylinder>
+
+            <!-- Closing rings for solid appearance -->
+            <a-ring radius-inner="0.025" radius-outer="0.027" color="#111" position="0 0 -0.06" rotation="0 180 0"
+              material="roughness: 0.4; metalness: 0.6; side: double"></a-ring>
+            <a-ring radius-inner="0.025" radius-outer="0.027" color="#111" position="0 0 -0.04" rotation="0 0 0"
+              material="roughness: 0.4; metalness: 0.6; side: double"></a-ring>
+
+            <!-- Objective Lens (Recessed bulged surface) -->
+            <!-- Large radius + shallow scale + high gloss = glass effect -->
+            <a-sphere radius="0.024" scale="1 1 0.4" position="0 0 -0.055" rotation="180 0 0"
+              material="color: #050510; metalness: 1.0; roughness: 0.02; emissive: #0a400a; emissiveIntensity: 0.1">
+            </a-sphere>
+
+            <!-- Ocular Housing (Internal Black Disk) -->
+            <!-- Caps the barrel and eyecup sleeve simultaneously -->
+            <a-circle radius="0.026" color="#050505" position="0 0 0.055"
+              material="roughness: 1; side: double"></a-circle>
+
+            <!-- Exit Pupil (The magnified camera view) -->
+            <a-circle id="left-lens" class="lens" radius="0.004" color="white" position="0 0 0.056" rotation="0 0 0"
               material="shader: flat; fog: false"></a-circle>
+
+            <!-- Rubber Eyecup (Tall cylindrical base + thin rim) -->
+            <!-- Height increased to 20mm, positioned to overlap barrel -->
+            <a-cylinder radius="0.026" height="0.02" color="#111" position="0 0 0.065" rotation="90 0 0"
+              open-ended="true" material="side: double; roughness: 1"></a-cylinder>
+
+            <a-torus radius="0.026" radius-tubular="0.001" color="#111" position="0 0 0.075" rotation="0 0 0"
+              material="roughness: 1"></a-torus>
           </a-entity>
-          <!-- Right Barrel (IPD: 68mm, positioned at 0.034) -->
+
+          <!-- Right Barrel -->
           <a-entity position="0.034 0 0">
-            <!-- Open-ended to prevent clipping through the cap -->
-            <!-- Barrel radius 0.025 = 5cm diameter -->
+            <!-- Main Barrel Body -->
             <a-cylinder radius="0.025" height="0.12" color="#1a1a1a" rotation="90 0 0" open-ended="true"
               material="roughness: 0.8; metalness: 0.2; side: double"></a-cylinder>
-            <!-- Eyepiece: Lens radius 0.024 = 4.8cm diameter -->
-            <a-circle id="right-lens" class="lens" radius="0.024" color="white" position="0 0 0.055" rotation="0 0 0"
+
+            <!-- Front Lens Cap (2cm solid pipe) -->
+            <a-cylinder radius="0.027" height="0.02" color="#111" position="0 0 -0.05" rotation="90 0 0"
+              open-ended="true" material="roughness: 0.4; metalness: 0.6; side: double"></a-cylinder>
+
+            <!-- Closing rings for solid appearance -->
+            <a-ring radius-inner="0.025" radius-outer="0.027" color="#111" position="0 0 -0.06" rotation="0 180 0"
+              material="roughness: 0.4; metalness: 0.6; side: double"></a-ring>
+            <a-ring radius-inner="0.025" radius-outer="0.027" color="#111" position="0 0 -0.04" rotation="0 0 0"
+              material="roughness: 0.4; metalness: 0.6; side: double"></a-ring>
+
+            <!-- Objective Lens (Recessed bulged surface) -->
+            <a-sphere radius="0.024" scale="1 1 0.4" position="0 0 -0.055" rotation="180 0 0"
+              material="color: #050510; metalness: 1.0; roughness: 0.02; emissive: #0a400a; emissiveIntensity: 0.1">
+            </a-sphere>
+
+            <!-- Ocular Housing (Internal Black Disk) -->
+            <a-circle radius="0.026" color="#050505" position="0 0 0.055"
+              material="roughness: 1; side: double"></a-circle>
+
+            <!-- Exit Pupil (The magnified camera view) -->
+            <a-circle id="right-lens" class="lens" radius="0.004" color="white" position="0 0 0.056" rotation="0 0 0"
               copy-material="from: #left-lens" material="shader: flat; fog: false"></a-circle>
+
+            <!-- Rubber Eyecup (Tall cylindrical base + thin rim) -->
+            <a-cylinder radius="0.026" height="0.02" color="#111" position="0 0 0.065" rotation="90 0 0"
+              open-ended="true" material="side: double; roughness: 1"></a-cylinder>
+
+            <a-torus radius="0.026" radius-tubular="0.001" color="#111" position="0 0 0.075" rotation="0 0 0"
+              material="roughness: 1"></a-torus>
           </a-entity>
           <!-- Bridge -->
-          <a-box width="0.04" height="0.015" depth="0.035" color="#222" position="0 0 0"
+          <a-box width="0.04" height="0.015" depth="0.035" color="#222" position="0 0 0.03"
             material="roughness: 0.9"></a-box>
         </a-entity>
 
