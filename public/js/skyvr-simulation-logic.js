@@ -804,7 +804,7 @@ function setupVRControllers() {
         });
     };
 
-    function onTogglerClick(action) { // 'action' is the clickActionParam
+    window.onTogglerClick = function (action) { // 'action' is the clickActionParam
         const meridianEl = document.getElementById('meridian');
         const equatorEl = document.getElementById('equator');
         const eclipticEl = document.getElementById('ecliptic');
@@ -1530,64 +1530,64 @@ function setupVRControllers() {
 setupVRControllers();
 
 
-    // Debug mode handling
-    (function initDebugMode() {
-        const urlParams = new URLSearchParams(window.location.search);
-        const debugMode = urlParams.get('debug') === 'true';
+// Debug mode handling
+(function initDebugMode() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const debugMode = urlParams.get('debug') === 'true';
 
-        // Wait for the scene to be ready
-        const scene = document.querySelector('a-scene');
-        if (scene && scene.hasLoaded) {
-            setupDebugMode();
-        } else if (scene) {
-            scene.addEventListener('loaded', setupDebugMode);
-        } else {
-            document.addEventListener('DOMContentLoaded', function () {
-                const sceneEl = document.querySelector('a-scene');
-                if (sceneEl) {
-                    sceneEl.addEventListener('loaded', setupDebugMode);
-                }
-            });
-        }
-
-        function setupDebugMode() {
-            if (debugMode) {
-                // Show debug elements
-                const resetButton = document.getElementById('reset-button');
-                const coordRightController = document.getElementById('debug-coord-right-controller');
-                const coordWorldCenter = document.getElementById('debug-coord-world-center');
-
-                if (resetButton) {
-                    // Use 'enabled' attribute for a-rounded component
-                    resetButton.setAttribute('enabled', true);
-
-                    // Add event listeners for the reset button
-                    resetButton.addEventListener("mouseenter", function () {
-                        resetButton.setAttribute("scale", "1.2 1.2 1");
-                    });
-                    resetButton.addEventListener("mouseleave", function () {
-                        resetButton.setAttribute("scale", "1 1 1");
-                    });
-                }
-
-                if (coordRightController) coordRightController.setAttribute('visible', true);
-                if (coordWorldCenter) coordWorldCenter.setAttribute('visible', true);
-
-                console.log('Debug mode enabled: reset button and coordinate systems are visible');
-            } else {
-                // Explicitly ensure debug elements are hidden
-                const resetButton = document.getElementById('reset-button');
-                const coordRightController = document.getElementById('debug-coord-right-controller');
-                const coordWorldCenter = document.getElementById('debug-coord-world-center');
-
-                if (resetButton) resetButton.setAttribute('enabled', false);
-                if (coordRightController) coordRightController.setAttribute('visible', false);
-                if (coordWorldCenter) coordWorldCenter.setAttribute('visible', false);
+    // Wait for the scene to be ready
+    const scene = document.querySelector('a-scene');
+    if (scene && scene.hasLoaded) {
+        setupDebugMode();
+    } else if (scene) {
+        scene.addEventListener('loaded', setupDebugMode);
+    } else {
+        document.addEventListener('DOMContentLoaded', function () {
+            const sceneEl = document.querySelector('a-scene');
+            if (sceneEl) {
+                sceneEl.addEventListener('loaded', setupDebugMode);
             }
-        }
-    })();
-
-    // Function to reload the page
-    function resetScene() {
-        location.reload();
+        });
     }
+
+    function setupDebugMode() {
+        if (debugMode) {
+            // Show debug elements
+            const resetButton = document.getElementById('reset-button');
+            const coordRightController = document.getElementById('debug-coord-right-controller');
+            const coordWorldCenter = document.getElementById('debug-coord-world-center');
+
+            if (resetButton) {
+                // Use 'enabled' attribute for a-rounded component
+                resetButton.setAttribute('enabled', true);
+
+                // Add event listeners for the reset button
+                resetButton.addEventListener("mouseenter", function () {
+                    resetButton.setAttribute("scale", "1.2 1.2 1");
+                });
+                resetButton.addEventListener("mouseleave", function () {
+                    resetButton.setAttribute("scale", "1 1 1");
+                });
+            }
+
+            if (coordRightController) coordRightController.setAttribute('visible', true);
+            if (coordWorldCenter) coordWorldCenter.setAttribute('visible', true);
+
+            console.log('Debug mode enabled: reset button and coordinate systems are visible');
+        } else {
+            // Explicitly ensure debug elements are hidden
+            const resetButton = document.getElementById('reset-button');
+            const coordRightController = document.getElementById('debug-coord-right-controller');
+            const coordWorldCenter = document.getElementById('debug-coord-world-center');
+
+            if (resetButton) resetButton.setAttribute('enabled', false);
+            if (coordRightController) coordRightController.setAttribute('visible', false);
+            if (coordWorldCenter) coordWorldCenter.setAttribute('visible', false);
+        }
+    }
+})();
+
+// Function to reload the page
+function resetScene() {
+    location.reload();
+}
