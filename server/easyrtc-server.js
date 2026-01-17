@@ -54,21 +54,22 @@ const publicPath = path.resolve(__dirname, "..", "public");
 // For everything else (scripts, textures, assets, components), look in the public folder
 app.use(express.static(publicPath));
 
-// Serve libraries from node_modules
-app.use('/js/astronomy-engine', express.static(path.resolve(__dirname, "..", "node_modules", "astronomy-engine")));
 
 // Dynamically serve A-Frame versioned build as a generic name
 const aframePackage = require(path.resolve(__dirname, "..", "node_modules", "aframe", "package.json"));
 app.get('/js/aframe/aframe.min.js', (req, res) => {
 	res.sendFile(path.resolve(__dirname, "..", "node_modules", "aframe", "dist", `aframe-v${aframePackage.version}.min.js`));
 });
+
+
+// Serve libraries from node_modules
+app.use('/js/astronomy-engine', express.static(path.resolve(__dirname, "..", "node_modules", "astronomy-engine")));
 app.use('/js/aframe', express.static(path.resolve(__dirname, "..", "node_modules", "aframe", "dist")));
-app.use('/js/luxon', express.static(path.resolve(__dirname, "..", "node_modules", "luxon", "build", "global")));
-app.use('/js/socket.io', express.static(path.resolve(__dirname, "..", "node_modules", "socket.io", "client-dist")));
 app.use('/js/networked-aframe', express.static(path.resolve(__dirname, "..", "node_modules", "networked-aframe", "dist")));
 app.use('/js/aframe-extras', express.static(path.resolve(__dirname, "..", "node_modules", "aframe-extras", "dist")));
-app.use('/js/aframe-render-order-component', express.static(path.resolve(__dirname, "..", "node_modules", "aframe-render-order-component", "dist")));
-
+app.use('/js/socket.io', express.static(path.resolve(__dirname, "..", "node_modules", "socket.io", "client-dist")));
+app.use('/js/luxon', express.static(path.resolve(__dirname, "..", "node_modules", "luxon", "build", "global")));
+app.use('/components/aframe-render-order-component', express.static(path.resolve(__dirname, "..", "node_modules", "aframe-render-order-component", "dist")));
 
 
 // Start Express http server
