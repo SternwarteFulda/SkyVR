@@ -181,9 +181,9 @@ AFRAME.registerComponent('constellation-illustration', {
 
         if (this.mesh.material && this.mesh.material.uniforms) {
             if (this.mesh.material.uniforms.opacity) {
-                // VR Boost: Increase opacity on headset for visibility
+                // VR Boost: Increase opacity on headset for visibility (balanced with Additive blending)
                 const isVR = AFRAME.utils.device.isMobile() || AFRAME.utils.device.checkHeadsetConnected();
-                const boost = isVR ? 1.25 : 1.0;
+                const boost = isVR ? 1.4 : 1.0;
                 this.mesh.material.uniforms.opacity.value = this.currentOpacity * boost;
             }
             if (this.mesh.material.uniforms.color) {
@@ -246,7 +246,7 @@ AFRAME.registerComponent('constellation-illustration', {
                 depthWrite: false,
                 side: THREE.FrontSide,
                 transparent: true,
-                blending: THREE.NormalBlending,
+                blending: THREE.AdditiveBlending,
                 vertexShader: `
                     uniform float targetRadius;
                     uniform mat4 uProjectionMatrix4;
@@ -288,7 +288,7 @@ AFRAME.registerComponent('constellation-illustration', {
                 alphaTest: 0.001,
                 depthTest: true,
                 depthWrite: false,
-                blending: THREE.NormalBlending
+                blending: THREE.AdditiveBlending
             });
 
             const mesh = new THREE.Mesh(geometry, material);
@@ -437,6 +437,8 @@ AFRAME.registerComponent('constellation-stick-figure', {
         // Throttled material updates (30 FPS is enough for the breathing pulse and fades)
         if (!this.throttledTick) {
             this.throttledTick = AFRAME.utils.throttle((t, dt) => {
+                const isVR = AFRAME.utils.device.isMobile() || AFRAME.utils.device.checkHeadsetConnected();
+                this.vrBoost = isVR ? 1.1 : 1.0;
                 this.updateMaterials(t, dt);
             }, 33);
         }
@@ -487,7 +489,7 @@ AFRAME.registerComponent('constellation-stick-figure', {
                 const finalOrder = baseOrder + layerOffset;
                 if (entry.node) entry.node.renderOrder = finalOrder;
 
-                const opacity = Math.min(finalAlpha * (nodeRenderOrder % 10 === 0 ? 0.08 : (nodeRenderOrder % 10 === 1 ? 0.15 : 0.3)), 1.0);
+                const opacity = Math.min(finalAlpha * (nodeRenderOrder % 10 === 0 ? 0.02 : (nodeRenderOrder % 10 === 1 ? 0.04 : 0.1)) * (this.vrBoost || 1.0), 1.0);
                 if (nodeMaterial.uniforms && nodeMaterial.uniforms.opacity) {
                     nodeMaterial.uniforms.opacity.value = opacity;
                 } else {

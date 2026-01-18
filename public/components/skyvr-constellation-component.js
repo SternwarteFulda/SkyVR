@@ -445,7 +445,7 @@ AFRAME.registerComponent('constellation-renderer', {
                         alphaTest: 0.001,
                         depthTest: true,
                         depthWrite: false,
-                        blending: THREE.NormalBlending
+                        blending: THREE.AdditiveBlending
                     });
                     const mesh = new THREE.Mesh(illustrationGeo, material);
 
@@ -1273,15 +1273,18 @@ AFRAME.registerComponent('constellation-renderer', {
 
                     if (node.material.uniforms && node.material.uniforms.opacity) {
                         const isVR = AFRAME.utils.device.isMobile() || AFRAME.utils.device.checkHeadsetConnected();
-                        const boost = isVR ? 1.25 : 1.0;
+                        const boost = isVR ? 1.4 : 1.0;
                         node.material.uniforms.opacity.value = this.previewOpacity * pulse * boost;
                     } else if (node.material.transparent) {
-                        let base = 1.0;
-                        if (node.userData.layerType === 'bloom') base = 0.08;
-                        if (node.userData.layerType === 'inner') base = 0.15;
-                        if (node.userData.layerType === 'core') base = 0.3;
+                        const isVR = AFRAME.utils.device.isMobile() || AFRAME.utils.device.checkHeadsetConnected();
+                        const boost = isVR ? 1.1 : 1.0;
 
-                        node.material.opacity = Math.min(this.previewOpacity * pulse * base, 1.0);
+                        let base = 1.0;
+                        if (node.userData.layerType === 'bloom') base = 0.02;
+                        if (node.userData.layerType === 'inner') base = 0.04;
+                        if (node.userData.layerType === 'core') base = 0.1;
+
+                        node.material.opacity = Math.min(this.previewOpacity * pulse * base * boost, 1.0);
 
                         // Enforce colors in preview
                         if (node.userData.layerType !== 'core' && node.userData.layerType !== undefined) {
@@ -1304,16 +1307,19 @@ AFRAME.registerComponent('constellation-renderer', {
             item.obj.traverse(node => {
                 if (node.material && node.material.transparent) {
                     let base = 1.0;
-                    if (node.userData.layerType === 'bloom') base = 0.08;
-                    if (node.userData.layerType === 'inner') base = 0.15;
-                    if (node.userData.layerType === 'core') base = 0.3;
+                    if (node.userData.layerType === 'bloom') base = 0.05;
+                    if (node.userData.layerType === 'inner') base = 0.09;
+                    if (node.userData.layerType === 'core') base = 0.2;
 
                     if (node.material.uniforms && node.material.uniforms.opacity) {
                         const isVR = AFRAME.utils.device.isMobile() || AFRAME.utils.device.checkHeadsetConnected();
-                        const boost = isVR ? 1.25 : 1.0;
+                        const itemType = item.obj.userData.type || 'illustration';
+                        const boost = (itemType === 'illustration') ? (isVR ? 1.4 : 1.0) : (isVR ? 1.1 : 1.0);
                         node.material.uniforms.opacity.value = item.opacity * base * boost;
                     } else {
-                        node.material.opacity = item.opacity * base;
+                        const isVR = AFRAME.utils.device.isMobile() || AFRAME.utils.device.checkHeadsetConnected();
+                        const boost = isVR ? 1.1 : 1.0;
+                        node.material.opacity = item.opacity * base * boost;
                     }
                 }
             });
