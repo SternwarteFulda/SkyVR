@@ -1272,7 +1272,9 @@ AFRAME.registerComponent('constellation-renderer', {
                     node.renderOrder = (type === 'stick' ? baseOrder + 0.1 : baseOrder) + 0.005;
 
                     if (node.material.uniforms && node.material.uniforms.opacity) {
-                        node.material.uniforms.opacity.value = this.previewOpacity * pulse;
+                        const isVR = AFRAME.utils.device.isMobile() || AFRAME.utils.device.checkHeadsetConnected();
+                        const boost = isVR ? 1.25 : 1.0;
+                        node.material.uniforms.opacity.value = this.previewOpacity * pulse * boost;
                     } else if (node.material.transparent) {
                         let base = 1.0;
                         if (node.userData.layerType === 'bloom') base = 0.08;
@@ -1307,7 +1309,9 @@ AFRAME.registerComponent('constellation-renderer', {
                     if (node.userData.layerType === 'core') base = 0.3;
 
                     if (node.material.uniforms && node.material.uniforms.opacity) {
-                        node.material.uniforms.opacity.value = item.opacity * base;
+                        const isVR = AFRAME.utils.device.isMobile() || AFRAME.utils.device.checkHeadsetConnected();
+                        const boost = isVR ? 1.25 : 1.0;
+                        node.material.uniforms.opacity.value = item.opacity * base * boost;
                     } else {
                         node.material.opacity = item.opacity * base;
                     }

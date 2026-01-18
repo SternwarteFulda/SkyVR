@@ -181,7 +181,10 @@ AFRAME.registerComponent('constellation-illustration', {
 
         if (this.mesh.material && this.mesh.material.uniforms) {
             if (this.mesh.material.uniforms.opacity) {
-                this.mesh.material.uniforms.opacity.value = this.currentOpacity;
+                // VR Boost: Increase opacity on headset for visibility
+                const isVR = AFRAME.utils.device.isMobile() || AFRAME.utils.device.checkHeadsetConnected();
+                const boost = isVR ? 1.25 : 1.0;
+                this.mesh.material.uniforms.opacity.value = this.currentOpacity * boost;
             }
             if (this.mesh.material.uniforms.color) {
                 const baseCol = new THREE.Color('#ffffff');
