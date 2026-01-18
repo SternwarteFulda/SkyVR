@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!document.fullscreenElement) {
                 document.documentElement.requestFullscreen().then(() => {
                     fsIcon.src = 'assets/icons/exit-fullscreen.svg';
-                    fsBtn.title = 'Exit Fullscreen';
+                    fsBtn.title = i18next.t('infobar.exit_fullscreen', { defaultValue: 'Exit Fullscreen' });
                 }).catch(err => {
                     console.error(`Error attempting to enable fullscreen: ${err.message}`);
                 });
@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (document.exitFullscreen) {
                     document.exitFullscreen();
                     fsIcon.src = 'assets/icons/fullscreen.svg';
-                    fsBtn.title = 'Enter Fullscreen';
+                    fsBtn.title = i18next.t('infobar.enter_fullscreen', { defaultValue: 'Enter Fullscreen' });
                 }
             }
         });
@@ -49,10 +49,10 @@ document.addEventListener('DOMContentLoaded', () => {
         document.addEventListener('fullscreenchange', () => {
             if (!document.fullscreenElement) {
                 fsIcon.src = 'assets/icons/fullscreen.svg';
-                fsBtn.title = 'Enter Fullscreen';
+                fsBtn.title = i18next.t('infobar.enter_fullscreen', { defaultValue: 'Enter Fullscreen' });
             } else {
                 fsIcon.src = 'assets/icons/exit-fullscreen.svg';
-                fsBtn.title = 'Exit Fullscreen';
+                fsBtn.title = i18next.t('infobar.exit_fullscreen', { defaultValue: 'Exit Fullscreen' });
             }
         });
     }

@@ -13,6 +13,9 @@
   <script src="js/networked-aframe/networked-aframe.min.js"></script>
   <script src="js/astronomy-engine/astronomy.browser.min.js"></script>
   <script src="js/luxon/luxon.min.js"></script>
+  <script src="js/i18next/i18next.min.js"></script>
+  <script src="js/i18next-browser-languagedetector/i18nextBrowserLanguageDetector.min.js"></script>
+  <script src="js/i18n-setup.js"></script>
   <script src="js/app-init.js"></script>
   <script src="js/naf-templates.js"></script>
   <script src="components/aframe-environment-component.js"></script>
@@ -74,7 +77,7 @@
       <ul class="status-list">
         <li id="status-assets" class="status-item active">
           <span class="icon">○</span>
-          <span class="label">Initializing Application...</span>
+          <span class="label" data-i18n="loading.initializing">Initializing Application...</span>
         </li>
         <li id="status-assets-progress" class="status-item sub-item" style="display: none;">
           <div class="progress-bar-container">
@@ -84,19 +87,19 @@
         </li>
         <li id="status-assets-sub" class="status-item sub-item" style="display: none;">
           <span class="icon">→</span>
-          <span class="label">Loading A-Frame Scene...</span>
+          <span class="label" data-i18n="loading.aframe">Loading A-Frame Scene...</span>
         </li>
         <li id="status-network" class="status-item active">
           <span class="icon">○</span>
-          <span class="label">Connecting to Network...</span>
+          <span class="label" data-i18n="loading.network">Connecting to Network...</span>
         </li>
         <li id="status-network-sub" class="status-item sub-item" style="display: none;">
           <span class="icon">→</span>
-          <span class="label">Requesting microphone access...</span>
+          <span class="label" data-i18n="loading.mic">Requesting microphone access...</span>
         </li>
         <li id="status-stars" class="status-item active">
           <span class="icon">○</span>
-          <span class="label">Downloading Star Catalog...</span>
+          <span class="label" data-i18n="loading.stars_download">Downloading Star Catalog...</span>
         </li>
         <li id="status-stars-progress" class="status-item sub-item" style="display: none;">
           <div class="progress-bar-container">
@@ -106,28 +109,29 @@
         </li>
         <li id="status-stars-sub" class="status-item sub-item" style="display: none;">
           <span class="icon">→</span>
-          <span class="label">Processing 118,000 stars...</span>
+          <span class="label" data-i18n="loading.stars_process">Processing 118,000 stars...</span>
         </li>
         <li id="status-sync" class="status-item active">
           <span class="icon">○</span>
-          <span class="label">Synchronizing Reality...</span>
+          <span class="label" data-i18n="loading.sync">Synchronizing Reality...</span>
         </li>
         <li id="status-sync-sub" class="status-item sub-item" style="display: none;">
           <span class="icon">→</span>
-          <span class="label">Calculating celestial positions...</span>
+          <span class="label" data-i18n="loading.celestial">Calculating celestial positions...</span>
         </li>
         <li id="status-spawn" class="status-item active">
           <span class="icon">○</span>
-          <span class="label">Entering Simulation...</span>
+          <span class="label" data-i18n="loading.spawn">Entering Simulation...</span>
         </li>
         <li id="status-spawn-sub" class="status-item sub-item" style="display: none;">
           <span class="icon">→</span>
-          <span class="label">Selecting seat and spawning...</span>
+          <span class="label" data-i18n="loading.seat">Selecting seat and spawning...</span>
         </li>
       </ul>
 
       <div id="network-fallback" style="display: none; margin-top: 2rem; animation: fadeIn 0.5s;">
-        <p style="font-size: 0.9rem; opacity: 0.8; margin-bottom: 1rem;">Taking longer than usual? Mic permission might
+        <p style="font-size: 0.9rem; opacity: 0.8; margin-bottom: 1rem;" data-i18n="loading.fallback_text">Taking longer
+          than usual? Mic permission might
           be pending or blocked.</p>
         <button onclick="joinWithoutAudio()" style="
           background: rgba(255,255,255,0.1);
@@ -138,8 +142,9 @@
           cursor: pointer;
           font-family: inherit;
           margin-bottom: 0.75rem;
-        ">Join without microphone</button>
-        <p style="font-size: 0.8rem; opacity: 0.6; margin: 0;">You’ll be able to hear others, but they won’t hear you.
+        " data-i18n="loading.join_without_mic">Join without microphone</button>
+        <p style="font-size: 0.8rem; opacity: 0.6; margin: 0;" data-i18n="loading.mic_explanation">You’ll be able to
+          hear others, but they won’t hear you.
         </p>
       </div>
 
@@ -149,40 +154,45 @@
   <!-- 2D Infobar Overlay -->
   <div id="infobar-2d" class="infobar-2d">
     <div class="infobar-2d-section">
-      <button id="infobar-2d-exit" class="infobar-2d-button" title="Exit Room">
+      <button id="infobar-2d-exit" class="infobar-2d-button" title="Exit Room" data-i18n-title="infobar.exit">
         <img src="assets/icons/door.svg">
       </button>
       <span id="infobar-2d-room-text">----</span>
     </div>
 
     <div class="infobar-2d-section center-section">
-      <button id="infobar-2d-mic" class="infobar-2d-button" title="Toggle Microphone">
+      <button id="infobar-2d-mic" class="infobar-2d-button" title="Toggle Microphone" data-i18n-title="infobar.mic">
         <img id="infobar-2d-mic-icon" src="assets/icons/mic-off.svg">
       </button>
-      <button id="infobar-2d-camera" class="infobar-2d-button" title="Toggle Camera" style="display: none;">
+      <button id="infobar-2d-camera" class="infobar-2d-button" title="Toggle Camera" style="display: none;"
+        data-i18n-title="infobar.camera">
         <img id="infobar-2d-camera-icon" src="assets/icons/camera-off.svg">
       </button>
-      <button id="infobar-2d-fullscreen" class="infobar-2d-button" title="Toggle Fullscreen">
+      <button id="infobar-2d-fullscreen" class="infobar-2d-button" title="Toggle Fullscreen"
+        data-i18n-title="infobar.fullscreen">
         <img src="assets/icons/fullscreen.svg">
       </button>
-      <button id="infobar-2d-mouse-move" class="infobar-2d-button" title="Switch Mouse Direction (Camera vs Sky)">
+      <button id="infobar-2d-mouse-move" class="infobar-2d-button" title="Switch Mouse Direction (Camera vs Sky)"
+        data-i18n-title="infobar.mouse">
         <img src="assets/icons/mouse-move.svg">
       </button>
-      <button id="infobar-2d-settings" class="infobar-2d-button" title="Open Settings">
+      <button id="infobar-2d-settings" class="infobar-2d-button" title="Open Settings"
+        data-i18n-title="infobar.settings">
         <img src="assets/icons/settings.svg">
       </button>
       <div class="infobar-divider"></div>
-      <button id="infobar-2d-zoom-in" class="infobar-2d-button" title="Zoom In">
+      <button id="infobar-2d-zoom-in" class="infobar-2d-button" title="Zoom In" data-i18n-title="infobar.zoom_in">
         <img src="assets/icons/zoom-in.svg">
       </button>
-      <button id="infobar-2d-zoom-out" class="infobar-2d-button" title="Zoom Out">
+      <button id="infobar-2d-zoom-out" class="infobar-2d-button" title="Zoom Out" data-i18n-title="infobar.zoom_out">
         <img src="assets/icons/zoom-out.svg">
       </button>
     </div>
 
     <div class="infobar-2d-section infobar-2d-modes">
       <div style="position: relative;">
-        <button id="infobar-2d-draw" class="infobar-2d-button" title="Draw Mode" data-mode="draw">
+        <button id="infobar-2d-draw" class="infobar-2d-button" title="Draw Mode" data-mode="draw"
+          data-i18n-title="infobar.draw">
           <img src="assets/icons/draw.svg">
         </button>
         <div id="infobar-2d-draw-extras" class="infobar-extra-buttons-vertical">
@@ -193,63 +203,77 @@
             <div class="color-dot" data-color="#00ffff" style="background: #00ffff;"></div>
             <div class="color-dot" data-color="white" style="background: white;"></div>
           </div>
-          <button id="infobar-2d-draw-undo" class="infobar-2d-button" title="Undo Last Stroke">
+          <button id="infobar-2d-draw-undo" class="infobar-2d-button" title="Undo Last Stroke"
+            data-i18n-title="infobar.undo">
             <img src="assets/icons/undo.svg">
           </button>
-          <button id="infobar-2d-draw-clear" class="infobar-2d-button" title="Clear All Drawings">
+          <button id="infobar-2d-draw-clear" class="infobar-2d-button" title="Clear All Drawings"
+            data-i18n-title="infobar.clear">
             <img src="assets/icons/clear.svg">
           </button>
         </div>
       </div>
       <div style="position: relative;">
-        <button id="infobar-2d-stamp" class="infobar-2d-button" title="Stamp Mode" data-mode="stamp">
+        <button id="infobar-2d-stamp" class="infobar-2d-button" title="Stamp Mode" data-mode="stamp"
+          data-i18n-title="infobar.stamp">
           <img src="assets/icons/shape-star.svg">
         </button>
         <div id="infobar-2d-stamp-extras" class="infobar-extra-buttons-vertical">
-          <button id="infobar-2d-stamp-undo" class="infobar-2d-button" title="Remove Last Stamp">
+          <button id="infobar-2d-stamp-undo" class="infobar-2d-button" title="Remove Last Stamp"
+            data-i18n-title="infobar.stamp_undo">
             <img src="assets/icons/undo.svg">
           </button>
-          <button id="infobar-2d-stamp-clear" class="infobar-2d-button" title="Clear All Stamps">
+          <button id="infobar-2d-stamp-clear" class="infobar-2d-button" title="Clear All Stamps"
+            data-i18n-title="infobar.stamp_clear">
             <img src="assets/icons/clear.svg">
           </button>
         </div>
       </div>
       <div style="position: relative;">
-        <button id="infobar-2d-stickfigure" class="infobar-2d-button" title="Stick Figure" data-mode="stickfigure">
+        <button id="infobar-2d-stickfigure" class="infobar-2d-button" title="Stick Figure" data-mode="stickfigure"
+          data-i18n-title="infobar.stickfigure">
           <img src="assets/icons/stickfigure.svg">
         </button>
         <div id="infobar-2d-stickfigure-extras" class="infobar-extra-buttons-vertical">
-          <button id="infobar-2d-show-all-stick" class="infobar-2d-button" title="Show All Stick Figures">
+          <button id="infobar-2d-show-all-stick" class="infobar-2d-button" title="Show All Stick Figures"
+            data-i18n-title="infobar.show_all_stick">
             <img src="assets/icons/show-all.svg">
           </button>
-          <button id="infobar-2d-clear-all-stick" class="infobar-2d-button" title="Clear All Stick Figures">
+          <button id="infobar-2d-clear-all-stick" class="infobar-2d-button" title="Clear All Stick Figures"
+            data-i18n-title="infobar.clear_all_stick">
             <img src="assets/icons/clear.svg">
           </button>
         </div>
       </div>
       <div style="position: relative;">
-        <button id="infobar-2d-constellation" class="infobar-2d-button" title="Constellation" data-mode="constellation">
+        <button id="infobar-2d-constellation" class="infobar-2d-button" title="Constellation" data-mode="constellation"
+          data-i18n-title="infobar.constellation">
           <img src="assets/icons/constellation.svg">
         </button>
         <div id="infobar-2d-constellation-extras" class="infobar-extra-buttons-vertical">
-          <button id="infobar-2d-show-all" class="infobar-2d-button" title="Show All Illustrations">
+          <button id="infobar-2d-show-all" class="infobar-2d-button" title="Show All Illustrations"
+            data-i18n-title="infobar.show_all">
             <img src="assets/icons/show-all.svg">
           </button>
-          <button id="infobar-2d-clear-all" class="infobar-2d-button" title="Clear All Illustrations">
+          <button id="infobar-2d-clear-all" class="infobar-2d-button" title="Clear All Illustrations"
+            data-i18n-title="infobar.clear_all">
             <img src="assets/icons/clear.svg">
           </button>
         </div>
       </div>
 
       <div style="position: relative;">
-        <button id="infobar-2d-identify" class="infobar-2d-button" title="Identify Mode" data-mode="identify">
+        <button id="infobar-2d-identify" class="infobar-2d-button" title="Identify Mode" data-mode="identify"
+          data-i18n-title="infobar.identify">
           <img src="assets/icons/gps_not_fixed.svg">
         </button>
         <div id="infobar-2d-identify-extras" class="infobar-extra-buttons-vertical">
-          <button id="infobar-2d-identify-undo" class="infobar-2d-button" title="Remove Last Identification">
+          <button id="infobar-2d-identify-undo" class="infobar-2d-button" title="Remove Last Identification"
+            data-i18n-title="infobar.identify_undo">
             <img src="assets/icons/undo.svg">
           </button>
-          <button id="infobar-2d-identify-clear" class="infobar-2d-button" title="Clear All Identifications">
+          <button id="infobar-2d-identify-clear" class="infobar-2d-button" title="Clear All Identifications"
+            data-i18n-title="infobar.identify_clear">
             <img src="assets/icons/clear.svg">
           </button>
         </div>
@@ -257,7 +281,8 @@
 
 
 
-      <button id="infobar-2d-pointer" class="infobar-2d-button" title="Pointer Mode" data-mode="pointer">
+      <button id="infobar-2d-pointer" class="infobar-2d-button" title="Pointer Mode" data-mode="pointer"
+        data-i18n-title="infobar.pointer">
         <img src="assets/icons/laser.svg">
       </button>
     </div>
@@ -266,52 +291,51 @@
   <!-- 2D Control Panel Overlay -->
   <div id="control-panel-2d" class="control-panel-2d hidden">
     <div class="control-panel-2d-header">
-      <h3>Astronomy Controls</h3>
-      <button id="control-panel-2d-close" class="control-panel-2d-close" title="Close">
-        <span>&times;</span>
-      </button>
+      <h3 data-i18n="controls.header">Astronomy Controls</h3>
+      <button id="control-panel-2d-close" class="control-panel-2d-close" title="Close"
+        data-i18n-title="controls.close"><span>&times;</span></button>
     </div>
     <div class="control-panel-2d-content">
       <div class="control-panel-2d-section">
-        <h4>Visibility</h4>
+        <h4 data-i18n="controls.visibility">Visibility</h4>
         <div class="toggle-grid">
           <div class="toggle-item">
-            <span>Meridian</span>
+            <span data-i18n="controls.meridian">Meridian</span>
             <label class="switch-2d">
               <input type="checkbox" id="toggle-2d-meridian" onclick="onTogglerClick('toggleMeridian')">
               <span class="slider-2d"></span>
             </label>
           </div>
           <div class="toggle-item">
-            <span>Equator</span>
+            <span data-i18n="controls.equator">Equator</span>
             <label class="switch-2d">
               <input type="checkbox" id="toggle-2d-equator" onclick="onTogglerClick('toggleEquator')">
               <span class="slider-2d"></span>
             </label>
           </div>
           <div class="toggle-item">
-            <span>Ecliptic</span>
+            <span data-i18n="controls.ecliptic">Ecliptic</span>
             <label class="switch-2d">
               <input type="checkbox" id="toggle-2d-ecliptic" onclick="onTogglerClick('toggleEcliptic')">
               <span class="slider-2d"></span>
             </label>
           </div>
           <div class="toggle-item">
-            <span>Cardinal Points</span>
+            <span data-i18n="controls.cardinal">Cardinal Points</span>
             <label class="switch-2d">
               <input type="checkbox" id="toggle-2d-cardinal" onclick="onTogglerClick('toggleCardinalPoints')" checked>
               <span class="slider-2d"></span>
             </label>
           </div>
           <div class="toggle-item">
-            <span>IAU Boundaries</span>
+            <span data-i18n="controls.boundaries">IAU Boundaries</span>
             <label class="switch-2d">
               <input type="checkbox" id="toggle-2d-boundaries" onclick="onTogglerClick('toggleBoundaries')">
               <span class="slider-2d"></span>
             </label>
           </div>
           <div class="toggle-item">
-            <span>Celestial Poles</span>
+            <span data-i18n="controls.poles">Celestial Poles</span>
             <label class="switch-2d">
               <input type="checkbox" id="toggle-2d-poles" onclick="onTogglerClick('toggleNCP')">
               <span class="slider-2d"></span>
@@ -321,29 +345,33 @@
       </div>
 
       <div class="control-panel-2d-section">
-        <h4>Location</h4>
+        <h4 data-i18n="controls.location">Location</h4>
         <div class="adjuster-group">
           <div class="adjuster-item">
-            <span class="label">Latitude</span>
+            <span class="label" data-i18n="controls.latitude">Latitude</span>
             <div class="adjuster-controls">
               <button>&minus;</button>
               <div class="input-container">
-                <input type="number" id="input-2d-lat" class="value-input" step="0.1" title="Latitude">
+                <input type="number" id="input-2d-lat" class="value-input" step="0.1" title="Latitude"
+                  data-i18n-title="controls.latitude_title">
                 <span class="input-suffix">&thinsp;°</span>
               </div>
-              <button id="toggle-2d-ns" class="toggle-btn" title="Toggle North/South">N</button>
+              <button id="toggle-2d-ns" class="toggle-btn" title="Toggle North/South"
+                data-i18n-title="controls.toggle_ns">N</button>
               <button>&plus;</button>
             </div>
           </div>
           <div class="adjuster-item">
-            <span class="label">Longitude</span>
+            <span class="label" data-i18n="controls.longitude">Longitude</span>
             <div class="adjuster-controls">
               <button>&minus;</button>
               <div class="input-container">
-                <input type="number" id="input-2d-lon" class="value-input" step="0.1" title="Longitude">
+                <input type="number" id="input-2d-lon" class="value-input" step="0.1" title="Longitude"
+                  data-i18n-title="controls.longitude_title">
                 <span class="input-suffix">&thinsp;°</span>
               </div>
-              <button id="toggle-2d-ew" class="toggle-btn" title="Toggle East/West">E</button>
+              <button id="toggle-2d-ew" class="toggle-btn" title="Toggle East/West"
+                data-i18n-title="controls.toggle_ew">E</button>
               <button>&plus;</button>
             </div>
           </div>
@@ -351,41 +379,44 @@
       </div>
 
       <div class="control-panel-2d-section">
-        <h4>Time Shift</h4>
+        <h4 data-i18n="controls.time_shift">Time Shift</h4>
         <div id="timezone-2d-display" class="timezone-display">UTC+00:00</div>
         <div class="time-grid">
           <div class="adjuster-item">
-            <span class="label">Year</span>
+            <span class="label" data-i18n="controls.year">Year</span>
             <div class="adjuster-controls">
               <button>&minus;</button>
               <div class="input-container wide-input">
-                <input type="number" id="input-2d-year" class="value-input" title="Year">
+                <input type="number" id="input-2d-year" class="value-input" title="Year"
+                  data-i18n-title="controls.year_title">
               </div>
               <button>&plus;</button>
             </div>
           </div>
           <div class="adjuster-item">
-            <span class="label">Month</span>
+            <span class="label" data-i18n="controls.month">Month</span>
             <div class="adjuster-controls">
               <button>&minus;</button>
               <div class="input-container wide-input">
-                <input type="number" id="input-2d-month" class="value-input" title="Month">
+                <input type="number" id="input-2d-month" class="value-input" title="Month"
+                  data-i18n-title="controls.month_title">
               </div>
               <button>&plus;</button>
             </div>
           </div>
           <div class="adjuster-item">
-            <span class="label">Day</span>
+            <span class="label" data-i18n="controls.day">Day</span>
             <div class="adjuster-controls">
               <button>&minus;</button>
               <div class="input-container wide-input">
-                <input type="number" id="input-2d-day" class="value-input" title="Day">
+                <input type="number" id="input-2d-day" class="value-input" title="Day"
+                  data-i18n-title="controls.day_title">
               </div>
               <button>&plus;</button>
             </div>
           </div>
           <div class="adjuster-item">
-            <span class="label">Sidereal Day</span>
+            <span class="label" data-i18n="controls.sidereal">Sidereal Day</span>
             <div class="adjuster-controls">
               <button>&minus;</button>
               <div style="grid-column: span 2;"></div>
@@ -393,27 +424,37 @@
             </div>
           </div>
           <div class="adjuster-item">
-            <span class="label">Hour</span>
+            <span class="label" data-i18n="controls.hour">Hour</span>
             <div class="adjuster-controls">
               <button>&minus;</button>
               <div class="input-container wide-input">
-                <input type="number" id="input-2d-hour" class="value-input" title="Hour">
+                <input type="number" id="input-2d-hour" class="value-input" title="Hour"
+                  data-i18n-title="controls.hour_title">
               </div>
               <button>&plus;</button>
             </div>
           </div>
           <div class="adjuster-item">
-            <span class="label">Minute</span>
+            <span class="label" data-i18n="controls.minute">Minute</span>
             <div class="adjuster-controls">
               <button>&minus;</button>
               <div class="input-container wide-input">
-                <input type="number" id="input-2d-minute" class="value-input" title="Minute">
+                <input type="number" id="input-2d-minute" class="value-input" title="Minute"
+                  data-i18n-title="controls.minute_title">
               </div>
               <button>&plus;</button>
             </div>
           </div>
         </div>
-        <button class="now-btn" onclick="setNow()">now</button>
+        <button class="now-btn" onclick="setNow()" data-i18n="controls.now">now</button>
+      </div>
+
+      <div class="control-panel-2d-section">
+        <h4 data-i18n="controls.language">Language</h4>
+        <div class="language-grid" style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+          <button class="now-btn" style="flex: 1;" onclick="changeLanguage('en')">English</button>
+          <button class="now-btn" style="flex: 1;" onclick="changeLanguage('de')">Deutsch</button>
+        </div>
       </div>
     </div>
   </div>
@@ -672,7 +713,8 @@
           visible="false">
           <a-rounded width="0.12" height="0.025" radius="0.005" color="#111" opacity="0.9"
             position="-0.06 -0.0125 0"></a-rounded>
-          <a-text value="Select" width="0.25" align="center" color="white" position="0 0 0.001"></a-text>
+          <a-text value="Select" width="0.25" align="center" color="white" position="0 0 0.001"
+            data-i18n="hints.select"></a-text>
           <a-entity line="start: 0 0 0; end: 0 0.02 0.03; color: white; opacity: 0.5"></a-entity>
         </a-entity>
 
@@ -680,7 +722,8 @@
           visible="false">
           <a-rounded width="0.10" height="0.025" radius="0.005" color="#111" opacity="0.9"
             position="-0.05 -0.0125 0"></a-rounded>
-          <a-text value="Rotate" width="0.25" align="center" color="white" position="0 0 0.001"></a-text>
+          <a-text value="Rotate" width="0.25" align="center" color="white" position="0 0 0.001"
+            data-i18n="hints.rotate"></a-text>
           <a-entity line="start: 0.01 -0.01 0.01; end: -0.01 -0.01 0.01; color: white; opacity: 0.5"></a-entity>
         </a-entity>
 
@@ -688,22 +731,24 @@
           visible="false">
           <a-rounded width="0.14" height="0.025" radius="0.005" color="#111" opacity="0.9"
             position="-0.07 -0.0125 0"></a-rounded>
-          <a-text value="Show Pointer" width="0.25" align="center" color="white" position="0 0 0.001"></a-text>
+          <a-text value="Show Pointer" width="0.25" align="center" color="white" position="0 0 0.001"
+            data-i18n="hints.show_pointer"></a-text>
           <a-entity line="start: -0.02 0 -0.02; end: -0.05 0 -0.05; color: white; opacity: 0.5"></a-entity>
         </a-entity>
 
         <a-entity id="hint-a" class="controller-hint" position="-0.04 0.05 0.02" rotation="-120 0 0" visible="false">
           <a-rounded width="0.1" height="0.025" radius="0.005" color="#111" opacity="0.9"
             position="-0.05 -0.0125 0"></a-rounded>
-          <a-text value="Remove (A)" width="0.25" align="center" color="white" position="0 0 0.001"></a-text>
+          <a-text value="Remove (A)" width="0.25" align="center" color="white" position="0 0 0.001"
+            data-i18n="hints.remove"></a-text>
           <a-entity line="start: 0 0 0; end: 0.01 -0.02 -0.01; color: white; opacity: 0.5"></a-entity>
         </a-entity>
 
         <a-entity id="hint-b" class="controller-hint" position="0.02 0.08 0.02" rotation="-120 0 0" visible="false">
           <a-rounded id="hint-b-bg" width="0.2" height="0.025" radius="0.005" color="#111" opacity="0.9"
             position="-0.1 -0.0125 0"></a-rounded>
-          <a-text id="hint-b-text" value="Action (B)" width="0.25" align="center" color="white"
-            position="0 0 0.001"></a-text>
+          <a-text id="hint-b-text" value="Action (B)" width="0.25" align="center" color="white" position="0 0 0.001"
+            data-i18n="hints.action"></a-text>
           <a-entity line="start: 0 0 0; end: -0.01 -0.03 -0.01; color: white; opacity: 0.5"></a-entity>
         </a-entity>
       </a-entity>
@@ -1108,25 +1153,29 @@
             value: N;
             fontSize: 90;
             textColor: #FFBB00;
-            worldScale: 0.1;" position="0 3 -395" object-render-order="-10">
+            worldScale: 0.1;" position="0 3 -395" rotation="0 0 0" object-render-order="-10"
+          data-i18n-value="cardinals.north">
         </a-entity>
-        <a-entity id="O" custom-fogless-text="
-            value: O;
+        <a-entity id="E" custom-fogless-text="
+            value: E;
             fontSize: 90;
             textColor: #FFBB00;
-            worldScale: 0.1;" position="395 3 0" rotation="0 -90 0" object-render-order="-10">
+            worldScale: 0.1;" position="395 3 0" rotation="0 -90 0" object-render-order="-10"
+          data-i18n-value="cardinals.east">
         </a-entity>
         <a-entity id="S" custom-fogless-text="
             value: S;
             fontSize: 90;
             textColor: #FFBB00;
-            worldScale: 0.1;" position="0 3 395" rotation="0 180 0" object-render-order="-10">
+            worldScale: 0.1;" position="0 3 395" rotation="0 180 0" object-render-order="-10"
+          data-i18n-value="cardinals.south">
         </a-entity>
         <a-entity id="W" custom-fogless-text="
             value: W;
             fontSize: 90;
             textColor: #FFBB00;
-            worldScale: 0.1;" position="-395 3 0" rotation="0 90 0" object-render-order="-10">
+            worldScale: 0.1;" position="-395 3 0" rotation="0 90 0" object-render-order="-10"
+          data-i18n-value="cardinals.west">
         </a-entity>
       </a-entity>
 
@@ -1203,7 +1252,7 @@
   </div>
 
   <div id="legal-links-2d" class="legal-links-fixed" style="display: none;">
-    <a href="about.html" target="_blank" rel="noopener noreferrer" aria-label="About"
+    <a href="about.html" target="_blank" rel="noopener noreferrer" aria-label="About" data-i18n-title="general.about"
       style="display: inline-flex; align-items: center; vertical-align: middle;">
       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1213,9 +1262,9 @@
       </svg>
     </a>
     <span class="separator">|</span>
-    <a id="imprint-link-2d" href="#" target="_blank" rel="noopener noreferrer">Imprint</a>
+    <a id="imprint-link-2d" href="#" target="_blank" rel="noopener noreferrer" data-i18n="general.imprint">Imprint</a>
     <span class="separator">|</span>
-    <a id="privacy-link-2d" href="#" target="_blank" rel="noopener noreferrer">Privacy</a>
+    <a id="privacy-link-2d" href="#" target="_blank" rel="noopener noreferrer" data-i18n="general.privacy">Privacy</a>
   </div>
 
 

@@ -131,6 +131,19 @@ AFRAME.registerComponent('skyvr-infobar', {
         this.bgEl.setAttribute('width', this.CONFIG.totalWidth);
         this.bgEl.setAttribute('height', this.CONFIG.totalHeight);
         this.bgEl.setAttribute('radius', 0.012);
+
+        // Update translations on language change
+        window.addEventListener('languageChanged', () => {
+            if (this.roomText) {
+                const isStandalone = new URLSearchParams(window.location.search).get('room') === 'none';
+                if (isStandalone) {
+                    this.roomText.setAttribute('value', i18next.t('infobar.standalone'));
+                } else if (!this.lastConnected) {
+                    this.roomText.setAttribute('value', i18next.t('infobar.connecting'));
+                }
+            }
+        });
+
         this.bgEl.setAttribute('color', this.CONFIG.bgColor);
         this.bgEl.setAttribute('opacity', this.CONFIG.bgOpacity);
         // Positioned to be centered (a-rounded origin is now centered in skyvr-rounded-component.js)
@@ -177,7 +190,7 @@ AFRAME.registerComponent('skyvr-infobar', {
 
                 // Show "Returning..." text
                 const title = overlay.querySelector('.loading-title');
-                if (title) title.textContent = 'Returning to Portal...';
+                if (title) title.innerHTML = i18next.t('loading.returning', { defaultValue: 'Returning to Portal...' });
 
                 // Hide other status items
                 const list = overlay.querySelector('.status-list');
@@ -203,7 +216,11 @@ AFRAME.registerComponent('skyvr-infobar', {
         this.roomGroup.appendChild(this.roomIcon);
 
         this.roomText = document.createElement('a-text');
-        this.roomText.setAttribute('value', isStandalone ? 'Standalone Session' : '----');
+        const standaloneText = i18next.t('infobar.standalone') || 'Standalone Session';
+        const connectingText = i18next.t('infobar.connecting') || 'Connecting...';
+        this.roomText.setAttribute('value', isStandalone ? standaloneText : connectingText);
+        if (isStandalone) this.roomText.setAttribute('data-i18n-value', 'infobar.standalone');
+        else this.roomText.setAttribute('data-i18n-value', 'infobar.connecting');
         this.roomText.setAttribute('color', 'white');
         this.roomText.setAttribute('width', 0.4);
         this.roomText.setAttribute('align', 'left');
@@ -332,9 +349,13 @@ AFRAME.registerComponent('skyvr-infobar', {
         this.lastReverse = null;
 
         if (isStandalone) {
-            this.roomText.setAttribute('value', 'Standalone Session');
+            const standaloneText = i18next.t('infobar.standalone') || 'Standalone Session';
+            this.roomText.setAttribute('value', standaloneText);
+            this.roomText.setAttribute('data-i18n-value', 'infobar.standalone');
         } else {
-            this.roomText.setAttribute('value', 'Connecting...');
+            const connectingText = i18next.t('infobar.connecting') || 'Connecting...';
+            this.roomText.setAttribute('value', connectingText);
+            this.roomText.setAttribute('data-i18n-value', 'infobar.connecting');
         }
         window.currentMode = 'none';
     },
@@ -791,7 +812,8 @@ AFRAME.registerComponent('skyvr-infobar', {
         // SPECIFIC SELECTOR to avoid overlapping with Time buttons
         const coordBtns = document.getElementById('control-panel-2d').querySelectorAll('.adjuster-group .adjuster-item .adjuster-controls button:not(.toggle-btn)');
         coordBtns.forEach(btn => {
-            const isLat = btn.closest('.adjuster-item').textContent.includes('Latitude');
+            const labelEl = btn.closest('.adjuster-item').querySelector('.label');
+            const isLat = labelEl && labelEl.getAttribute('data-i18n') === 'controls.latitude';
             const isPlus = btn.textContent === '+' || btn.innerHTML.includes('&plus;');
             const type = isLat ? 'latitude' : 'longitude';
             const amount = isPlus ? 0.1 : -0.1;
@@ -803,16 +825,17 @@ AFRAME.registerComponent('skyvr-infobar', {
         // Time Buttons
         const timeRows = document.getElementById('control-panel-2d').querySelectorAll('.time-grid .adjuster-item');
         timeRows.forEach(row => {
-            const label = row.querySelector('.label').textContent.toLowerCase().trim();
+            const labelEl = row.querySelector('.label');
+            const labelKey = labelEl ? labelEl.getAttribute('data-i18n') : '';
             const unitMap = {
-                'year': 'years',
-                'month': 'months',
-                'day': 'days',
-                'sidereal day': 'sidereal',
-                'hour': 'hours',
-                'minute': 'minutes'
+                'controls.year': 'years',
+                'controls.month': 'months',
+                'controls.day': 'days',
+                'controls.sidereal': 'sidereal',
+                'controls.hour': 'hours',
+                'controls.minute': 'minutes'
             };
-            const unit = unitMap[label];
+            const unit = unitMap[labelKey];
             if (!unit) return;
             const btns = row.querySelectorAll('button');
             btns.forEach(btn => {
@@ -970,9 +993,11 @@ AFRAME.registerComponent('skyvr-infobar', {
         const isStandalone = urlParams.get('room') === 'none';
 
         if (isStandalone) {
-            // In standalone, just ensure the text is correct once (redundant but safe)
-            if (this.roomText.getAttribute('value') !== 'Standalone Session') {
-                this.roomText.setAttribute('value', 'Standalone Session');
+            // In standalone, just ensure the text is correct once
+            const standaloneText = i18next.t('infobar.standalone') || 'Standalone Session';
+            if (this.roomText.getAttribute('value') !== standaloneText) {
+                this.roomText.setAttribute('value', standaloneText);
+                this.roomText.setAttribute('data-i18n-value', 'infobar.standalone');
             }
         }
 
@@ -988,6 +1013,7 @@ AFRAME.registerComponent('skyvr-infobar', {
                 if (isConnected) {
                     const roomName = urlParams.get('room') || 'n/a';
                     this.roomText.setAttribute('value', roomName);
+                    this.roomText.removeAttribute('data-i18n-value');
                     // Identified Info: Ensure text opacity is multiplied by 0.6, marker opacity remains full
                     if (this.textEl) {
                         this.textEl.setAttribute('custom-fogless-text', 'opacity', this.opacity * 0.6);
@@ -996,7 +1022,9 @@ AFRAME.registerComponent('skyvr-infobar', {
                         this.markerEl.setAttribute('material', 'opacity', this.opacity);
                     }
                 } else {
-                    this.roomText.setAttribute('value', 'Connecting...');
+                    const connectingText = i18next.t('infobar.connecting') || 'Connecting...';
+                    this.roomText.setAttribute('value', connectingText);
+                    this.roomText.setAttribute('data-i18n-value', 'infobar.connecting');
                 }
             }
         }
@@ -1100,7 +1128,7 @@ AFRAME.registerComponent('skyvr-infobar', {
                 this.ui2d.roomText.textContent = val;
             }
         } else if (this.ui2d.roomText && isStandalone) {
-            this.ui2d.roomText.textContent = 'Standalone Session';
+            this.ui2d.roomText.textContent = i18next.t('infobar.standalone') || 'Standalone Session';
         }
 
         // Sync 2D Control Panel Values
@@ -1127,12 +1155,12 @@ AFRAME.registerComponent('skyvr-infobar', {
         if (displays.lat && (force || document.activeElement !== displays.lat)) {
             displays.lat.value = Math.abs(window.latitude).toFixed(1);
         }
-        if (toggles.ns) toggles.ns.textContent = window.latitude >= 0 ? 'N' : 'S';
+        if (toggles.ns) toggles.ns.textContent = window.latitude >= 0 ? i18next.t('cardinals.north') : i18next.t('cardinals.south');
 
         if (displays.lon && (force || document.activeElement !== displays.lon)) {
             displays.lon.value = Math.abs(window.longitude).toFixed(1);
         }
-        if (toggles.ew) toggles.ew.textContent = window.longitude >= 0 ? 'E' : 'W';
+        if (toggles.ew) toggles.ew.textContent = window.longitude >= 0 ? i18next.t('cardinals.east') : i18next.t('cardinals.west');
 
         // Time
         if (window.simulationTime) {

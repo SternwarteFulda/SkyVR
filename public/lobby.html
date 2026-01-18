@@ -543,19 +543,29 @@
             });
         }
     </script>
+    <script src="/js/i18next/i18next.min.js"></script>
+    <script src="/js/i18next-browser-languagedetector/i18nextBrowserLanguageDetector.min.js"></script>
+    <script src="/js/i18n-setup.js"></script>
 </head>
 
 <body>
+    <div class="language-switcher"
+        style="position: fixed; top: 1rem; right: 1rem; z-index: 100; display: flex; gap: 10px;">
+        <button onclick="changeLanguage('en')"
+            style="background: rgba(255,255,255,0.1); border: 1px solid var(--glass-border); color: white; padding: 5px 10px; border-radius: 8px; cursor: pointer;">EN</button>
+        <button onclick="changeLanguage('de')"
+            style="background: rgba(255,255,255,0.1); border: 1px solid var(--glass-border); color: white; padding: 5px 10px; border-radius: 8px; cursor: pointer;">DE</button>
+    </div>
     <div class="lobby-card">
-        <h1>SkyVR</h1>
-        <div class="subtitle">Observation Portal</div>
+        <h1 data-i18n="lobby.title">SkyVR</h1>
+        <div class="subtitle" data-i18n="lobby.subtitle">Observation Portal</div>
 
         <div class="permissions-section"
             style="border-top: none; margin-top: 0; padding-top: 0; padding-bottom: 1.5rem; margin-bottom: 1rem; position: relative;">
             <div class="toggle-group" style="margin-bottom: 0;">
                 <div class="toggle-info">
-                    <span class="toggle-title">Solo Mode</span>
-                    <span class="toggle-desc">Standalone session without networking</span>
+                    <span class="toggle-title" data-i18n="lobby.solo_mode">Solo Mode</span>
+                    <span class="toggle-desc" data-i18n="lobby.solo_desc">Standalone session without networking</span>
                 </div>
                 <label class="switch">
                     <input type="checkbox" id="solo-toggle">
@@ -570,17 +580,19 @@
 
         <div id="multiplayer-settings">
             <div class="input-group">
-                <label for="room-id">Room Channel</label>
-                <input type="text" id="room-id" placeholder="e.g. 1984 or sky-vr-01" value="">
+                <label for="room-id" data-i18n="lobby.room_channel">Room Channel</label>
+                <input type="text" id="room-id" placeholder="e.g. 1984 or sky-vr-01" value=""
+                    data-i18n-placeholder="lobby.room_placeholder">
             </div>
 
             <div class="input-group">
-                <label for="username">Observer Identity</label>
-                <input type="text" id="username" placeholder="Enter nametag">
+                <label for="username" data-i18n="lobby.identity">Observer Identity</label>
+                <input type="text" id="username" placeholder="Enter nametag"
+                    data-i18n-placeholder="lobby.name_placeholder">
             </div>
 
             <div class="input-group">
-                <label class="color-picker-label">Avatar Core Signature</label>
+                <label class="color-picker-label" data-i18n="lobby.avatar_color">Avatar Core Signature</label>
                 <div class="color-picker" id="color-picker">
                     <!-- Colors injected by JS -->
                 </div>
@@ -590,7 +602,8 @@
             <div class="input-group" id="presence-group">
                 <div class="toggle-info" style="margin-bottom: 0.4rem;">
                     <span class="toggle-title"
-                        style="font-size: 0.85rem; opacity: 0.5; text-transform: uppercase; letter-spacing: 1px;">Visual
+                        style="font-size: 0.85rem; opacity: 0.5; text-transform: uppercase; letter-spacing: 1px;"
+                        data-i18n="lobby.visual_presence">Visual
                         Presence</span>
                 </div>
                 <div class="presence-selector">
@@ -602,7 +615,7 @@
                                     d="M480-480q-66 0-113-47t-47-113q0-66 47-113t113-47q66 0 113 47t47 113q0 66-47 113t-113 47ZM160-160v-112q0-34 17.5-62.5T224-378q62-31 126-46.5T480-440q66 0 130 15.5T736-378q29 15 46.5 43.5T800-272v112H160Z" />
                             </svg>
                         </span>
-                        <span class="presence-label">Avatar</span>
+                        <span class="presence-label" data-i18n="lobby.avatar">Avatar</span>
                     </div>
                     <div class="presence-option" id="opt-webcam" onclick="selectPresence('webcam')" tabindex="0"
                         role="button" aria-label="Join with webcam feed" style="display: none;">
@@ -612,7 +625,7 @@
                                     d="M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h480q33 0 56.5 23.5T720-720v180l160-160v440L720-420v180q0 33-23.5 56.5T640-160H160Z" />
                             </svg>
                         </span>
-                        <span class="presence-label">Webcam</span>
+                        <span class="presence-label" data-i18n="lobby.webcam">Webcam</span>
                     </div>
                 </div>
                 <input type="hidden" id="presence-type" value="avatar">
@@ -621,8 +634,8 @@
             <div class="permissions-section" style="border-top: none; padding-top: 0;">
                 <div class="toggle-group">
                     <div class="toggle-info">
-                        <span class="toggle-title">Voice Communication</span>
-                        <span class="toggle-desc">Enable microphone for spatial chat</span>
+                        <span class="toggle-title" data-i18n="lobby.voice">Voice Communication</span>
+                        <span class="toggle-desc" data-i18n="lobby.voice_desc">Enable microphone for spatial chat</span>
                     </div>
                     <label class="switch">
                         <input type="checkbox" id="mic-toggle">
@@ -632,7 +645,8 @@
             </div>
         </div>
 
-        <button class="btn-join" onclick="joinSession()"><span class="btn-text">JOIN ROOM</span></button>
+        <button class="btn-join" onclick="joinSession()"><span class="btn-text" data-i18n="lobby.join">JOIN
+                ROOM</span></button>
     </div>
 
     <style>
@@ -686,27 +700,36 @@
         let warningMessages = [];
 
         if (roomParamRaw && sanitizeRoomName(roomParamRaw) !== roomParamRaw) {
-            warningMessages.push('Room name contained invalid characters and was corrected.');
+            warningMessages.push('lobby.warnings.room_invalid');
         }
 
         if (nameParamRaw && sanitizePlayerName(nameParamRaw) !== nameParamRaw) {
-            warningMessages.push('Player name contained invalid characters and was corrected.');
+            warningMessages.push('lobby.warnings.name_invalid');
         }
 
         if (roomParamRaw && roomParamRaw.length > 16) {
-            warningMessages.push('Room name was too long and was shortened.');
+            warningMessages.push('lobby.warnings.room_too_long');
         }
 
         if (nameParamRaw && nameParamRaw.length > 20) {
-            warningMessages.push('Player name was too long and was shortened.');
+            warningMessages.push('lobby.warnings.name_too_long');
         }
 
-        if (warningMessages.length > 0) {
-            const warningMsg = 'URL Parameter Warnings:\n\n' +
-                warningMessages.join('\n') +
-                '\n\nRoom names: lowercase letters (a-z), numbers (0-9), and hyphens (-), max 16 chars.\n' +
-                'Player names: letters (A-Z, a-z), numbers (0-9), hyphens (-), and spaces, max 20 chars.';
-            alert(warningMsg);
+        const showWarnings = () => {
+            if (warningMessages.length > 0) {
+                const translatedWarnings = warningMessages.map(key => i18next.t(key));
+                const warningMsg = i18next.t('lobby.warnings.url_warning_header') + '\n\n' +
+                    translatedWarnings.join('\n') +
+                    '\n\n' + i18next.t('lobby.warnings.room_rules') + '\n' +
+                    i18next.t('lobby.warnings.name_rules');
+                alert(warningMsg);
+            }
+        };
+
+        if (i18next && i18next.isInitialized) {
+            showWarnings();
+        } else {
+            window.addEventListener('languageChanged', showWarnings, { once: true });
         }
 
         // Generate random 4-digit room number if no room has been set before
@@ -776,10 +799,25 @@
             document.getElementById('username').value = nameInit;
             localStorage.setItem('skyvr_name', nameInit);
         } else {
-            const prefix = ['Nebula', 'Solar', 'Lunar', 'Astral', 'Cosmos', 'Nova', 'Pulsar', 'Zenith'];
-            const suffix = ['Seeker', 'Sage', 'Watcher', 'Pilot', 'Nomad', 'Explorer'];
-            const randomName = prefix[Math.floor(Math.random() * prefix.length)] + ' ' + suffix[Math.floor(Math.random() * suffix.length)] + ' ' + Math.floor(Math.random() * 99);
-            document.getElementById('username').value = randomName;
+            const generateRandomName = () => {
+                const prefixes = i18next.t('nicknames.prefixes', { returnObjects: true });
+                const suffixes = i18next.t('nicknames.suffixes', { returnObjects: true });
+
+                // Fallbacks if translation fails to load as an array
+                const pList = Array.isArray(prefixes) ? prefixes : ['Nebula', 'Solar', 'Lunar', 'Astral', 'Cosmos', 'Nova', 'Pulsar', 'Zenith'];
+                const sList = Array.isArray(suffixes) ? suffixes : ['Seeker', 'Sage', 'Watcher', 'Pilot', 'Nomad', 'Explorer'];
+
+                const randomName = pList[Math.floor(Math.random() * pList.length)] + ' ' +
+                    sList[Math.floor(Math.random() * sList.length)] + ' ' +
+                    Math.floor(Math.random() * 99);
+                document.getElementById('username').value = randomName;
+            };
+
+            if (i18next && i18next.isInitialized) {
+                generateRandomName();
+            } else {
+                window.addEventListener('languageChanged', generateRandomName, { once: true });
+            }
         }
 
         // Initialize toggles
@@ -863,8 +901,8 @@
             if (joinBtn) {
                 joinBtn.style.marginTop = '1rem';
                 const span = joinBtn.querySelector('.btn-text');
-                if (span) span.textContent = 'START';
-                else joinBtn.textContent = 'START';
+                if (span) span.textContent = i18next.t('lobby.start');
+                else joinBtn.textContent = i18next.t('lobby.start');
             }
             if (soloDivider) {
                 soloDivider.style.opacity = '0';
@@ -877,8 +915,8 @@
             if (joinBtn) {
                 joinBtn.style.marginTop = '2.5rem';
                 const span = joinBtn.querySelector('.btn-text');
-                if (span) span.textContent = 'JOIN ROOM';
-                else joinBtn.textContent = 'JOIN ROOM';
+                if (span) span.textContent = i18next.t('lobby.join');
+                else joinBtn.textContent = i18next.t('lobby.join');
             }
             if (soloDivider) {
                 soloDivider.style.opacity = '1';
@@ -900,7 +938,7 @@
                         span.style.opacity = '0';
                         span.style.transform = 'translateY(10px)';
                         setTimeout(() => {
-                            span.textContent = 'START';
+                            span.textContent = i18next.t('lobby.start');
                             span.style.transform = 'translateY(-10px)';
                             setTimeout(() => {
                                 span.style.opacity = '1';
@@ -908,7 +946,7 @@
                             }, 50);
                         }, 200);
                     } else {
-                        joinBtn.textContent = 'START';
+                        joinBtn.textContent = i18next.t('lobby.start');
                     }
                 }
                 if (soloDivider) {
@@ -933,7 +971,7 @@
                         span.style.opacity = '0';
                         span.style.transform = 'translateY(10px)';
                         setTimeout(() => {
-                            span.textContent = 'JOIN ROOM';
+                            span.textContent = i18next.t('lobby.join');
                             span.style.transform = 'translateY(-10px)';
                             setTimeout(() => {
                                 span.style.opacity = '1';
@@ -941,7 +979,7 @@
                             }, 50);
                         }, 200);
                     } else {
-                        joinBtn.textContent = 'JOIN ROOM';
+                        joinBtn.textContent = i18next.t('lobby.join');
                     }
                 }
                 if (soloDivider) {
@@ -977,7 +1015,8 @@
 
             // Use fallback if name is empty after sanitization
             if (!name) {
-                name = 'observer-' + Math.floor(Math.random() * 9999);
+                const prefix = i18next.t('lobby.observer_prefix');
+                name = prefix + Math.floor(Math.random() * 9999);
             }
 
             // Persist to localStorage
@@ -1009,9 +1048,11 @@
     </a>
 
     <div id="legal-links-lobby" class="legal-links-fixed" style="display: none;">
-        <a id="imprint-link-lobby" href="#" target="_blank" rel="noopener noreferrer">Imprint</a>
+        <a id="imprint-link-lobby" href="#" target="_blank" rel="noopener noreferrer"
+            data-i18n="general.imprint">Imprint</a>
         <span class="separator">|</span>
-        <a id="privacy-link-lobby" href="#" target="_blank" rel="noopener noreferrer">Privacy</a>
+        <a id="privacy-link-lobby" href="#" target="_blank" rel="noopener noreferrer"
+            data-i18n="general.privacy">Privacy</a>
     </div>
 
 

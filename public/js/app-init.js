@@ -199,21 +199,21 @@ window.updateLoadingIndicator = function (type, status, subStatus) {
             if (type === 'network') {
                 const urlParams = new URLSearchParams(window.location.search);
                 const room = urlParams.get('room') || 'default';
-                item.querySelector('.label').textContent = `Connected to Room: ${room}`;
+                item.querySelector('.label').textContent = i18next.t('loading.connected_to', { room: room });
             } else if (type === 'assets') {
-                item.querySelector('.label').textContent = 'Application Initialized';
+                item.querySelector('.label').textContent = i18next.t('loading.init_complete');
                 // Hide progress bar
                 const progressItem = document.getElementById('status-assets-progress');
                 if (progressItem) progressItem.style.display = 'none';
             } else if (type === 'stars') {
-                item.querySelector('.label').textContent = 'Star Catalog Loaded';
+                item.querySelector('.label').textContent = i18next.t('loading.stars_complete');
                 // Hide progress bar
                 const progressItem = document.getElementById('status-stars-progress');
                 if (progressItem) progressItem.style.display = 'none';
             } else if (type === 'sync') {
-                item.querySelector('.label').textContent = 'Reality Synchronized';
+                item.querySelector('.label').textContent = i18next.t('loading.sync_complete');
             } else if (type === 'spawn') {
-                item.querySelector('.label').textContent = 'Arrival Complete';
+                item.querySelector('.label').textContent = i18next.t('loading.arrival_complete');
             }
         } else {
             item.classList.add('active');
@@ -339,10 +339,10 @@ setTimeout(() => {
             const p = fallbackMsg.querySelector('p');
             const btn = fallbackMsg.querySelector('button');
             if (p && micDisabled) {
-                p.textContent = "Taking longer than usual? The connection might be unstable.";
+                p.textContent = i18next.t('loading.unstable_connection');
             }
             if (btn && micDisabled) {
-                btn.textContent = "Enter Solo Mode";
+                btn.textContent = i18next.t('loading.enter_solo');
             }
             fallbackMsg.style.display = 'block';
         }

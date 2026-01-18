@@ -424,26 +424,37 @@
             }
         }
     </style>
+    <script src="/js/i18next/i18next.min.js"></script>
+    <script src="/js/i18next-browser-languagedetector/i18nextBrowserLanguageDetector.min.js"></script>
+    <script src="/js/i18n-setup.js"></script>
+</head>
 
 <body>
+    <div class="language-switcher"
+        style="position: fixed; top: 1rem; right: 1rem; z-index: 100; display: flex; gap: 10px;">
+        <button onclick="changeLanguage('en')"
+            style="background: rgba(255,255,255,0.1); border: 1px solid var(--glass-border); color: white; padding: 5px 10px; border-radius: 8px; cursor: pointer;">EN</button>
+        <button onclick="changeLanguage('de')"
+            style="background: rgba(255,255,255,0.1); border: 1px solid var(--glass-border); color: white; padding: 5px 10px; border-radius: 8px; cursor: pointer;">DE</button>
+    </div>
     <div class="container">
         <div class="info-card">
-            <h1>About SkyVR</h1>
-            <div class="subtitle">License & Attributions</div>
+            <h1 data-i18n="about.title">About SkyVR</h1>
+            <div class="subtitle" data-i18n="about.subtitle">License & Attributions</div>
 
-            <p>
+            <p data-i18n="about.description">
                 SkyVR is a multi-user virtual reality experience under the sky, enabling users to explore celestial data
                 together.
             </p>
 
             <div class="credit-block">
-                <h3 style="margin-top: 1.5rem;">Source Code</h3>
+                <h3 style="margin-top: 1.5rem;" data-i18n="about.source_code">Source Code</h3>
                 <p>The project is hosted and maintained on GitHub: <strong><a
                             href="https://github.com/SternwarteFulda/SkyVR"
                             target="_blank">SternwarteFulda/SkyVR</a></strong></p>
             </div>
 
-            <h2>Project License</h2>
+            <h2 data-i18n="about.license">Project License</h2>
             <p>This project is open source software licensed under the <strong>GNU Affero General Public License
                     v3.0</strong>.</p>
             <div class="license-box">
@@ -455,7 +466,7 @@
             <p><a href="https://www.gnu.org/licenses/agpl-3.0.en.html" target="_blank"
                     style="color: var(--accent);">View Full License</a></p>
 
-            <h2>Software Libraries</h2>
+            <h2 data-i18n="about.software">Software Libraries</h2>
             <ul class="asset-list">
                 <li>
                     <div class="asset-info">
@@ -547,9 +558,27 @@
                     <a href="https://opensource.org/licenses/MIT" class="license-badge" target="_blank"
                         rel="noopener noreferrer">MIT</a>
                 </li>
+                <li>
+                    <div class="asset-info">
+                        <a href="https://www.i18next.com/" class="asset-name" target="_blank"
+                            rel="noopener noreferrer">i18next</a>
+                        <span class="asset-credit">Jan Mühlemann / Jamstack</span>
+                    </div>
+                    <a href="https://opensource.org/licenses/MIT" class="license-badge" target="_blank"
+                        rel="noopener noreferrer">MIT</a>
+                </li>
+                <li>
+                    <div class="asset-info">
+                        <a href="https://github.com/i18next/i18next-browser-languageDetector" class="asset-name"
+                            target="_blank" rel="noopener noreferrer">i18next-browser-languagedetector</a>
+                        <span class="asset-credit">i18next Authors</span>
+                    </div>
+                    <a href="https://opensource.org/licenses/MIT" class="license-badge" target="_blank"
+                        rel="noopener noreferrer">MIT</a>
+                </li>
             </ul>
 
-            <h2>Data & Assets</h2>
+            <h2 data-i18n="about.data_assets">Data & Assets</h2>
             <ul class="asset-list">
                 <li>
                     <div class="asset-info">
@@ -598,7 +627,7 @@
                 </li>
             </ul>
 
-            <h2>Icons</h2>
+            <h2 data-i18n="about.icons">Icons</h2>
             <ul class="asset-list">
                 <li>
                     <div class="asset-info">
@@ -643,9 +672,11 @@
     </a>
 
     <div id="legal-links-about" class="legal-links-fixed" style="display: none;">
-        <a id="imprint-link-about" href="#" target="_blank" rel="noopener noreferrer">Imprint</a>
+        <a id="imprint-link-about" href="#" target="_blank" rel="noopener noreferrer"
+            data-i18n="general.imprint">Imprint</a>
         <span class="separator">|</span>
-        <a id="privacy-link-about" href="#" target="_blank" rel="noopener noreferrer">Privacy</a>
+        <a id="privacy-link-about" href="#" target="_blank" rel="noopener noreferrer"
+            data-i18n="general.privacy">Privacy</a>
     </div>
     <script>
         fetch('/config')

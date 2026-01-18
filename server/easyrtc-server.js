@@ -70,6 +70,8 @@ app.use('/js/aframe-extras', express.static(path.resolve(__dirname, "..", "node_
 app.use('/js/aframe-troika-text', express.static(path.resolve(__dirname, "..", "node_modules", "aframe-troika-text", "dist")));
 app.use('/js/socket.io', express.static(path.resolve(__dirname, "..", "node_modules", "socket.io", "client-dist")));
 app.use('/js/luxon', express.static(path.resolve(__dirname, "..", "node_modules", "luxon", "build", "global")));
+app.use('/js/i18next', express.static(path.resolve(__dirname, "..", "node_modules", "i18next", "dist", "umd")));
+app.use('/js/i18next-browser-languagedetector', express.static(path.resolve(__dirname, "..", "node_modules", "i18next-browser-languagedetector", "dist", "umd")));
 app.use('/components/aframe-render-order-component', express.static(path.resolve(__dirname, "..", "node_modules", "aframe-render-order-component", "dist")));
 
 

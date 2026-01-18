@@ -535,10 +535,10 @@ function updateScene() {
         updateVRInput('input-vr-lon', Math.abs(window.longitude).toFixed(1));
 
         const nsBtn = document.getElementById('toggle-2d-ns-vr');
-        if (nsBtn) nsBtn.setAttribute('text', 'value', window.latitude >= 0 ? 'N' : 'S');
+        if (nsBtn) nsBtn.setAttribute('text', 'value', window.latitude >= 0 ? i18next.t('cardinals.north') : i18next.t('cardinals.south'));
 
         const ewBtn = document.getElementById('toggle-2d-ew-vr');
-        if (ewBtn) ewBtn.setAttribute('text', 'value', window.longitude >= 0 ? 'E' : 'W');
+        if (ewBtn) ewBtn.setAttribute('text', 'value', window.longitude >= 0 ? i18next.t('cardinals.east') : i18next.t('cardinals.west'));
         // --------------------------------
 
         if (dateTimeDisplay) {
@@ -552,6 +552,13 @@ function updateScene() {
                 dateTimeDisplay.setAttribute("text", `value: ${simulationTime.toLocaleString(luxon.DateTime.DATETIME_SHORT)}; color: white; width: 0.7; align: center`);
             }
         }
+
+        // Update 2D toggles N/S and E/W
+        const ns2d = document.getElementById('toggle-2d-ns');
+        if (ns2d) ns2d.textContent = window.latitude >= 0 ? i18next.t('cardinals.north') : i18next.t('cardinals.south');
+        const ew2d = document.getElementById('toggle-2d-ew');
+        if (ew2d) ew2d.textContent = window.longitude >= 0 ? i18next.t('cardinals.east') : i18next.t('cardinals.west');
+
         lastUIUpdateTime = now;
 
         if (starsPointCloud && starsPointCloud.components && starsPointCloud.components.starfield) {
@@ -1560,6 +1567,8 @@ setupVRControllers();
             if (resetButton) {
                 // Use 'enabled' attribute for a-rounded component
                 resetButton.setAttribute('enabled', true);
+                resetButton.setAttribute('text', 'value', i18next.t('controls.reset') || 'Reset');
+                resetButton.setAttribute('data-i18n-value', 'controls.reset');
 
                 // Add event listeners for the reset button
                 resetButton.addEventListener("mouseenter", function () {
@@ -1585,6 +1594,14 @@ setupVRControllers();
             if (coordWorldCenter) coordWorldCenter.setAttribute('visible', false);
         }
     }
+
+    // Listen for language changes to update UI text immediately
+    window.addEventListener('languageChanged', () => {
+        if (typeof updateScene === 'function') {
+            updateScene();
+        }
+    });
+
 })();
 
 // Function to reload the page
