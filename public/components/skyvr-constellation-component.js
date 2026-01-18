@@ -12,6 +12,7 @@ AFRAME.registerComponent('constellation-renderer', {
         showBoundaries: { type: 'boolean', default: false },
         boundaryColor: { type: 'color', default: '#ff4444' },
         boundaryOpacity: { type: 'number', default: 0.2 },
+        boundaryWidth: { type: 'number', default: 2 },
         illustrationOpacity: { type: 'number', default: 0.1 }
     },
 
@@ -50,7 +51,7 @@ AFRAME.registerComponent('constellation-renderer', {
             opacity: 0,
             transparent: true,
             fog: false,
-            linewidth: 1,
+            linewidth: this.data.boundaryWidth,
             depthWrite: false,
             depthTest: true
         });
@@ -1228,6 +1229,9 @@ AFRAME.registerComponent('constellation-renderer', {
                 if (this.data.showBoundaries && this.boundaryLines.length === 0) {
                     this.renderBoundaries();
                 }
+            }
+            if (this.data.boundaryWidth !== oldData.boundaryWidth) {
+                this.boundaryMaterial.linewidth = this.data.boundaryWidth;
             }
         }
     },
