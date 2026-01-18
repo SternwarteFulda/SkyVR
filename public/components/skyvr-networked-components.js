@@ -157,6 +157,19 @@ AFRAME.registerComponent('constellation-illustration', {
     tick: function (t, dt) {
         if (!dt || !this.mesh) return;
 
+        // Authoritative Watchdog: Ensure high render priority and stability settings stay enforced
+        // Add a small jitter based on ID to solve overlap fighting
+        const idHash = (this.data.constellationId.charCodeAt(0) + this.data.constellationId.charCodeAt(1) || 0) * 0.0001;
+        const finalOrder = 8.0 + idHash;
+
+        if (this.mesh.renderOrder !== finalOrder) {
+            this.mesh.renderOrder = finalOrder;
+        }
+        if (this.mesh.material) {
+            if (this.mesh.material.side !== THREE.FrontSide) this.mesh.material.side = THREE.FrontSide;
+            if (this.mesh.material.depthWrite !== false) this.mesh.material.depthWrite = false;
+        }
+
         // Skip calculations if opacity is stable and not removing/highlighted
         const alphaDiff = Math.abs(this.targetOpacity - this.currentOpacity);
         if (alphaDiff < 0.001 && !this.isRemoving && !this.isHighlighted) return;
@@ -207,7 +220,7 @@ AFRAME.registerComponent('constellation-illustration', {
         const constellation = this.renderer.constellationData.constellations.find(c => c.id === this.data.constellationId);
         if (!constellation) return;
 
-        const illustRadius = 400;
+        const illustRadius = 390; // Pulled significantly closer (400->390) to stop Z-fighting
         const bounds = this.renderer.getConstellationBounds(constellation, illustRadius);
         const imagePath = constellation.image ? `/assets/constellations/${constellation.image.file}` : null;
 
@@ -226,6 +239,11 @@ AFRAME.registerComponent('constellation-illustration', {
                     uProjectionMatrix4: { value: this.el.object3D.userData.projectionMatrix4 || new THREE.Matrix4() },
                     uTextureSize: { value: this.el.object3D.userData.texSize || new THREE.Vector2(512, 512) }
                 },
+                depthTest: true,
+                depthWrite: false,
+                side: THREE.FrontSide,
+                transparent: true,
+                blending: THREE.NormalBlending,
                 vertexShader: `
                     uniform float targetRadius;
                     uniform mat4 uProjectionMatrix4;
@@ -262,25 +280,53 @@ AFRAME.registerComponent('constellation-illustration', {
                         gl_FragColor = vec4(finalColor, tex.a * opacity);
                     }
                 `,
+                side: THREE.FrontSide,
                 transparent: true,
-                side: THREE.DoubleSide,
+                alphaTest: 0.001,
                 depthTest: true,
                 depthWrite: false,
                 blending: THREE.NormalBlending
             });
 
             const mesh = new THREE.Mesh(geometry, material);
-            mesh.name = 'illustration-plane'; // Essential for raycaster detection!
-            const renderSystem = this.el.sceneEl.systems['render-order'];
-            mesh.renderOrder = renderSystem ? renderSystem.order['illustrations'] : 5.1; // Over Milky Way, Under Boundaries
-            mesh.frustumCulled = false; // Shader expands it across the sky, so we disable auto-culling
+            mesh.name = 'illustration-plane';
+
+            // Apply authoritative RenderOrder (Order 8 = Above lines, behind UI)
+            // Hard-enforced to Layer 8 to ensure it draws LATER than the grid (Layer 2)
+            const finalOrder = 8.0;
+            mesh.renderOrder = finalOrder;
+            mesh.frustumCulled = false;
+
+            // Watchdog: Force Layer 8 and other properties
+            mesh.onBeforeRender = function (renderer, scene) {
+                // Safe ID resolution: use mesh id
+                const id = this.userData.id || "";
+                const idHash = ((id.charCodeAt(0) || 0) + (id.charCodeAt(1) || 0)) * 0.0001;
+                this.renderOrder = 8.0 + idHash;
+
+                this.material.side = THREE.FrontSide;
+                this.material.depthWrite = false;
+
+                this._sceneFog = scene.fog;
+                scene.fog = null;
+            };
+            mesh.onAfterRender = function (renderer, scene) {
+                scene.fog = this._sceneFog;
+            };
+
+            mesh.userData.id = this.data.constellationId;
             this.el.object3D.add(mesh);
-            this.mesh = mesh; // Track it
+            this.mesh = mesh;
 
-            // Orientation & Position (Matrix logic already handled in orientToAnchors)
+            // Hard-enforce FrontSide to stop striped Z-fighting
+            material.side = THREE.FrontSide;
+            material.depthWrite = false;
+            material.depthTest = true;
+            material.transparent = true;
+            material.needsUpdate = true;
+
+            // Orientation & Position
             this.renderer.orientToAnchors(mesh, constellation);
-
-            // Sync uniform if matrix changed in orientToAnchors
             material.uniforms.uProjectionMatrix4.value = mesh.userData.projectionMatrix4;
             material.uniforms.uTextureSize.value = mesh.userData.texSize;
 
@@ -367,6 +413,7 @@ AFRAME.registerComponent('constellation-stick-figure', {
         this.mesh.traverse(node => {
             if (node.material) {
                 this.cachedMaterials.push({
+                    node: node, // Store the node to enforce renderOrder
                     material: node.material,
                     renderOrder: node.renderOrder
                 });
@@ -420,15 +467,24 @@ AFRAME.registerComponent('constellation-stick-figure', {
             const nodeRenderOrder = entry.renderOrder;
 
             if (nodeMaterial.transparent) {
-                // Layer system (Bloom, Inner Glow, Core)
-                const rs = this.renderer ? this.renderer.el.sceneEl.systems['render-order'] : null;
-                const baseOrder = rs ? rs.order['lines'] : 7;
-                let base = 1.0;
-                if (nodeRenderOrder === baseOrder) base = 0.08;
-                if (nodeRenderOrder === baseOrder + 1) base = 0.15;
-                if (nodeRenderOrder === baseOrder + 2) base = 0.3;
+                // Force FrontSide and Fog-Bypass (Hardcoded in Tick for stability)
+                nodeMaterial.side = THREE.FrontSide;
+                nodeMaterial.fog = false;
+                nodeMaterial.depthWrite = false;
 
-                const opacity = Math.min(finalAlpha * base, 1.0);
+                // Layer system (Bloom, Inner Glow, Core)
+                // Use Authoritative Layer 8.1 system with ID-based jitter
+                const idHash = (this.data.constellationId.charCodeAt(0) + this.data.constellationId.charCodeAt(1) || 0) * 0.0001;
+                const baseOrder = 8.1 + idHash;
+                let layerOffset = 0;
+                if (nodeRenderOrder % 10 === 0) layerOffset = 0; // bloom
+                if (nodeRenderOrder % 10 === 1) layerOffset = 0.001; // inner
+                if (nodeRenderOrder % 10 === 2) layerOffset = 0.002; // core
+
+                const finalOrder = baseOrder + layerOffset;
+                if (entry.node) entry.node.renderOrder = finalOrder;
+
+                const opacity = Math.min(finalAlpha * (nodeRenderOrder % 10 === 0 ? 0.08 : (nodeRenderOrder % 10 === 1 ? 0.15 : 0.3)), 1.0);
                 if (nodeMaterial.uniforms && nodeMaterial.uniforms.opacity) {
                     nodeMaterial.uniforms.opacity.value = opacity;
                 } else {
@@ -436,11 +492,10 @@ AFRAME.registerComponent('constellation-stick-figure', {
                 }
 
                 // Dynamic Color Enforcement
-                let targetColor = (nodeRenderOrder === baseOrder + 2)
+                let targetColor = (nodeRenderOrder % 10 === 2)
                     ? (isZod ? '#fff4cc' : '#ffffff')
                     : (isZod ? zodiacColor : standardColor);
 
-                // Turn redish if up for removal OR being pointed at
                 if (this.isRemoving || this.isHighlighted) {
                     const baseCol = new THREE.Color(targetColor);
                     const redCol = new THREE.Color('#ff4444');

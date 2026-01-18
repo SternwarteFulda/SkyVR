@@ -179,10 +179,12 @@ AFRAME.registerComponent('constellation-renderer', {
                     const hip1 = lineGroup[i];
                     const hip2 = lineGroup[i + 1];
 
-                    const pos1 = this.starPositions.get(hip1);
-                    const pos2 = this.starPositions.get(hip2);
+                    const pos1_raw = this.starPositions.get(hip1);
+                    const pos2_raw = this.starPositions.get(hip2);
 
-                    if (pos1 && pos2) {
+                    if (pos1_raw && pos2_raw) {
+                        const pos1 = pos1_raw.clone().normalize().multiplyScalar(398.5);
+                        const pos2 = pos2_raw.clone().normalize().multiplyScalar(398.5);
                         points.push(pos1, pos2);
                     }
                 }
@@ -234,13 +236,13 @@ AFRAME.registerComponent('constellation-renderer', {
             if (dra < -12) dra += 24;
 
             const steps = Math.max(1, Math.floor(Math.abs(dra) * 15 + Math.abs(dec2 - dec1)));
-            let prevPoint = this.raDecToPosition(ra1, dec1, this.data.radius);
+            let prevPoint = this.raDecToPosition(ra1, dec1, 399); // Pulled to 399m
 
             for (let i = 1; i <= steps; i++) {
                 const t = i / steps;
                 const r = ra1 + dra * t;
                 const d = dec1 + (dec2 - dec1) * t;
-                const nextPoint = this.raDecToPosition(r, d, this.data.radius);
+                const nextPoint = this.raDecToPosition(r, d, 399); // Pulled to 399m
                 allPoints.push(prevPoint, nextPoint);
                 prevPoint = nextPoint;
             }
@@ -395,7 +397,7 @@ AFRAME.registerComponent('constellation-renderer', {
                 }
             } else if (constellation.image) {
                 // Illustration Preview
-                const illustRadius = 400;
+                const illustRadius = 390; // Pulled significantly closer (400->390)
                 const previewSet = new THREE.Group();
                 previewSet.name = 'preview-group-illust';
 
@@ -439,19 +441,38 @@ AFRAME.registerComponent('constellation-renderer', {
                             }
                         `,
                         transparent: true,
-                        side: THREE.DoubleSide,
+                        side: THREE.FrontSide,
+                        alphaTest: 0.001,
                         depthTest: true,
                         depthWrite: false,
                         blending: THREE.NormalBlending
                     });
                     const mesh = new THREE.Mesh(illustrationGeo, material);
-                    const renderSystem = this.el.sceneEl.systems['render-order'];
-                    mesh.renderOrder = renderSystem ? renderSystem.order['illustrations'] : 3;
+
+                    // Authoritative Render Order (8.0 = Above grids/lines)
+                    mesh.renderOrder = 8.0;
                     mesh.frustumCulled = false;
 
+                    mesh.onBeforeRender = function (renderer, scene) {
+                        // Safe ID resolution: use mesh id or parent group id
+                        const id = this.userData.id || (this.parent && this.parent.userData ? this.parent.userData.id : "");
+                        const idHash = ((id.charCodeAt(0) || 0) + (id.charCodeAt(1) || 0)) * 0.0001;
+                        this.renderOrder = 8.0 + idHash;
+
+                        this.material.side = THREE.FrontSide;
+                        this.material.depthWrite = false;
+                        this._sceneFog = scene.fog;
+                        scene.fog = null;
+                    };
+                    mesh.onAfterRender = function (renderer, scene) {
+                        scene.fog = this._sceneFog;
+                    };
+
+                    mesh.userData.id = constellation.id;
                     previewSet.add(mesh);
                     previewSet.userData.id = constellation.id;
                     previewSet.userData.type = 'illustration';
+
                     this.el.object3D.add(previewSet);
                     this.previewIllustration = previewSet;
 
@@ -678,6 +699,7 @@ AFRAME.registerComponent('constellation-renderer', {
             linewidth: 16,
             depthWrite: false,
             depthTest: true,
+            side: THREE.FrontSide, // Force FrontSide to stop striped Z-fighting
             blending: THREE.AdditiveBlending
         });
 
@@ -689,9 +711,11 @@ AFRAME.registerComponent('constellation-renderer', {
             for (let i = 0; i < lineGroup.length - 1; i++) {
                 const hip1 = lineGroup[i];
                 const hip2 = lineGroup[i + 1];
-                const p1 = this.starPositions.get(hip1);
-                const p2 = this.starPositions.get(hip2);
-                if (p1 && p2) {
+                const p1_raw = this.starPositions.get(hip1);
+                const p2_raw = this.starPositions.get(hip2);
+                if (p1_raw && p2_raw) {
+                    const p1 = p1_raw.clone().normalize().multiplyScalar(391);
+                    const p2 = p2_raw.clone().normalize().multiplyScalar(391);
                     points.push(p1, p2);
                 }
             }
@@ -700,22 +724,33 @@ AFRAME.registerComponent('constellation-renderer', {
         if (points.length > 0) {
             const geometry = new THREE.BufferGeometry().setFromPoints(points);
 
-            const renderSystem = this.el.sceneEl.systems['render-order'];
-            const lineBaseOrder = renderSystem ? renderSystem.order['lines'] : 7;
+            // Fog Bypass Helper
+            const addFogBypass = (obj) => {
+                obj.onBeforeRender = function (renderer, scene) {
+                    this._sceneFog = scene.fog;
+                    scene.fog = null;
+                };
+                obj.onAfterRender = function (renderer, scene) {
+                    scene.fog = this._sceneFog;
+                };
+            };
 
             const lineOuter = new THREE.LineSegments(geometry.clone(), outerGlowMaterial);
-            lineOuter.renderOrder = lineBaseOrder;
+            lineOuter.renderOrder = 8.1; // Authoritative Layer 8
             lineOuter.userData.layerType = 'bloom';
+            addFogBypass(lineOuter);
             group.add(lineOuter);
 
             const lineInner = new THREE.LineSegments(geometry.clone(), innerGlowMaterial);
-            lineInner.renderOrder = lineBaseOrder + 1;
+            lineInner.renderOrder = 8.11;
             lineInner.userData.layerType = 'inner';
+            addFogBypass(lineInner);
             group.add(lineInner);
 
             const lineCore = new THREE.LineSegments(geometry, coreMaterial);
-            lineCore.renderOrder = lineBaseOrder + 2;
+            lineCore.renderOrder = 8.12;
             lineCore.userData.layerType = 'core';
+            addFogBypass(lineCore);
             group.add(lineCore);
         }
 
@@ -1028,7 +1063,7 @@ AFRAME.registerComponent('constellation-renderer', {
         return 0;
     },
 
-    getConstellationBounds: function (constellation, targetRadius = 400) {
+    getConstellationBounds: function (constellation, targetRadius = 390) {
         if (!constellation.lines) {
             return {
                 center: new THREE.Vector3(0, targetRadius, 0),
@@ -1230,12 +1265,11 @@ AFRAME.registerComponent('constellation-renderer', {
 
             this.previewIllustration.traverse(node => {
                 if (node.material) {
-                    const rs = this.el.sceneEl.systems['render-order'];
-                    const baseOrderLines = rs ? rs.order['lines'] : 7;
-                    const baseOrderIllustrations = rs ? rs.order['illustrations'] : 3;
-
-                    // Boost pointed illustration slightly (+0.01) to win z-layer against neighbors
-                    node.renderOrder = (type === 'stick' ? baseOrderLines : baseOrderIllustrations) + 0.01;
+                    // Boost pointed illustration slightly to win z-layer against neighbors
+                    // Using Layer 8 to match the "S" and labels solution
+                    const idHash = (this.currentPointedConstellation.id.charCodeAt(0) + this.currentPointedConstellation.id.charCodeAt(1) || 0) * 0.0001;
+                    const baseOrder = 8.0 + idHash;
+                    node.renderOrder = (type === 'stick' ? baseOrder + 0.1 : baseOrder) + 0.005;
 
                     if (node.material.uniforms && node.material.uniforms.opacity) {
                         node.material.uniforms.opacity.value = this.previewOpacity * pulse;

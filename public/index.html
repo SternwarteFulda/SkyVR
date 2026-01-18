@@ -631,7 +631,7 @@
     <a-entity id="camera-rig" rig-follower networked="template:#rig-template;attachTemplateToLocal:false;"
       spawn-in-spots="radius:4" position="0 0 0" rotation="0 0 0">
       <a-entity id="camera" player-info networked="template:#camera-template;attachTemplateToLocal:false;"
-        camera="near: 0.05; far: 4000" skyvr-camera-pivot="offset: 0 0.05 -0.16"
+        camera="near: 0.03; far: 4000" skyvr-camera-pivot="offset: 0 0.05 -0.16"
         skyvr-look-controls="reverseMouseDrag: true; reverseTouchDrag: false; minFov: 2" constellation-pointer-2d
         skyvr-pointer-2d drawing="pointerMode: 2d" position="0 1.6 0">
         <a-sphere class="head" visible="false" random-color position="0 -0.1 0"></a-sphere>
@@ -718,7 +718,7 @@
           <!-- Secondary Camera (Magnifier) -->
           <!-- Positioned forward (-0.4) to clear controller geometry -->
           <!-- MUST specify cameraType: perspective for celestial viewing -->
-          <a-entity id="bino-secondary-cam" camera="active: false; near: 0.05"
+          <a-entity id="bino-secondary-cam" camera="active: false; near: 0.2"
             secondary-camera="outputElement: #left-lens; output: plane; quality: high; sequence: before; cameraType: perspective"
             force-bino-settings bino-optimizer position="0 0 -0.4" rotation="0 0 0">
           </a-entity>
