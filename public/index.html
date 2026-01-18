@@ -460,9 +460,9 @@
   </div>
 
   <a-scene loading-screen="enabled: false" vr-mode-ui="enabled: true" high-res
-    render-order="background, atmosphere, starfield, milkyway, illustrations, boundaries, lines, stars, avatars, ui, overlay"
+    render-order="background, atmosphere, milkyway, illustrations, boundaries, lines, starfield, stars, avatars, ui, overlay"
     renderer="
-
+      sortObjects: true;
       antialias: true;
       highRefreshRate: true;
       foveationLevel: 0.3" environment="
@@ -1227,9 +1227,13 @@
           <!-- Custom Shader for Stars -->
           <a-entity id="stars-point-cloud" position="0 0 0" rotation="-23.43619 0 0" starfield></a-entity>
 
-          <a-sphere id="milkyway" radius="400" rotation="6.45 29.85 90.06" scale="-1.0 1.0 1.0" object-render-order="0"
-            visible="true"
-            material="shader: flat; src: url(assets/gaia.png); side: back; fog: false; transparent: true; opacity: 0.6; blending: additive; depthWrite: false;">
+          <a-sphere id="milkyway" radius="400" rotation="6.45 29.85 90.06" scale="-1.0 1.0 1.0" visible="true"
+            material="shader: flat; src: url(assets/gaia.png); side: back; fog: false; transparent: true; opacity: 1.0; blending: additive; depthWrite: false;">
+          </a-sphere>
+
+          <!-- Boost Layer for Mobile/VR devices -->
+          <a-sphere id="milkyway-boost" radius="399.5" rotation="6.45 29.85 90.06" scale="-1.0 1.0 1.0" visible="false"
+            material="shader: flat; src: url(assets/gaia.png); side: back; fog: false; transparent: true; opacity: 1.0; blending: additive; depthWrite: false;">
           </a-sphere>
 
           <!-- Constellation lines and illustration renderer -->

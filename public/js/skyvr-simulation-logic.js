@@ -503,6 +503,15 @@ function updateScene() {
         milkyway.setAttribute('material', 'opacity', mwOpacity);
     }
 
+    // Manage Boost Layer opacity (Max 0.25 for fading - reduced from 0.5)
+    let milkywayBoost = document.getElementById("milkyway-boost");
+    if (milkywayBoost) {
+        // Only apply opacity if the element is actually enabled/visible (i.e. on Mobile)
+        // But we can blindly set opacity; if it's visible=false, it won't render anyway.
+        const boostOpacity = mapRange(skyBrightness, 0.0, 0.2, 0.25, 0.0);
+        milkywayBoost.setAttribute('material', 'opacity', boostOpacity);
+    }
+
     window._skyCache.lastSunUpdateTime = now;
 
     // Throttle UI text updates to ~10Hz

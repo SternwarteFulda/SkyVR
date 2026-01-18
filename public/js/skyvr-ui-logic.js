@@ -1,8 +1,13 @@
-/* global document, fetch, console */
-
-// Set low renderOrder for milkyway sphere
+// Set renderOrder ensuring Milkyway is behind stars (10 vs 20) and enable boost on Quest
 document.addEventListener('DOMContentLoaded', () => {
+    // Check for VR headset or Mobile
+    const isMobile = AFRAME.utils.device.isMobile();
+    const isHeadset = AFRAME.utils.device.checkHeadsetConnected();
+    const isVR = isMobile || isHeadset;
+
     const milkywayEl = document.getElementById('milkyway');
+    const milkywayBoost = document.getElementById('milkyway-boost');
+
     if (milkywayEl) {
         if (milkywayEl.hasLoaded) {
             setMilkywayRenderOrder(milkywayEl);
@@ -12,15 +17,34 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
     }
+
+    if (milkywayBoost) {
+        // Enable boost layer on VR devices / Mobile to compensate for dim screens
+        if (isVR) {
+            console.log('VR/Mobile device detected: Enabling Milkyway Boost Layer');
+            milkywayBoost.setAttribute('visible', true);
+            if (milkywayBoost.hasLoaded) {
+                setMilkywayRenderOrder(milkywayBoost);
+            } else {
+                milkywayBoost.addEventListener('loaded', function () {
+                    setMilkywayRenderOrder(this);
+                });
+            }
+        }
+    }
 });
 
 function setMilkywayRenderOrder(el) {
-    el.object3D.renderOrder = 5;
+    // Set to 10 so it renders BEFORE stars (default 20 by render-order component)
+    // This allows stars to "pop" on top regardless of blending
+    el.object3D.renderOrder = 10;
     const mesh = el.getObject3D('mesh');
     if (mesh && mesh.material) {
         mesh.material.depthWrite = false;
     }
 }
+
+
 
 
 // Native Fullscreen Logic
@@ -100,14 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
         scene.addEventListener('enter-vr', function () {
             const links = document.getElementById('legal-links-2d');
             if (links) links.style.display = 'none';
-        });
-        scene.addEventListener('exit-vr', function () {
-            const links = document.getElementById('legal-links-2d');
-            // We need to check if they should be visible (i.e. config loaded)
-            // A simple way is to check if they were supposed to be visible.
-            // For now, let's just re-fetch or assume if it has content it should show.
-            // Simpler: Just remove the inline display:none that we added above, 
-            // reverting to the class/ID rule (which might be display:block from the fetch).
+
             if (links && (links.querySelector('a[href="#"]') === null)) { // simplistic check
                 links.style.display = 'block';
             }
