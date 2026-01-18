@@ -12,6 +12,7 @@
     "aframe-environment-component": "1.5.0",
     "aframe-extras": "7.6.1",
     "aframe-render-order-component": "^1.1.0",
+    "aframe-troika-text": "^0.14.0",
     "astronomy-engine": "^2.1.19",
     "dotenv": "^16.4.7",
     "luxon": "^3.7.2",
