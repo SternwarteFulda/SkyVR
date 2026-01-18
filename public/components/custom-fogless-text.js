@@ -2,160 +2,102 @@ AFRAME.registerComponent('custom-fogless-text', {
   schema: {
     value: { type: 'string', default: '' },
     fontSize: { type: 'number', default: 40 },
-    fontFamily: { type: 'string', default: 'Outfit, sans-serif' },
+    fontFamily: { type: 'string', default: 'fonts/outfit-600.ttf' },
     textColor: { type: 'color', default: '#FFFFFF' },
-    outlineWidth: { type: 'number', default: 4 },
-    outlineColor: { type: 'color', default: '#000000' },
-    outlineAlphaForDepthWrite: { type: 'number', default: 0.002, min: 0.001, max: 1 },
-    materialAlphaTestThreshold: { type: 'number', default: 0.001, min: 0.001, max: 1 },
-    padding: { type: 'number', default: 10 }, // Pixels of padding around text on canvas
-    worldScale: { type: 'number', default: 0.1 }, // Scales canvas pixel size to world units for the plane
-    fixedWidth: { type: 'number', default: 0 }, // If > 0, forces this canvas width (pixels)
+    worldScale: { type: 'number', default: 0.1 },
+    fixedWidth: { type: 'number', default: 0 },
     depthTest: { type: 'boolean', default: true },
-    depthWrite: { type: 'boolean', default: true },
-    renderOrder: { type: 'number', default: 0 },
-    opacity: { type: 'number', default: 1.0, min: 0, max: 1 }
+    depthWrite: { type: 'boolean', default: false },
+    renderOrder: { type: 'number', default: 9 },
+    opacity: { type: 'number', default: 1.0 }
   },
 
   init: function () {
-    this.canvas = document.createElement('canvas');
-    this.texture = new THREE.CanvasTexture(this.canvas);
-    this.material = new THREE.MeshBasicMaterial({
-      map: this.texture,
-      transparent: true,
+    // Single-Entity vector text using Troika engine.
+    this.el.setAttribute('troika-text', {
+      align: 'center',
+      baseline: 'center',
+      side: 'front',
       fog: false,
-      alphaTest: this.data.materialAlphaTestThreshold,
-      depthWrite: this.data.depthWrite,
-      depthTest: this.data.depthTest
+      depthWrite: false,
+      depthTest: true
     });
+
+    this.updateMaterialSettings = this.updateMaterialSettings.bind(this);
+    this.el.addEventListener('troika-text-ready', this.updateMaterialSettings);
+    this.el.addEventListener('object3dset', this.updateMaterialSettings);
   },
 
   update: function (oldData) {
     const data = this.data;
-    let needsUpdate = false;
+    const baseWidth = (data.fixedWidth > 0 ? data.fixedWidth : 600);
+    const width = baseWidth * data.worldScale;
+    const worldFontSize = (data.fontSize / 40) * (width / 20);
 
-    if (oldData.value !== data.value ||
-      oldData.fontSize !== data.fontSize ||
-      oldData.textColor !== data.textColor ||
-      oldData.outlineWidth !== data.outlineWidth ||
-      oldData.outlineColor !== data.outlineColor ||
-      oldData.fixedWidth !== data.fixedWidth) {
-      needsUpdate = true;
-    }
+    this.el.setAttribute('troika-text', {
+      value: data.value.replace(/\\n/g, '\n'),
+      color: data.textColor,
+      font: data.fontFamily,
+      fontSize: worldFontSize,
+      maxWidth: width,
+      opacity: data.opacity,
+      outlineWidth: 0, // Outlines removed as requested
+      depthWrite: false,
+      depthTest: true,
+      fog: false
+    });
 
-    if (oldData.depthTest !== data.depthTest) {
-      this.material.depthTest = data.depthTest;
-    }
-
-    if (oldData.depthWrite !== data.depthWrite) {
-      this.material.depthWrite = data.depthWrite;
-    }
-
-    if (oldData.opacity !== data.opacity) {
-      this.material.opacity = data.opacity;
-    }
-
-    if (needsUpdate) {
-      this._createTextTextureAndPlane();
-    }
-
-    if (this.mesh && oldData.renderOrder !== data.renderOrder) {
-      this.mesh.renderOrder = data.renderOrder;
-    }
+    this.updateMaterialSettings();
   },
 
-  _createTextTextureAndPlane: function () {
+  updateMaterialSettings: function () {
     const data = this.data;
-    const ctx = this.canvas.getContext('2d');
+    const obj3d = this.el.object3D;
 
-    // 1. Setup font and measure text for canvas sizing
-    ctx.font = `bold ${data.fontSize}px ${data.fontFamily}`;
+    // FORCE PRIORITY 9: Ensures text paints OVER the 400m grids (Order 2)
+    const finalOrder = 9;
+    obj3d.renderOrder = finalOrder;
 
-    // Split text by newlines (handle both actual newlines and literal \n strings)
-    const lines = data.value.replace(/\\n/g, '\n').split('\n');
-
-    // Measure widest line and total height
-    let maxLineWidth = 0;
-    // Base height per line
-    const lineHeight = data.fontSize * 1.2;
-
-    lines.forEach(line => {
-      const metrics = ctx.measureText(line);
-      if (metrics.width > maxLineWidth) {
-        maxLineWidth = metrics.width;
+    obj3d.traverse(obj => {
+      // 1. Fog-Bypass Hooks (Ensures horizon visibility)
+      if (obj.isMesh && !obj._fogBypassWrapped) {
+        const originalOnBeforeRender = obj.onBeforeRender;
+        obj.onBeforeRender = function (renderer, scene, camera, geometry, material, group) {
+          if (originalOnBeforeRender) originalOnBeforeRender.call(this, renderer, scene, camera, geometry, material, group);
+          this._sceneFog = scene.fog;
+          scene.fog = null;
+        };
+        obj.onAfterRender = function (renderer, scene) {
+          scene.fog = this._sceneFog;
+        };
+        obj._fogBypassWrapped = true;
       }
+
+      // 2. Material Stability
+      if (obj.material) {
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        mats.forEach(mat => {
+          mat.fog = false;
+          mat.side = THREE.FrontSide;
+          mat.depthTest = true;
+          mat.depthWrite = false; // Prevents all world z-fighting
+          mat.transparent = true;
+          mat.alphaTest = 0.001;
+          mat.needsUpdate = true;
+        });
+      }
+      obj.renderOrder = finalOrder;
     });
+  },
 
-    // Check for advanced metrics on the first line as a sample
-    ctx.font = `bold ${data.fontSize}px ${data.fontFamily}`;
-    const sampleMetrics = ctx.measureText('M');
-    let derivedLineHeight = lineHeight;
-    if (sampleMetrics.actualBoundingBoxAscent && sampleMetrics.actualBoundingBoxDescent) {
-      const metricHeight = sampleMetrics.actualBoundingBoxAscent + sampleMetrics.actualBoundingBoxDescent;
-      if (metricHeight > derivedLineHeight) {
-        derivedLineHeight = metricHeight;
-      }
-    }
-
-    const totalTextHeight = derivedLineHeight * lines.length;
-
-    let canvasWidth = data.fixedWidth > 0 ? data.fixedWidth : Math.ceil(maxLineWidth + (data.padding * 2) + (data.outlineWidth * 2));
-    const canvasHeight = Math.ceil(totalTextHeight + (data.padding * 2) + (data.outlineWidth * 2));
-
-    if (canvasWidth <= 0 || canvasHeight <= 0) {
-      if (this.mesh) this.el.removeObject3D('mesh');
-      return;
-    }
-
-    this.canvas.width = canvasWidth;
-    this.canvas.height = canvasHeight;
-
-    // 2. Draw Text onto Canvas
-    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-    ctx.font = `bold ${data.fontSize}px ${data.fontFamily}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-
-    const centerX = canvasWidth / 2;
-    const startY = (canvasHeight - totalTextHeight) / 2 + (derivedLineHeight / 2);
-
-    ctx.fillStyle = data.textColor;
-
-    lines.forEach((line, index) => {
-      const y = startY + (index * derivedLineHeight);
-      ctx.fillText(line, centerX, y);
-
-      if (data.outlineWidth > 0) {
-        const oc = new THREE.Color(data.outlineColor);
-        ctx.strokeStyle = `rgba(${Math.round(oc.r * 255)}, ${Math.round(oc.g * 255)}, ${Math.round(oc.b * 255)}, ${data.outlineAlphaForDepthWrite})`;
-        ctx.lineWidth = data.outlineWidth;
-        ctx.strokeText(line, centerX, y);
-      }
-    });
-
-    this.texture.needsUpdate = true;
-
-    // 3. Create/Update Plane Mesh
-    const planeWidth = canvasWidth * data.worldScale;
-    const planeHeight = canvasHeight * data.worldScale;
-
-    if (this.mesh) {
-      this.mesh.geometry.dispose();
-      this.mesh.geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
-    } else {
-      const geometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
-      this.mesh = new THREE.Mesh(geometry, this.material);
-      this.mesh.renderOrder = data.renderOrder;
-      this.el.setObject3D('mesh', this.mesh);
+  tick: function () {
+    // Watchdog: Ensure high render priority stays enforced
+    if (this.el.object3D.renderOrder !== 9) {
+      this.updateMaterialSettings();
     }
   },
 
   remove: function () {
-    if (this.mesh) {
-      this.mesh.geometry.dispose();
-      this.material.dispose();
-      this.texture.dispose();
-      this.el.removeObject3D('mesh');
-    }
+    this.el.removeAttribute('troika-text');
   }
 });
