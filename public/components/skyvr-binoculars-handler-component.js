@@ -63,8 +63,8 @@ AFRAME.registerComponent('binoculars-handler', {
         const targetQuat = new THREE.Quaternion();
 
         if (this.zoomed) {
-            // Snap target: 13cm in front of camera
-            const p = new THREE.Vector3(0, 0, -0.13);
+            // Snap target: 12.5cm in front of camera
+            const p = new THREE.Vector3(0, 0, -0.125);
             this.camera.object3D.localToWorld(p);
             this.el.object3D.parent.worldToLocal(p);
             targetPos.copy(p);
@@ -109,13 +109,13 @@ AFRAME.registerComponent('binoculars-handler', {
         const binoWorldPos = new THREE.Vector3().setFromMatrixPosition(this.el.object3D.matrixWorld);
         const realBinoDist = binoWorldPos.distanceTo(headWorldPos);
 
-        // Transition: End precisely at snap point (0.13m), Start as they get very close (0.18m)
+        // Transition: End precisely at snap point (0.125m), Start as they get very close (0.18m)
         let exitPupilRadius = 0.004;
-        if (realBinoDist <= 0.13) {
+        if (realBinoDist <= 0.125) {
             exitPupilRadius = 0.024; // Full viewing diameter
         } else if (realBinoDist < 0.18) {
             // Eased interpolation for late expansion
-            const t = (realBinoDist - 0.13) / (0.18 - 0.13);
+            const t = (realBinoDist - 0.125) / (0.18 - 0.125);
             const easedT = t * t * (3 - 2 * t); // Smoothstep
             exitPupilRadius = 0.024 * (1 - easedT) + 0.004 * easedT;
         }
