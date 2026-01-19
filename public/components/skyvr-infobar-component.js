@@ -33,6 +33,10 @@ AFRAME.registerComponent('skyvr-infobar', {
             modeSpacing: 0.045
         };
 
+        // Cache URL params once
+        this.urlParams = new URLSearchParams(window.location.search);
+        this.isStandalone = this.urlParams.get('room') === 'none';
+
         // Create container
         this.container = document.createElement('a-entity');
         this.el.appendChild(this.container);
@@ -106,6 +110,14 @@ AFRAME.registerComponent('skyvr-infobar', {
                 }
             }
         };
+
+        // Cache hints
+        this.cache = {
+            hintBText: document.getElementById('hint-b-text'),
+            hintBBg: document.getElementById('hint-b-bg'),
+            controllerHints: []
+        };
+
         this.controlPanel2DVisible = false;
 
         // Initialize 2D visibility: Only show if NOT on a 3D device and not immersive
@@ -135,8 +147,7 @@ AFRAME.registerComponent('skyvr-infobar', {
         // Update translations on language change
         window.addEventListener('languageChanged', () => {
             if (this.roomText) {
-                const isStandalone = new URLSearchParams(window.location.search).get('room') === 'none';
-                if (isStandalone) {
+                if (this.isStandalone) {
                     this.roomText.setAttribute('value', i18next.t('infobar.standalone'));
                 } else if (!this.lastConnected) {
                     this.roomText.setAttribute('value', i18next.t('infobar.connecting'));
@@ -211,15 +222,14 @@ AFRAME.registerComponent('skyvr-infobar', {
         if (this.ui2d.exit) this.ui2d.exit.addEventListener('click', onExitClick);
 
 
-        const isStandalone = new URLSearchParams(window.location.search).get('room') === 'none';
         // Always show the door icon so users can exit
         this.roomGroup.appendChild(this.roomIcon);
 
         this.roomText = document.createElement('a-text');
         const standaloneText = i18next.t('infobar.standalone') || 'Standalone Session';
         const connectingText = i18next.t('infobar.connecting') || 'Connecting...';
-        this.roomText.setAttribute('value', isStandalone ? standaloneText : connectingText);
-        if (isStandalone) this.roomText.setAttribute('data-i18n-value', 'infobar.standalone');
+        this.roomText.setAttribute('value', this.isStandalone ? standaloneText : connectingText);
+        if (this.isStandalone) this.roomText.setAttribute('data-i18n-value', 'infobar.standalone');
         else this.roomText.setAttribute('data-i18n-value', 'infobar.connecting');
         this.roomText.setAttribute('color', 'white');
         this.roomText.setAttribute('width', 0.4);
@@ -229,8 +239,7 @@ AFRAME.registerComponent('skyvr-infobar', {
         this.roomGroup.appendChild(this.roomText);
 
         // Mic Section (Center)
-        const urlParams = new URLSearchParams(window.location.search);
-        const micEnabledParam = urlParams.get('mic') !== 'false' && !isStandalone;
+        const micEnabledParam = this.urlParams.get('mic') !== 'false' && !this.isStandalone;
         if (micEnabledParam) {
             this.micIcon = this.createIcon(this.ICONS.micOff, this.CONFIG.iconSize);
             this.micIcon.setAttribute('position', '0 0 0.001');
@@ -256,10 +265,10 @@ AFRAME.registerComponent('skyvr-infobar', {
         }
 
         // Camera Section (Next to Mic)
-        const presenceParamRaw = urlParams.get('presence') || '';
+        const presenceParamRaw = this.urlParams.get('presence') || '';
         const presenceParam = presenceParamRaw.split(':')[0].trim();
         // Only show camera toggle if joined as 'webcam' AND not standalone
-        if (presenceParam === 'webcam' && !isStandalone) {
+        if (presenceParam === 'webcam' && !this.isStandalone) {
             this.cameraIcon = this.createIcon(this.ICONS.cameraOn, this.CONFIG.iconSize);
             // Position slightly to the right of mic (mic is at 0)
             this.cameraIcon.setAttribute('position', '0.05 0 0.001');
@@ -303,7 +312,7 @@ AFRAME.registerComponent('skyvr-infobar', {
         // Mode container starts after the center
         this.modeGroup = document.createElement('a-entity');
         // Shift right if camera icon is present
-        const modeStart = (presenceParam === 'webcam' && !isStandalone) ? 0.25 : 0.19;
+        const modeStart = (presenceParam === 'webcam' && !this.isStandalone) ? 0.25 : 0.19;
         this.modeGroup.setAttribute('position', `${modeStart} 0 0`);
         this.container.appendChild(this.modeGroup);
 
@@ -348,7 +357,7 @@ AFRAME.registerComponent('skyvr-infobar', {
         this.lastConnected = false;
         this.lastReverse = null;
 
-        if (isStandalone) {
+        if (this.isStandalone) {
             const standaloneText = i18next.t('infobar.standalone') || 'Standalone Session';
             this.roomText.setAttribute('value', standaloneText);
             this.roomText.setAttribute('data-i18n-value', 'infobar.standalone');
@@ -358,6 +367,8 @@ AFRAME.registerComponent('skyvr-infobar', {
             this.roomText.setAttribute('data-i18n-value', 'infobar.connecting');
         }
         window.currentMode = 'none';
+
+        this.tick = AFRAME.utils.throttleTick(this.tick, 50, this);
     },
 
     remove: function () {
@@ -989,11 +1000,7 @@ AFRAME.registerComponent('skyvr-infobar', {
     },
 
     tick: function () {
-        const urlParams = new URLSearchParams(window.location.search);
-        const isStandalone = urlParams.get('room') === 'none';
-
-        if (isStandalone) {
-            // In standalone, just ensure the text is correct once
+        if (this.isStandalone) {
             const standaloneText = i18next.t('infobar.standalone') || 'Standalone Session';
             if (this.roomText.getAttribute('value') !== standaloneText) {
                 this.roomText.setAttribute('value', standaloneText);
@@ -1005,22 +1012,13 @@ AFRAME.registerComponent('skyvr-infobar', {
         const currentMic = !!window.micEnabled;
         const currentMode = window.currentMode || 'draw';
 
-        // Update connection status and room name
-        if (!isStandalone) {
-            // Update connection status and room name only if networked
+        if (!this.isStandalone) {
             if (isConnected !== this.lastConnected) {
                 this.lastConnected = isConnected;
                 if (isConnected) {
-                    const roomName = urlParams.get('room') || 'n/a';
+                    const roomName = this.urlParams.get('room') || 'n/a';
                     this.roomText.setAttribute('value', roomName);
                     this.roomText.removeAttribute('data-i18n-value');
-                    // Identified Info: Ensure text opacity is multiplied by 0.6, marker opacity remains full
-                    if (this.textEl) {
-                        this.textEl.setAttribute('custom-fogless-text', 'opacity', this.opacity * 0.6);
-                    }
-                    if (this.markerEl) {
-                        this.markerEl.setAttribute('material', 'opacity', this.opacity);
-                    }
                 } else {
                     const connectingText = i18next.t('infobar.connecting') || 'Connecting...';
                     this.roomText.setAttribute('value', connectingText);
@@ -1029,74 +1027,48 @@ AFRAME.registerComponent('skyvr-infobar', {
             }
         }
 
-        // Mic status updates
         if (this.micIcon && currentMic !== this.lastMic) {
             this.lastMic = currentMic;
             const micSrc = currentMic ? this.ICONS.micOn : this.ICONS.micOff;
             this.updateIcon(this.micIcon, micSrc, currentMic ? '#ff0000' : 'white');
             this.borderEl.setAttribute('color', currentMic ? '#ff0000' : '#8a2be2');
 
-            // Update 2D Mic UI
             if (this.ui2d.mic && this.ui2d.micIcon) {
                 this.ui2d.micIcon.src = currentMic ? 'assets/icons/mic-on.svg' : 'assets/icons/mic-off.svg';
                 this.ui2d.mic.classList.toggle('mic-on', currentMic);
             }
         }
 
-        // Camera status updates
         const currentCamera = !!window.cameraEnabled;
         if (this.cameraIcon && currentCamera !== this.lastCamera) {
             this.lastCamera = currentCamera;
             const camSrc = currentCamera ? this.ICONS.cameraOn : this.ICONS.cameraOff;
             this.updateIcon(this.cameraIcon, camSrc, currentCamera ? 'white' : 'gray');
 
-            // Update 2D Camera UI
             if (this.ui2d.camera && this.ui2d.cameraIcon) {
                 this.ui2d.cameraIcon.src = currentCamera ? 'assets/icons/camera-on.svg' : 'assets/icons/camera-off.svg';
                 this.ui2d.camera.classList.toggle('active', currentCamera);
             }
         }
 
-        // Mode updates (runs in both Standalone and Networked)
         if (currentMode !== this.lastMode) {
             this.lastMode = currentMode;
-            // Highlight active mode, dim others
-            Object.keys(this.modeButtons).forEach(id => {
-                const btn = this.modeButtons[id];
-                const isActive = id === currentMode;
-                btn.setAttribute('material', 'opacity', isActive ? 1.0 : 0.3);
-            });
+            for (let id in this.modeButtons) {
+                this.modeButtons[id].setAttribute('material', 'opacity', id === currentMode ? 1.0 : 0.3);
+            }
 
-            // Update 2D Mode UI
-            Object.keys(this.ui2d.modes).forEach(id => {
+            for (let id in this.ui2d.modes) {
                 const btn = this.ui2d.modes[id];
-                if (btn) {
-                    const isActive = id === currentMode && !window.isAutoDrawing;
-                    btn.classList.toggle('active', isActive);
-                }
-            });
-
-            // Toggle extras menus
-            if (this.ui2d.drawExtras) {
-                this.ui2d.drawExtras.classList.toggle('show', currentMode === 'draw' && !window.isAutoDrawing);
-            }
-            if (this.ui2d.stickfigureExtras) {
-                this.ui2d.stickfigureExtras.classList.toggle('show', currentMode === 'stickfigure');
-            }
-            if (this.ui2d.constellationExtras) {
-                this.ui2d.constellationExtras.classList.toggle('show', currentMode === 'constellation');
-            }
-            if (this.ui2d.identifyExtras) {
-                this.ui2d.identifyExtras.classList.toggle('show', currentMode === 'identify');
-            }
-            if (this.ui2d.stampExtras) {
-                this.ui2d.stampExtras.classList.toggle('show', currentMode === 'stamp');
+                if (btn) btn.classList.toggle('active', id === currentMode && !window.isAutoDrawing);
             }
 
-            // Update B-button hint text dynamically
-            const bText = document.getElementById('hint-b-text');
-            const bBg = document.getElementById('hint-b-bg');
-            if (bText && bBg) {
+            if (this.ui2d.drawExtras) this.ui2d.drawExtras.classList.toggle('show', currentMode === 'draw' && !window.isAutoDrawing);
+            if (this.ui2d.stickfigureExtras) this.ui2d.stickfigureExtras.classList.toggle('show', currentMode === 'stickfigure');
+            if (this.ui2d.constellationExtras) this.ui2d.constellationExtras.classList.toggle('show', currentMode === 'constellation');
+            if (this.ui2d.identifyExtras) this.ui2d.identifyExtras.classList.toggle('show', currentMode === 'identify');
+            if (this.ui2d.stampExtras) this.ui2d.stampExtras.classList.toggle('show', currentMode === 'stamp');
+
+            if (this.cache.hintBText && this.cache.hintBBg) {
                 let label = "Action (B)";
                 let width = 0.15;
                 if (currentMode === 'draw') { label = "Draw (B)"; width = 0.1; }
@@ -1106,40 +1078,35 @@ AFRAME.registerComponent('skyvr-infobar', {
                 else if (currentMode === 'identify') { label = "Stamp info (B)"; width = 0.15; }
                 else if (currentMode === 'pointer') { label = "Pointer Active"; width = 0.15; }
 
-                bText.setAttribute('value', label);
-                bBg.setAttribute('width', width);
-                bBg.setAttribute('position', `${-width / 2} -0.0125 0`);
+                this.cache.hintBText.setAttribute('value', label);
+                this.cache.hintBBg.setAttribute('width', width);
+                this.cache.hintBBg.setAttribute('position', `${-width / 2} -0.0125 0`);
             }
         }
 
-        // Mouse Move sync (if changed via other means, though currently only via this component)
         const currentReverse = !!window.reverseMouse;
         if (currentReverse !== this.lastReverse) {
             this.lastReverse = currentReverse;
-            if (this.ui2d.mouseMove) {
-                this.ui2d.mouseMove.classList.toggle('active', currentReverse);
-            }
+            if (this.ui2d.mouseMove) this.ui2d.mouseMove.classList.toggle('active', currentReverse);
         }
 
-        // Sync room text to 2D UI
-        if (this.ui2d.roomText && !isStandalone) {
+        if (this.ui2d.roomText && !this.isStandalone) {
             const val = this.roomText.getAttribute('value');
-            if (this.ui2d.roomText.textContent !== val) {
-                this.ui2d.roomText.textContent = val;
-            }
-        } else if (this.ui2d.roomText && isStandalone) {
+            if (this.ui2d.roomText.textContent !== val) this.ui2d.roomText.textContent = val;
+        } else if (this.ui2d.roomText && this.isStandalone) {
             this.ui2d.roomText.textContent = i18next.t('infobar.standalone') || 'Standalone Session';
         }
 
-        // Sync 2D Control Panel Values
         this.syncTimeUI(false);
 
-        // Force hide tooltips in 2D mode
         if (!this.el.sceneEl.is('vr-mode')) {
-            const hints = document.querySelectorAll('.controller-hint');
-            hints.forEach(h => {
+            if (this.cache.controllerHints.length === 0) {
+                this.cache.controllerHints = Array.from(document.querySelectorAll('.controller-hint'));
+            }
+            for (let i = 0, len = this.cache.controllerHints.length; i < len; i++) {
+                const h = this.cache.controllerHints[i];
                 if (h.getAttribute('visible')) h.setAttribute('visible', false);
-            });
+            }
         }
     },
 

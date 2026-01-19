@@ -7,6 +7,7 @@
   <script src="js/aframe/aframe.min.js"></script>
   <script src="js/aframe-extras/aframe-extras.primitives.min.js"></script>
   <script src="js/aframe-troika-text/aframe-troika-text.min.js"></script>
+  <script src="components/aframe-geometry-merger-component/aframe-geometry-merger-component.min.js"></script>
   <script src="components/aframe-render-order-component/aframe-render-order-component.min.js"></script>
   <script src="js/socket.io/socket.io.min.js"></script>
   <script src="easyrtc/easyrtc.js"></script>
@@ -464,6 +465,7 @@
     renderer="
       sortObjects: true;
       antialias: true;
+      logarithmicDepthBuffer: true;
       highRefreshRate: true;
       foveationLevel: 0.3" environment="
       active: true;
@@ -553,11 +555,9 @@
       </template>
       <template id="left-controller-template">
         <a-entity player-info>
-          <a-entity class="binoculars-model" visible="false" scale="1.76 1.76 1.76">
-            <!-- Visual Offset Wrapper: 
-                 Offsets the model forward relative to the synced controller position.
-                 This ensures the binoculars look correct on the remote face 
-                 without affecting the owner's immersive internal viewpoint. -->
+          <a-entity class="binoculars-model" visible="false" scale="1.76 1.76 1.76"
+            geometry-merger="preserveOrig: false">
+            <!-- Visual Offset Wrapper -->
             <a-entity position="0 0 -0.1">
               <!-- Left Barrel -->
               <a-entity position="-0.034 0 0">

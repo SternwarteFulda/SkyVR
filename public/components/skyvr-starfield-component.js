@@ -356,43 +356,57 @@ AFRAME.registerComponent('starfield', {
         this.throttledUpdatePlanets();
     },
 
-    tick: function (t, dt) {
-        if (!dt) return;
+    tick: (function () {
+        // Private reusable variables to avoid GC
+        const lerpFactor = 0;
+        const diffPos = new THREE.Vector3();
 
-        // Smoothly interpolate moon position and rotation
-        // Using a factor that feels responsive but smooth
-        const lerpFactor = 1 - Math.pow(0.001, dt / 1000);
+        return function (t, dt) {
+            if (!dt) return;
 
-        if (this.moon && !this.firstMoonUpdate) {
-            const distSq = this.moon.position.distanceToSquared(this.targetMoonPosition);
-            if (distSq < 0.0001) {
-                // Already close enough, snap to target and skip lerp
-                this.moon.position.copy(this.targetMoonPosition);
-                this.moon.quaternion.copy(this.targetMoonQuaternion);
-            } else {
-                this.moon.position.lerp(this.targetMoonPosition, lerpFactor);
-                this.moon.quaternion.slerp(this.targetMoonQuaternion, lerpFactor);
-            }
+            // Smoothly interpolate moon position and rotation
+            // Using a factor that feels responsive but smooth
+            const lerpFactor = 1 - Math.pow(0.001, dt / 1000);
 
-            // Update Moon light to match interpolated position
-            if (this.moonLight) {
-                this.moonLight.position.copy(this.moon.position);
-                this.moonLight.position.addScaledVector(this.illuminationDirection, 100);
-                this.moonLight.lookAt(this.moon.position);
-            }
-        }
+            if (this.moon && !this.firstMoonUpdate) {
+                // Optimization: use distanceToSquared for performance
+                const distSq = this.moon.position.distanceToSquared(this.targetMoonPosition);
+                if (distSq < 0.0001) {
+                    // Already close enough, snap to target and skip lerp
+                    this.moon.position.copy(this.targetMoonPosition);
+                    this.moon.quaternion.copy(this.targetMoonQuaternion);
+                } else {
+                    this.moon.position.lerp(this.targetMoonPosition, lerpFactor);
+                    this.moon.quaternion.slerp(this.targetMoonQuaternion, lerpFactor);
+                }
 
-        // Smoothly interpolate all planets
-        if (this.planetsData && this.planetsData.length > 0) {
-            for (let i = 0; i < this.planetsData.length; i++) {
-                const data = this.planetsData[i];
-                if (data.currentPosition && data.targetPosition) {
-                    data.currentPosition.lerp(data.targetPosition, lerpFactor);
+                // Update Moon light to match interpolated position
+                if (this.moonLight) {
+                    this.moonLight.position.copy(this.moon.position);
+                    this.moonLight.position.addScaledVector(this.illuminationDirection, 100);
+                    this.moonLight.lookAt(this.moon.position);
                 }
             }
-            this.updatePlanetsPositions();
-        }
-    },
+
+            // Smoothly interpolate all planets
+            if (this.planetsData && this.planetsData.length > 0) {
+                let anyPlanetMoved = false;
+                for (let i = 0, len = this.planetsData.length; i < len; i++) {
+                    const data = this.planetsData[i];
+                    if (data.currentPosition && data.targetPosition) {
+                        const distSq = data.currentPosition.distanceToSquared(data.targetPosition);
+                        if (distSq > 0.000001) {
+                            data.currentPosition.lerp(data.targetPosition, lerpFactor);
+                            anyPlanetMoved = true;
+                        }
+                    }
+                }
+                if (anyPlanetMoved) {
+                    this.updatePlanetsPositions();
+                }
+            }
+        };
+    })(),
 
     updateMoon: function (forceInterpolation = false) {
         if (!this.planetsData) this.calculatePlanetsData(); // Fallback init

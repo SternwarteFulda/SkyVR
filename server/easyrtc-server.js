@@ -73,6 +73,7 @@ app.use('/js/luxon', express.static(path.resolve(__dirname, "..", "node_modules"
 app.use('/js/i18next', express.static(path.resolve(__dirname, "..", "node_modules", "i18next", "dist", "umd")));
 app.use('/js/i18next-browser-languagedetector', express.static(path.resolve(__dirname, "..", "node_modules", "i18next-browser-languagedetector", "dist", "umd")));
 app.use('/components/aframe-render-order-component', express.static(path.resolve(__dirname, "..", "node_modules", "aframe-render-order-component", "dist")));
+app.use('/components/aframe-geometry-merger-component', express.static(path.resolve(__dirname, "..", "node_modules", "aframe-geometry-merger-component", "dist")));
 
 
 // Start Express http server

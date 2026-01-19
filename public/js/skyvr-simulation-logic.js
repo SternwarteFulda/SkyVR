@@ -1,15 +1,80 @@
 /* global Astronomy, luxon, AFRAME, NAF, THREE, performance, window, document, console, location */
 
-let latitudeDisplay = document.getElementById("latitude-display");
-let longitudeDisplay = document.getElementById("longitude-display");
-let dateTimeDisplay = document.getElementById("date-time-display");
-let sceneEl = document.querySelector('a-scene');
-let cameraRig = document.getElementById("camera-rig");
-let azContainer = document.getElementById("az-container");
-let eqContainer = document.getElementById("eq-container");
-let precessionContainer = document.getElementById("precession-container");
-let starsPointCloud = document.getElementById("stars-point-cloud");
-let milkyway = document.getElementById("milkyway");
+// DOM element cache to avoid expensive and repetitive document.getElementById calls in tick()
+const UI = {
+    latitudeDisplay: null,
+    longitudeDisplay: null,
+    dateTimeDisplay: null,
+    sceneEl: null,
+    cameraRig: null,
+    azContainer: null,
+    eqContainer: null,
+    precessionContainer: null,
+    starsPointCloud: null,
+    milkyway: null,
+    meridian: null,
+    equator: null,
+    ecliptic: null,
+    cardinalPoints: null,
+    ncp: null,
+    scp: null,
+    skyMaster: null,
+    constellationLines: null,
+    milkywayBoost: null,
+    // VR UI Inputs
+    vrYear: null,
+    vrMonth: null,
+    vrDay: null,
+    vrHour: null,
+    vrMinute: null,
+    vrLat: null,
+    vrLon: null,
+    vrNsBtn: null,
+    vrEwBtn: null,
+    // 2D UI
+    ns2d: null,
+    ew2d: null
+};
+
+// Internal initialization of the UI cache
+function initUICache() {
+    UI.latitudeDisplay = document.getElementById("latitude-display");
+    UI.longitudeDisplay = document.getElementById("longitude-display");
+    UI.dateTimeDisplay = document.getElementById("date-time-display");
+    UI.sceneEl = document.querySelector('a-scene');
+    UI.cameraRig = document.getElementById("camera-rig");
+    UI.azContainer = document.getElementById("az-container");
+    UI.eqContainer = document.getElementById("eq-container");
+    UI.precessionContainer = document.getElementById("precession-container");
+    UI.starsPointCloud = document.getElementById("stars-point-cloud");
+    UI.milkyway = document.getElementById("milkyway");
+    UI.meridian = document.getElementById('meridian');
+    UI.equator = document.getElementById('equator');
+    UI.ecliptic = document.getElementById('ecliptic');
+    UI.cardinalPoints = document.getElementById('cardinal-points');
+    UI.ncp = document.getElementById('ncp');
+    UI.scp = document.getElementById('scp');
+    UI.skyMaster = document.getElementById('sky-master');
+    UI.constellationLines = document.getElementById('constellation-lines');
+    UI.milkywayBoost = document.getElementById("milkyway-boost");
+    UI.binoSky = document.querySelector('a-sky.environment');
+    UI.vrYear = document.getElementById('input-vr-year');
+    UI.vrMonth = document.getElementById('input-vr-month');
+    UI.vrDay = document.getElementById('input-vr-day');
+    UI.vrHour = document.getElementById('input-vr-hour');
+    UI.vrMinute = document.getElementById('input-vr-minute');
+    UI.vrLat = document.getElementById('input-vr-lat');
+    UI.vrLon = document.getElementById('input-vr-lon');
+    UI.vrNsBtn = document.getElementById('toggle-2d-ns-vr');
+    UI.vrEwBtn = document.getElementById('toggle-2d-ew-vr');
+    UI.ns2d = document.getElementById('toggle-2d-ns');
+    UI.ew2d = document.getElementById('toggle-2d-ew');
+}
+
+// Perform initial UI cache
+document.addEventListener('DOMContentLoaded', initUICache);
+// Also try immediate in case DOM is already parsed
+if (document.readyState === 'complete' || document.readyState === 'interactive') initUICache();
 
 const initialLatitude = 50.5741312;
 const initialLongitude = 9.6927744;
@@ -18,9 +83,8 @@ window.longitude = initialLongitude;
 let elevation = 300;
 
 function updateInitText() {
-    if (!latitudeDisplay) latitudeDisplay = document.getElementById("latitude-display");
-    if (latitudeDisplay) {
-        latitudeDisplay.setAttribute("text", `value: Latitude: ${latitude.toFixed(1)}; color: white; width: 1; align: center`);
+    if (UI.latitudeDisplay) {
+        UI.latitudeDisplay.setAttribute("text", `value: Latitude: ${latitude.toFixed(1)}; color: white; width: 1; align: center`);
     }
 }
 updateInitText();
@@ -147,7 +211,7 @@ function syncSky(silent = false, forceOwnership = false) {
 
     if (!forceOwnership && !isHeartbeatRecast && (now - lastSyncTime < throttleLimit)) return;
 
-    const skyMaster = document.getElementById('sky-master');
+    const skyMaster = UI.skyMaster || document.getElementById('sky-master');
     if (skyMaster && NAF.connection && NAF.connection.adapter && NAF.connection.isConnected()) {
         // ROBUST SAFEGUARD:
         // Use the global helper to check if we are authorized to broadcast.
@@ -171,18 +235,21 @@ function syncSky(silent = false, forceOwnership = false) {
         const currentState = skyMaster.getAttribute('sky-state') || {};
         const sharedConst = currentState.activeConstellations || 'INIT';
 
-        const renderer = document.getElementById('constellation-lines')?.components['constellation-renderer'];
+        const renderer = (UI.constellationLines || document.getElementById('constellation-lines'))?.components['constellation-renderer'];
         let constellationData = sharedConst;
         if (renderer) {
             const currentCount = renderer.placedIllustrations.length;
             if (currentCount !== window._lastConstellationCount || !window._cachedConstellationData) {
-                window._cachedConstellationData = JSON.stringify(
-                    renderer.placedIllustrations.map(e => {
-                        const id = e.dataset.constellationId;
-                        const type = e.dataset.type || 'illustration';
-                        return type === 'illustration' ? id : { id: id, type: type };
-                    }).filter(item => item && (typeof item === 'string' || item.id))
-                );
+                const list = [];
+                for (let i = 0; i < renderer.placedIllustrations.length; i++) {
+                    const e = renderer.placedIllustrations[i];
+                    const id = e.dataset.constellationId;
+                    const type = e.dataset.type || 'illustration';
+                    if (id) {
+                        list.push(type === 'illustration' ? id : { id: id, type: type });
+                    }
+                }
+                window._cachedConstellationData = JSON.stringify(list);
                 window._lastConstellationCount = currentCount;
             }
             constellationData = window._cachedConstellationData;
@@ -203,11 +270,11 @@ function syncSky(silent = false, forceOwnership = false) {
             time: window.targetSimulationTime.toISO(),
             latitude: window.latitude,
             longitude: window.longitude,
-            showMeridian: document.getElementById('meridian')?.getAttribute('fader')?.active || false,
-            showEquator: document.getElementById('equator')?.getAttribute('fader')?.active || false,
-            showEcliptic: document.getElementById('ecliptic')?.getAttribute('fader')?.active || false,
-            showCardinalPoints: document.getElementById('cardinal-points')?.getAttribute('fader')?.active || false,
-            showCelestialPoles: document.getElementById('ncp')?.getAttribute('fader')?.active || false,
+            showMeridian: UI.meridian?.getAttribute('fader')?.active || false,
+            showEquator: UI.equator?.getAttribute('fader')?.active || false,
+            showEcliptic: UI.ecliptic?.getAttribute('fader')?.active || false,
+            showCardinalPoints: UI.cardinalPoints?.getAttribute('fader')?.active || false,
+            showCelestialPoles: UI.ncp?.getAttribute('fader')?.active || false,
             showConstellationLines: renderer ? renderer.data.showLines : false,
             showBoundaries: renderer ? renderer.data.showBoundaries : false,
             activeConstellations: constellationData || 'INIT',
@@ -232,6 +299,8 @@ window.targetSimulationTime = window.simulationTime;
 AFRAME.registerComponent('local-time-interpolator', {
     init: function () {
         this.lerpSpeed = 5.0;
+        this.skyMaster = document.getElementById('sky-master');
+        this.isSolo = new URLSearchParams(window.location.search).get('room') === 'none';
     },
     tick: function (t, dt) {
         if (!window.interpolationEnabled) {
@@ -239,12 +308,11 @@ AFRAME.registerComponent('local-time-interpolator', {
             return;
         }
 
-        const isSolo = new URLSearchParams(window.location.search).get('room') === 'none';
-        const skyState = document.getElementById('sky-master');
+        const skyState = this.skyMaster || document.getElementById('sky-master');
 
         // ONLY the owner (or solo player) should run the master broadcast logic.
         // If a client wants to scrub, the interaction handler (joystick/UI) must take ownership.
-        const isMine = isSolo || (skyState && NAF.utils.isMine(skyState));
+        const isMine = this.isSolo || (skyState && NAF.utils.isMine(skyState));
 
         if (isMine) {
             const dtSec = dt / 1000;
@@ -267,7 +335,7 @@ AFRAME.registerComponent('local-time-interpolator', {
                 // to prevent the Gap Correction (Part 4) from pulling us back.
                 window.targetSimulationTime = window.simulationTime;
 
-                updateScene();
+                throttledUpdateScene();
                 syncSky();
             } else if (window.targetTimeVelocity === 0 && window.currentTimeVelocity !== 0) {
                 window.currentTimeVelocity = 0;
@@ -284,13 +352,13 @@ AFRAME.registerComponent('local-time-interpolator', {
                 const step = diffSec * 5.0 * dtSec;
                 window.simTimeMs += step * 1000;
                 window.simulationTime = luxon.DateTime.fromMillis(window.simTimeMs);
-                updateScene();
+                throttledUpdateScene();
                 syncSky(true); // Throttled sync while gliding
             } else if (Math.abs(diffSec) > 0 && Math.abs(diffSec) <= 0.05) {
                 // Snap for perfect finish
                 window.simTimeMs = targetMs;
                 window.simulationTime = window.targetSimulationTime;
-                updateScene();
+                throttledUpdateScene();
                 syncSky(true);
             } else if (window.targetTimeVelocity === 0 && Math.abs(diffSec) === 0) {
                 // Ensure we broadcast one last time when absolutely still
@@ -406,17 +474,18 @@ const DISTANCE_SUN = 400;
 let cachedLongitudeDeg15 = longitude / 15;
 
 // Function to update the scene
-function updateScene() {
-    if (!sceneEl) sceneEl = document.querySelector('a-scene');
-    if (!cameraRig) cameraRig = document.getElementById("camera-rig");
-    if (!azContainer) azContainer = document.getElementById("az-container");
-    if (!eqContainer) eqContainer = document.getElementById("eq-container");
-    if (!precessionContainer) precessionContainer = document.getElementById("precession-container");
-    if (!starsPointCloud) starsPointCloud = document.getElementById("stars-point-cloud");
-    if (!milkyway) milkyway = document.getElementById("milkyway");
-    if (!latitudeDisplay) latitudeDisplay = document.getElementById("latitude-display");
-    if (!longitudeDisplay) longitudeDisplay = document.getElementById("longitude-display");
-    if (!dateTimeDisplay) dateTimeDisplay = document.getElementById("date-time-display");
+let lastRenderSimTimeMs = 0;
+function updateScene(force = false) {
+    // Re-verify UI cache if needed (some elements might be added/removed)
+    if (!UI.sceneEl) initUICache();
+
+    const simMs = simulationTime.toMillis();
+
+    // If time hasn't changed by more than 10ms, skip the heavy astronomical math.
+    if (!force && Math.abs(simMs - lastRenderSimTimeMs) < 10) {
+        return;
+    }
+    lastRenderSimTimeMs = simMs;
 
     const jsDate = simulationTime.toJSDate();
     const astroTime = Astronomy.MakeTime(jsDate);
@@ -427,16 +496,16 @@ function updateScene() {
     const lstDegrees = -(LAST % 24) * 15;
 
     // Update scene elements - direct Object3D manipulation
-    if (eqContainer) {
-        const rot = eqContainer.object3D.rotation;
+    if (UI.eqContainer) {
+        const rot = UI.eqContainer.object3D.rotation;
         rot.x = (latitude - 180) * DEG_TO_RAD;
         rot.y = 0;
         rot.z = (lstDegrees - 90) * DEG_TO_RAD;
     }
 
     // Optimized precession calculation
-    if (precessionContainer) {
-        const rot = precessionContainer.object3D.rotation;
+    if (UI.precessionContainer) {
+        const rot = UI.precessionContainer.object3D.rotation;
         rot.x = 23.43619 * DEG_TO_RAD;
         rot.y = 0;
         rot.z = (simulationTime.year - 2000) * PRECESSION_RATE * DEG_TO_RAD;
@@ -469,15 +538,13 @@ function updateScene() {
     const y = DISTANCE_SUN * Math.sin(altRad);
     const z = DISTANCE_SUN * cosAlt * Math.cos(azRad);
 
-    if (sceneEl && sceneEl.components.environment) {
-        const env = sceneEl.components.environment;
+    if (UI.sceneEl && UI.sceneEl.components.environment) {
+        const env = UI.sceneEl.components.environment;
         if (env.lighting) {
             env.lighting.position.set(x, y, z);
-            // We might need to refresh the light if the component expects setAttribute
-            // But usually direct Three.js manipulation works for lights.
         } else {
             // Fallback if lighting is not yet initialized
-            sceneEl.setAttribute('environment', 'lightPosition', `${x} ${y} ${z}`);
+            UI.sceneEl.setAttribute('environment', 'lightPosition', `${x} ${y} ${z}`);
         }
     }
 
@@ -490,26 +557,23 @@ function updateScene() {
         haloShaderMaterial.uniforms.skyBrightness.value = skyBrightness;
     }
 
-    if (sceneEl && sceneEl.components.environment) {
+    if (UI.sceneEl && UI.sceneEl.components.environment) {
         // exposureBias must be set on the sky entity material directly
-        const binoSky = document.querySelector('a-sky.environment');
-        if (binoSky) {
-            binoSky.setAttribute('material', 'exposureBias', skyBrightness);
+        if (!UI.binoSky) UI.binoSky = document.querySelector('a-sky.environment');
+        if (UI.binoSky) {
+            UI.binoSky.setAttribute('material', 'exposureBias', skyBrightness);
         }
     }
 
-    if (milkyway) {
+    if (UI.milkyway) {
         const mwOpacity = mapRange(skyBrightness, 0.0, 0.2, 0.25, 0.0);
-        milkyway.setAttribute('material', 'opacity', mwOpacity);
+        UI.milkyway.setAttribute('material', 'opacity', mwOpacity);
     }
 
     // Manage Boost Layer opacity (Max 0.25 for fading - reduced from 0.5)
-    let milkywayBoost = document.getElementById("milkyway-boost");
-    if (milkywayBoost) {
-        // Only apply opacity if the element is actually enabled/visible (i.e. on Mobile)
-        // But we can blindly set opacity; if it's visible=false, it won't render anyway.
+    if (UI.milkywayBoost) {
         const boostOpacity = mapRange(skyBrightness, 0.0, 0.2, 0.25, 0.0);
-        milkywayBoost.setAttribute('material', 'opacity', boostOpacity);
+        UI.milkywayBoost.setAttribute('material', 'opacity', boostOpacity);
     }
 
     window._skyCache.lastSunUpdateTime = now;
@@ -519,59 +583,52 @@ function updateScene() {
 
         // --- VR Control Panel Updates ---
         const pad = (n) => String(n).padStart(2, '0');
-        const updateVRInput = (id, val) => {
-            const el = document.getElementById(id);
+        const updateVRInputText = (el, val) => {
             if (el) {
                 const textEl = el.querySelector('a-text');
                 if (textEl) {
                     textEl.setAttribute('value', val);
                 } else {
-                    // Fallback in case we missed one or structure differs
                     el.setAttribute('text', 'value', val);
                 }
             }
         };
 
         if (simulationTime) {
-            updateVRInput('input-vr-year', simulationTime.year);
-            updateVRInput('input-vr-month', pad(simulationTime.month));
-            updateVRInput('input-vr-day', pad(simulationTime.day));
-            updateVRInput('input-vr-hour', pad(simulationTime.hour));
-            updateVRInput('input-vr-minute', pad(simulationTime.minute));
+            updateVRInputText(UI.vrYear, simulationTime.year);
+            updateVRInputText(UI.vrMonth, pad(simulationTime.month));
+            updateVRInputText(UI.vrDay, pad(simulationTime.day));
+            updateVRInputText(UI.vrHour, pad(simulationTime.hour));
+            updateVRInputText(UI.vrMinute, pad(simulationTime.minute));
         }
 
-        updateVRInput('input-vr-lat', Math.abs(window.latitude).toFixed(1));
-        updateVRInput('input-vr-lon', Math.abs(window.longitude).toFixed(1));
+        updateVRInputText(UI.vrLat, Math.abs(window.latitude).toFixed(1));
+        updateVRInputText(UI.vrLon, Math.abs(window.longitude).toFixed(1));
 
-        const nsBtn = document.getElementById('toggle-2d-ns-vr');
-        if (nsBtn) nsBtn.setAttribute('text', 'value', window.latitude >= 0 ? i18next.t('cardinals.north') : i18next.t('cardinals.south'));
-
-        const ewBtn = document.getElementById('toggle-2d-ew-vr');
-        if (ewBtn) ewBtn.setAttribute('text', 'value', window.longitude >= 0 ? i18next.t('cardinals.east') : i18next.t('cardinals.west'));
+        if (UI.vrNsBtn) UI.vrNsBtn.setAttribute('text', 'value', window.latitude >= 0 ? i18next.t('cardinals.north') : i18next.t('cardinals.south'));
+        if (UI.vrEwBtn) UI.vrEwBtn.setAttribute('text', 'value', window.longitude >= 0 ? i18next.t('cardinals.east') : i18next.t('cardinals.west'));
         // --------------------------------
 
-        if (dateTimeDisplay) {
-            if (latitudeDisplay) {
-                latitudeDisplay.setAttribute("text", `value: ${Math.abs(window.latitude).toFixed(1)}°; color: white; width: 0.7; align: center`);
+        if (UI.dateTimeDisplay) {
+            if (UI.latitudeDisplay) {
+                UI.latitudeDisplay.setAttribute("text", `value: ${Math.abs(window.latitude).toFixed(1)}°; color: white; width: 0.7; align: center`);
             }
-            if (longitudeDisplay) {
-                longitudeDisplay.setAttribute("text", `value: ${Math.abs(window.longitude).toFixed(1)}°; color: white; width: 0.7; align: center`);
+            if (UI.longitudeDisplay) {
+                UI.longitudeDisplay.setAttribute("text", `value: ${Math.abs(window.longitude).toFixed(1)}°; color: white; width: 0.7; align: center`);
             }
-            if (dateTimeDisplay) {
-                dateTimeDisplay.setAttribute("text", `value: ${simulationTime.toLocaleString(luxon.DateTime.DATETIME_SHORT)}; color: white; width: 0.7; align: center`);
+            if (UI.dateTimeDisplay) {
+                UI.dateTimeDisplay.setAttribute("text", `value: ${simulationTime.toLocaleString(luxon.DateTime.DATETIME_SHORT)}; color: white; width: 0.7; align: center`);
             }
         }
 
         // Update 2D toggles N/S and E/W
-        const ns2d = document.getElementById('toggle-2d-ns');
-        if (ns2d) ns2d.textContent = window.latitude >= 0 ? i18next.t('cardinals.north') : i18next.t('cardinals.south');
-        const ew2d = document.getElementById('toggle-2d-ew');
-        if (ew2d) ew2d.textContent = window.longitude >= 0 ? i18next.t('cardinals.east') : i18next.t('cardinals.west');
+        if (UI.ns2d) UI.ns2d.textContent = window.latitude >= 0 ? i18next.t('cardinals.north') : i18next.t('cardinals.south');
+        if (UI.ew2d) UI.ew2d.textContent = window.longitude >= 0 ? i18next.t('cardinals.east') : i18next.t('cardinals.west');
 
         lastUIUpdateTime = now;
 
-        if (starsPointCloud && starsPointCloud.components && starsPointCloud.components.starfield) {
-            starsPointCloud.components.starfield.update();
+        if (UI.starsPointCloud && UI.starsPointCloud.components && UI.starsPointCloud.components.starfield) {
+            UI.starsPointCloud.components.starfield.update();
         }
     }
 }
@@ -602,7 +659,7 @@ function throttle(func, limit) {
 }
 
 // Throttle updateScene to run every 30ms
-const throttledUpdateScene = throttle(updateScene, 30);
+const throttledUpdateScene = throttle((force = false) => updateScene(force), 30);
 
 
 
@@ -636,11 +693,11 @@ document.addEventListener('DOMContentLoaded', function () {
     if (scene) {
         if (scene.hasLoaded) {
             updateLoadingIndicator('assets', true);
-            updateScene();
+            updateScene(true);
         } else {
             scene.addEventListener('loaded', function () {
                 updateLoadingIndicator('assets', true);
-                updateScene();
+                updateScene(true);
             });
         }
     }

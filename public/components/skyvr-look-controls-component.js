@@ -52,6 +52,9 @@
             this.previousNDC = { x: 0, y: 0 };
             this.initialMidpointNDC = { x: 0, y: 0 };
 
+            // Cache components
+            this.drawingComp = null;
+
             this.setupMagicWindowControls();
 
             // To save / restore camera pose
@@ -241,8 +244,8 @@
             }
 
             // Lock camera rotation if drawing or erasing
-            const drawComp = this.el.components.drawing;
-            const isDrawing = window.currentMode === 'draw' && drawComp && drawComp.isDrawing;
+            if (!this.drawingComp) this.drawingComp = this.el.components.drawing;
+            const isDrawing = window.currentMode === 'draw' && this.drawingComp && this.drawingComp.isDrawing;
             if (isDrawing || window.isErasing || window.isPointerActive) {
                 return;
             }
@@ -278,8 +281,8 @@
             if (!this.data.enabled || !this.data.mouseEnabled) { return; }
 
             // Lock keyboard rotation if drawing
-            const drawComp = this.el.components.drawing;
-            const isDrawing = window.currentMode === 'draw' && drawComp && drawComp.isDrawing;
+            if (!this.drawingComp) this.drawingComp = this.el.components.drawing;
+            const isDrawing = window.currentMode === 'draw' && this.drawingComp && this.drawingComp.isDrawing;
             if (isDrawing || window.isErasing || window.isPointerActive) {
                 return;
             }
@@ -341,8 +344,8 @@
 
                 if (this.mouseDown || this.pointerLocked) {
                     // Lock camera rotation if drawing/erasing with mouse/pen
-                    const drawComp = this.el.components.drawing;
-                    const isDrawing = window.currentMode === 'draw' && drawComp && drawComp.isDrawing;
+                    if (!this.drawingComp) this.drawingComp = this.el.components.drawing;
+                    const isDrawing = window.currentMode === 'draw' && this.drawingComp && this.drawingComp.isDrawing;
 
                     if (isDrawing || window.isErasing || window.isPointerActive) {
                         this.previousNDC.x = currentNDC.x;
@@ -564,8 +567,8 @@
             if (!canvas) return;
 
             // Block rotation if drawing/erasing is in progress
-            const drawComp = this.el.components.drawing;
-            const isDrawing = window.currentMode === 'draw' && drawComp && drawComp.isDrawing;
+            if (!this.drawingComp) this.drawingComp = this.el.components.drawing;
+            const isDrawing = window.currentMode === 'draw' && this.drawingComp && this.drawingComp.isDrawing;
 
             if (isDrawing || window.isErasing) {
                 this.touchStart = { x: evt.touches[0].pageX, y: evt.touches[0].pageY };

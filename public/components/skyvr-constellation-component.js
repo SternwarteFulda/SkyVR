@@ -146,6 +146,11 @@ AFRAME.registerComponent('constellation-renderer', {
                     const url = `/assets/constellations/${c.image.file}`;
                     loader.load(url, (tex) => {
                         this.textureCache.set(c.id, tex);
+                        // GPU Texture Preloading: Draw the texture once to the GPU upfront
+                        // to avoid render blocking when it is first used.
+                        if (this.el.sceneEl.renderer) {
+                            this.el.sceneEl.renderer.setTexture2D(tex, 0);
+                        }
                     });
                 }
             });
@@ -1236,105 +1241,113 @@ AFRAME.registerComponent('constellation-renderer', {
         }
     },
 
-    tick: function (t, dt) {
-        if (!dt) return;
+    tick: (function () {
+        // Private reusable variables to avoid GC allocations in tick
+        const idHash = 0;
+        const baseOrder = 0;
+        const pulse = 0;
+        const target = 0;
+        const boost = 0;
 
-        // Fast Responsive easing for previews
-        const inLerp = 1 - Math.pow(0.01, dt / 1000);   // ~100ms for full preview
-        const outLerp = 1 - Math.pow(0.001, dt / 1000); // Near instant clear
-        const fadeLerp = 1 - Math.pow(0.05, dt / 1000);  // ~300ms for everything else
+        return function (t, dt) {
+            if (!dt) return;
 
-        // Fade constellation lines
-        if (Math.abs(this.currentLineOpacity - this.targetLineOpacity) > 0.001) {
-            this.currentLineOpacity += (this.targetLineOpacity - this.currentLineOpacity) * fadeLerp;
-            this.lineMaterial.opacity = this.currentLineOpacity;
-        }
+            // Cache device checks (once per tick or once per init if static)
+            if (this.isVR === undefined) {
+                this.isVR = AFRAME.utils.device.isMobile() || AFRAME.utils.device.checkHeadsetConnected();
+            }
 
-        // Fade IAU boundaries
-        if (Math.abs(this.currentBoundaryOpacity - this.targetBoundaryOpacity) > 0.001) {
-            this.currentBoundaryOpacity += (this.targetBoundaryOpacity - this.currentBoundaryOpacity) * fadeLerp;
-            this.boundaryMaterial.opacity = this.currentBoundaryOpacity;
-        }
+            // Fast Responsive easing for previews
+            const inLerp = 1 - Math.pow(0.01, dt / 1000);   // ~100ms for full preview
+            const outLerp = 1 - Math.pow(0.001, dt / 1000); // Near instant clear
+            const fadeLerp = 1 - Math.pow(0.05, dt / 1000);  // ~300ms for everything else
 
-        // Handle Active Preview Fade & Pulse
-        if (this.previewIllustration) {
-            const id = this.currentPointedConstellation ? this.currentPointedConstellation.id : '';
-            const isZod = this.isZodiac(id);
-            const type = this.previewIllustration.userData.type || 'illustration';
-            const target = (type === 'stick') ? 0.4 : 0.1;
+            // Fade constellation lines
+            if (Math.abs(this.currentLineOpacity - this.targetLineOpacity) > 0.001) {
+                this.currentLineOpacity += (this.targetLineOpacity - this.currentLineOpacity) * fadeLerp;
+                this.lineMaterial.opacity = this.currentLineOpacity;
+            }
 
-            // Use inLerp for blooming
-            this.previewOpacity += (target - this.previewOpacity) * inLerp;
-            const pulse = (type === 'stick') ? (0.75 + Math.sin((t + this.pulseOffset) / 800) * 0.25) : 1.0;
+            // Fade IAU boundaries
+            if (Math.abs(this.currentBoundaryOpacity - this.targetBoundaryOpacity) > 0.001) {
+                this.currentBoundaryOpacity += (this.targetBoundaryOpacity - this.currentBoundaryOpacity) * fadeLerp;
+                this.boundaryMaterial.opacity = this.currentBoundaryOpacity;
+            }
 
-            this.previewIllustration.traverse(node => {
-                if (node.material) {
-                    // Boost pointed illustration slightly to win z-layer against neighbors
-                    // Using Layer 8 to match the "S" and labels solution
-                    const idHash = (this.currentPointedConstellation.id.charCodeAt(0) + this.currentPointedConstellation.id.charCodeAt(1) || 0) * 0.0001;
-                    const baseOrder = 8.0 + idHash;
-                    node.renderOrder = (type === 'stick' ? baseOrder + 0.1 : baseOrder) + 0.005;
+            // Handle Active Preview Fade & Pulse
+            if (this.previewIllustration) {
+                const id = this.currentPointedConstellation ? this.currentPointedConstellation.id : '';
+                const isZod = this.isZodiac(id);
+                const type = this.previewIllustration.userData.type || 'illustration';
+                const target = (type === 'stick') ? 0.4 : 0.1;
 
-                    if (node.material.uniforms && node.material.uniforms.opacity) {
-                        const isVR = AFRAME.utils.device.isMobile() || AFRAME.utils.device.checkHeadsetConnected();
-                        const boost = isVR ? 1.4 : 1.0;
-                        node.material.uniforms.opacity.value = this.previewOpacity * pulse * boost;
-                    } else if (node.material.transparent) {
-                        const isVR = AFRAME.utils.device.isMobile() || AFRAME.utils.device.checkHeadsetConnected();
-                        const boost = isVR ? 1.1 : 1.0;
+                // Use inLerp for blooming
+                this.previewOpacity += (target - this.previewOpacity) * inLerp;
+                const pulse = (type === 'stick') ? (0.75 + Math.sin((t + this.pulseOffset) / 800) * 0.25) : 1.0;
 
-                        let base = 1.0;
-                        if (node.userData.layerType === 'bloom') base = 0.02;
-                        if (node.userData.layerType === 'inner') base = 0.04;
-                        if (node.userData.layerType === 'core') base = 0.1;
+                this.previewIllustration.traverse(node => {
+                    if (node.material) {
+                        // Boost pointed illustration slightly to win z-layer against neighbors
+                        const idHash = (this.currentPointedConstellation.id.charCodeAt(0) + this.currentPointedConstellation.id.charCodeAt(1) || 0) * 0.0001;
+                        const baseOrder = 8.0 + idHash;
+                        node.renderOrder = (type === 'stick' ? baseOrder + 0.1 : baseOrder) + 0.005;
 
-                        node.material.opacity = Math.min(this.previewOpacity * pulse * base * boost, 1.0);
+                        if (node.material.uniforms && node.material.uniforms.opacity) {
+                            const boost = this.isVR ? 1.4 : 1.0;
+                            node.material.uniforms.opacity.value = this.previewOpacity * pulse * boost;
+                        } else if (node.material.transparent) {
+                            const boost = this.isVR ? 1.1 : 1.0;
 
-                        // Enforce colors in preview
-                        if (node.userData.layerType !== 'core' && node.userData.layerType !== undefined) {
-                            node.material.color.set(isZod ? '#ffd700' : '#00ffff');
-                        } else if (node.userData.layerType === 'core') {
-                            node.material.color.set(isZod ? '#fff4cc' : '#ffffff');
+                            let base = 1.0;
+                            if (node.userData.layerType === 'bloom') base = 0.02;
+                            else if (node.userData.layerType === 'inner') base = 0.04;
+                            else if (node.userData.layerType === 'core') base = 0.1;
+
+                            node.material.opacity = Math.min(this.previewOpacity * pulse * base * boost, 1.0);
+
+                            // Enforce colors in preview
+                            if (node.userData.layerType !== 'core' && node.userData.layerType !== undefined) {
+                                node.material.color.set(isZod ? '#ffd700' : '#00ffff');
+                            } else if (node.userData.layerType === 'core') {
+                                node.material.color.set(isZod ? '#fff4cc' : '#ffffff');
+                            }
                         }
                     }
-                }
-            });
-        }
-
-        // Handle Fading Out Previews
-        for (let i = this.fadingOutPreviews.length - 1; i >= 0; i--) {
-            const item = this.fadingOutPreviews[i];
-
-            // Balanced fade out for cleaning up
-            item.opacity += (0 - item.opacity) * outLerp;
-
-            item.obj.traverse(node => {
-                if (node.material && node.material.transparent) {
-                    let base = 1.0;
-                    if (node.userData.layerType === 'bloom') base = 0.05;
-                    if (node.userData.layerType === 'inner') base = 0.09;
-                    if (node.userData.layerType === 'core') base = 0.2;
-
-                    if (node.material.uniforms && node.material.uniforms.opacity) {
-                        const isVR = AFRAME.utils.device.isMobile() || AFRAME.utils.device.checkHeadsetConnected();
-                        const itemType = item.obj.userData.type || 'illustration';
-                        const boost = (itemType === 'illustration') ? (isVR ? 1.4 : 1.0) : (isVR ? 1.1 : 1.0);
-                        node.material.uniforms.opacity.value = item.opacity * base * boost;
-                    } else {
-                        const isVR = AFRAME.utils.device.isMobile() || AFRAME.utils.device.checkHeadsetConnected();
-                        const boost = isVR ? 1.1 : 1.0;
-                        node.material.opacity = item.opacity * base * boost;
-                    }
-                }
-            });
-
-            if (item.opacity < 0.001) {
-                this.el.object3D.remove(item.obj);
-                this.disposeHierarchy(item.obj);
-                this.fadingOutPreviews.splice(i, 1);
+                });
             }
-        }
-    },
+
+            // Handle Fading Out Previews - Use standard for loop
+            for (let i = this.fadingOutPreviews.length - 1; i >= 0; i--) {
+                const item = this.fadingOutPreviews[i];
+
+                item.opacity += (0 - item.opacity) * outLerp;
+
+                item.obj.traverse(node => {
+                    if (node.material && node.material.transparent) {
+                        let base = 1.0;
+                        if (node.userData.layerType === 'bloom') base = 0.05;
+                        else if (node.userData.layerType === 'inner') base = 0.09;
+                        else if (node.userData.layerType === 'core') base = 0.2;
+
+                        if (node.material.uniforms && node.material.uniforms.opacity) {
+                            const itemType = item.obj.userData.type || 'illustration';
+                            const boost = (itemType === 'illustration') ? (this.isVR ? 1.4 : 1.0) : (this.isVR ? 1.1 : 1.0);
+                            node.material.uniforms.opacity.value = item.opacity * base * boost;
+                        } else {
+                            const boost = this.isVR ? 1.1 : 1.0;
+                            node.material.opacity = item.opacity * base * boost;
+                        }
+                    }
+                });
+
+                if (item.opacity < 0.001) {
+                    this.el.object3D.remove(item.obj);
+                    this.disposeHierarchy(item.obj);
+                    this.fadingOutPreviews.splice(i, 1);
+                }
+            }
+        };
+    })(),
 
     remove: function () {
         this.clearConstellationLines();

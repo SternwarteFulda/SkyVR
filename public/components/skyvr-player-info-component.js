@@ -83,7 +83,7 @@ AFRAME.registerComponent('player-info', {
         }
 
         // Update local mic status
-        if (this.ownedByLocalUser && this.el.id === 'camera') {
+        if (this.ownedByLocalUser && this.el.id === 'camera' && (time % 500 < deltaTime)) {
             const urlParams = new URLSearchParams(window.location.search);
             const micAllowed = urlParams.get('mic') !== 'false' && (urlParams.get('room') !== 'none');
 

@@ -380,6 +380,17 @@ const nameParam = sanitizePlayerName(nameParamRaw);
 const colorParam = urlParams.get('color');
 const presenceParamRaw = urlParams.get('presence') || 'avatar';
 const presenceParam = presenceParamRaw.split(':')[0].trim();
+const debugParam = urlParams.get('debug') === 'true';
+
+// Enable stats if debug=true is present
+if (debugParam) {
+    document.addEventListener('DOMContentLoaded', () => {
+        const scene = document.querySelector('a-scene');
+        if (scene) {
+            scene.setAttribute('stats', '');
+        }
+    });
+}
 
 // Check if URL parameters were modified by sanitization
 if (!window.location.search.includes('no-redirect')) {
