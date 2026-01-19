@@ -55,25 +55,8 @@ const publicPath = path.resolve(__dirname, "..", "public");
 app.use(express.static(publicPath));
 
 
-// Dynamically serve A-Frame versioned build as a generic name
-const aframePackage = require(path.resolve(__dirname, "..", "node_modules", "aframe", "package.json"));
-app.get('/js/aframe/aframe.min.js', (req, res) => {
-	res.sendFile(path.resolve(__dirname, "..", "node_modules", "aframe", "dist", `aframe-v${aframePackage.version}.min.js`));
-});
+// Vendor libraries are served from public/vendor/ via the static middleware above.
 
-
-// Serve libraries from node_modules
-app.use('/js/astronomy-engine', express.static(path.resolve(__dirname, "..", "node_modules", "astronomy-engine")));
-app.use('/js/aframe', express.static(path.resolve(__dirname, "..", "node_modules", "aframe", "dist")));
-app.use('/js/networked-aframe', express.static(path.resolve(__dirname, "..", "node_modules", "networked-aframe", "dist")));
-app.use('/js/aframe-extras', express.static(path.resolve(__dirname, "..", "node_modules", "aframe-extras", "dist")));
-app.use('/js/aframe-troika-text', express.static(path.resolve(__dirname, "..", "node_modules", "aframe-troika-text", "dist")));
-app.use('/js/socket.io', express.static(path.resolve(__dirname, "..", "node_modules", "socket.io", "client-dist")));
-app.use('/js/luxon', express.static(path.resolve(__dirname, "..", "node_modules", "luxon", "build", "global")));
-app.use('/js/i18next', express.static(path.resolve(__dirname, "..", "node_modules", "i18next", "dist", "umd")));
-app.use('/js/i18next-browser-languagedetector', express.static(path.resolve(__dirname, "..", "node_modules", "i18next-browser-languagedetector", "dist", "umd")));
-app.use('/components/aframe-render-order-component', express.static(path.resolve(__dirname, "..", "node_modules", "aframe-render-order-component", "dist")));
-app.use('/components/aframe-geometry-merger-component', express.static(path.resolve(__dirname, "..", "node_modules", "aframe-geometry-merger-component", "dist")));
 
 
 // Start Express http server
