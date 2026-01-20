@@ -4,7 +4,7 @@
   "description": "Multi-user virtual reality under the sky",
   "scripts": {
     "start": "node ./server/easyrtc-server.js",
-    "postinstall": "bash scripts/patch-aframe-environment.sh"
+    "postinstall": "bash scripts/patch-aframe-environment.sh && bash scripts/sync-vendor.sh"
   },
   "author": "mar_s",
   "dependencies": {

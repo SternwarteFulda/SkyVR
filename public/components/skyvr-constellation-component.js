@@ -1,7 +1,7 @@
 AFRAME.registerComponent('constellation-renderer', {
     schema: {
         constellationDataUrl: { type: 'string', default: '/assets/constellations/index.json' },
-        starDataUrl: { type: 'string', default: '/data/hyglike_from_athyg_v31.csv' },
+        starDataUrl: { type: 'string', default: '/data/stars.csv' },
         lineColor: { type: 'color', default: '#4499ff' },
         lineOpacity: { type: 'number', default: 0.6 },
         lineWidth: { type: 'number', default: 2 },

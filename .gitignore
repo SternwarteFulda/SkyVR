@@ -1,4 +1,25 @@
 .env
 package-lock.json
 node_modules/
-public/components/aframe-environment-component.js
+
+# Ignore local library derivatives (Reproduce via npm install)
+public/vendor/aframe/
+public/vendor/aframe-extras/
+public/vendor/aframe-troika-text/
+public/vendor/aframe-geometry-merger-component/
+public/vendor/aframe-render-order-component/
+public/vendor/socket.io/
+public/vendor/networked-aframe/
+public/vendor/astronomy-engine/
+public/vendor/luxon/
+public/vendor/i18next/
+public/vendor/i18next-browser-languagedetector/
+
+# DO NOT IGNORE (Committed for safety/availability)
+# public/vendor/aframe-multi-camera/
+# public/data/
+# public/components/aframe-environment-component.js (User-patched)
+
+# Temporary download files
+public/data/*.gz
+

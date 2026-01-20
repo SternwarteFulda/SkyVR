@@ -115,32 +115,48 @@ AFRAME.registerComponent('starfield', {
             transparent: true
         });
 
-        function createStarsFromCSV(csvData, type) {
+        function createStarsFromCSV(csvData, type, indices) {
             const starsGeometry = new THREE.BufferGeometry();
             const starsPositions = [];
             const starsSizes = [];
             const starsColors = [];
             const starsMags = [];
             const starData = csvData.split("\n");
+
+            // If indices aren't provided, use old hardcoded defaults (fallback)
+            const idx = indices || {
+                mag: 13,
+                spect: 15,
+                ra: 7,
+                dec: 8
+            };
+
             for (let i = 1; i < starData.length - 1; i++) {
                 const starAttributes = starData[i].split(",");
-                const brightness = parseFloat(starAttributes[13]);
-                var spectralClass = starAttributes[15].trim().substring(0, 2);
+                if (starAttributes.length <= Math.max(idx.mag, idx.ra, idx.dec)) continue;
+
+                const brightness = parseFloat(starAttributes[idx.mag]);
+                let spectralRaw = starAttributes[idx.spect] || "";
+                var spectralClass = spectralRaw.trim().substring(0, 2);
                 if (spectralClass[1] === ' ') {
-                    spectralClass = spectralClass[0] + starAttributes[15].trim()[2];
+                    spectralClass = spectralClass[0] + spectralRaw.trim()[2];
                 }
                 const color = spectralClassToColor(spectralClass);
-                if (brightness < 8.0 && brightness > -2) {
-                    const raHours = parseFloat(starAttributes[7]);
-                    const decDegrees = parseFloat(starAttributes[8]);
+
+                if (!isNaN(brightness) && brightness < 8.0 && brightness > -2) {
+                    const raHours = parseFloat(starAttributes[idx.ra]);
+                    const decDegrees = parseFloat(starAttributes[idx.dec]);
+
+                    if (isNaN(raHours) || isNaN(decDegrees)) continue;
+
                     const distance = 400;
                     const raDegrees = (raHours / 24) * 360;
                     const x = distance * Math.cos((decDegrees * Math.PI) / 180) * Math.cos((raDegrees * Math.PI) / 180);
                     const y = distance * Math.cos((decDegrees * Math.PI) / 180) * Math.sin((raDegrees * Math.PI) / 180);
                     const z = distance * Math.sin((decDegrees * Math.PI) / 180);
+
                     starsPositions.push(x, y, z);
-                    // Adjusted mapping: Mag -5 to 8 maps to size 14 to 0.4
-                    // Linear at high brightness, then tapers off for dim stars
+
                     let size = 0.9;
                     if (brightness <= 5.5) {
                         size = mapRange(brightness, -5.0, 5.5, 14.0, 0.9);
@@ -203,7 +219,7 @@ AFRAME.registerComponent('starfield', {
         function interpolate(start, end, factor) {
             return start + (end - start) * factor;
         }
-        fetch("data/hyglike_from_athyg_v31.csv")
+        fetch("data/stars.csv")
             .then(response => {
                 const reader = response.body.getReader();
                 const contentLength = response.headers.get('Content-Length');
@@ -255,21 +271,47 @@ AFRAME.registerComponent('starfield', {
                 });
             })
             .then(csvData => {
-                const starData = csvData.split("\n");
+                const lines = csvData.trim().split("\n");
+                const header = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+
+                const indices = {
+                    mag: header.indexOf('mag'),
+                    ra: header.indexOf('ra'),
+                    dec: header.indexOf('dec'),
+                    spect: header.indexOf('spect'),
+                    proper: header.indexOf('proper'),
+                    bf: header.indexOf('bf'),
+                    hip: header.indexOf('hip'),
+                    hd: header.indexOf('hd'),
+                    hr: header.indexOf('hr'),
+                    con: header.indexOf('con')
+                };
+
+                // Fallback to old defaults if header discovery fails significantly
+                if (indices.ra === -1) indices.ra = 7;
+                if (indices.dec === -1) indices.dec = 8;
+                if (indices.mag === -1) indices.mag = 13;
+                if (indices.spect === -1) indices.spect = 15;
+
                 this.starsArray = [];
-                for (let i = 1; i < starData.length - 1; i++) {
-                    const starAttributes = starData[i].split(",");
-                    const brightness = parseFloat(starAttributes[13]);
-                    if (brightness < 8.0 && brightness > -2) {
-                        const raHours = parseFloat(starAttributes[7]);
-                        const decDegrees = parseFloat(starAttributes[8]);
+                for (let i = 1; i < lines.length; i++) {
+                    const starAttributes = lines[i].split(",");
+                    if (starAttributes.length <= Math.max(indices.mag, indices.ra, indices.dec)) continue;
+
+                    const brightness = parseFloat(starAttributes[indices.mag]);
+                    if (!isNaN(brightness) && brightness < 8.0 && brightness > -2) {
+                        const raHours = parseFloat(starAttributes[indices.ra]);
+                        const decDegrees = parseFloat(starAttributes[indices.dec]);
+
+                        if (isNaN(raHours) || isNaN(decDegrees)) continue;
+
                         const raDegrees = (raHours / 24) * 360;
-                        const properName = starAttributes[6].trim().replace(/"/g, '');
-                        const bfName = starAttributes[5].trim().replace(/"/g, '');
-                        const hip = starAttributes[1].trim().replace(/"/g, '');
-                        const hd = starAttributes[2].trim().replace(/"/g, '');
-                        const hr = starAttributes[3].trim().replace(/"/g, '');
-                        const constellation = starAttributes[29].trim().replace(/"/g, '');
+                        const properName = (starAttributes[indices.proper] || "").trim().replace(/"/g, '');
+                        const bfName = (starAttributes[indices.bf] || "").trim().replace(/"/g, '');
+                        const hip = (starAttributes[indices.hip] || "").trim().replace(/"/g, '');
+                        const hd = (starAttributes[indices.hd] || "").trim().replace(/"/g, '');
+                        const hr = (starAttributes[indices.hr] || "").trim().replace(/"/g, '');
+                        const constellation = (starAttributes[indices.con] || "").trim().replace(/"/g, '');
 
                         const distance = 400;
                         const x = distance * Math.cos((decDegrees * Math.PI) / 180) * Math.cos((raDegrees * Math.PI) / 180);
@@ -290,9 +332,9 @@ AFRAME.registerComponent('starfield', {
                     }
                 }
 
-                const halos = createStarsFromCSV(csvData, "halos");
+                const halos = createStarsFromCSV(csvData, "halos", indices);
                 el.object3D.add(halos);
-                const stars = createStarsFromCSV(csvData, "stars");
+                const stars = createStarsFromCSV(csvData, "stars", indices);
                 el.object3D.add(stars);
                 if (typeof updateLoadingIndicator === 'function') {
                     updateLoadingIndicator('stars', true);
