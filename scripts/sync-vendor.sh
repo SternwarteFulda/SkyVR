@@ -69,4 +69,11 @@ else
     echo "⚠ Could not discover latest star data version on Codeberg (will use local version)"
 fi
 
+mkdir -p "public/assets/constellations"
+if curl -sL "https://raw.githubusercontent.com/Stellarium/stellarium/master/skycultures/modern/index.json" -o "public/assets/constellations/index.json"; then
+    echo "✓ Constellation Data updated (Stellarium)"
+else
+    echo "⚠ Could not update Constellation Data (will use local version)"
+fi
+
 echo "Vendor sync complete."
