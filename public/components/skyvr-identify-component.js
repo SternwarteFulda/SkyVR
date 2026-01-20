@@ -340,8 +340,10 @@ AFRAME.registerComponent('identify', {
 
         const skyMaster = document.getElementById('sky-master');
         if (skyMaster && skyMaster.components['sky-state']) {
-            if (!NAF.utils.isMine(skyMaster)) {
-                NAF.utils.takeOwnership(skyMaster);
+            if (typeof NAF !== 'undefined' && NAF.connection.isConnected()) {
+                if (!NAF.utils.isMine(skyMaster)) {
+                    NAF.utils.takeOwnership(skyMaster);
+                }
             }
             const state = skyMaster.getAttribute('sky-state');
             let labels = [];
@@ -359,6 +361,11 @@ AFRAME.registerComponent('identify', {
             labels.push(newLabel);
             console.log("Identify: Adding label, count:", labels.length);
             skyMaster.setAttribute('sky-state', 'identifiedLabels', JSON.stringify(labels));
+
+            // Force immediate local update
+            if (typeof syncIdentifiedLabels === 'function') {
+                syncIdentifiedLabels(labels);
+            }
         }
 
         if (this.el.components['haptics']) {
@@ -369,8 +376,10 @@ AFRAME.registerComponent('identify', {
     removeLastInfo: function () {
         const skyMaster = document.getElementById('sky-master');
         if (skyMaster && skyMaster.components['sky-state']) {
-            if (!NAF.utils.isMine(skyMaster)) {
-                NAF.utils.takeOwnership(skyMaster);
+            if (typeof NAF !== 'undefined' && NAF.connection.isConnected()) {
+                if (!NAF.utils.isMine(skyMaster)) {
+                    NAF.utils.takeOwnership(skyMaster);
+                }
             }
             const state = skyMaster.getAttribute('sky-state');
             let labels = [];
@@ -382,6 +391,11 @@ AFRAME.registerComponent('identify', {
                 labels.pop(); // Remove last added
                 console.log("Identify: Removing last label, count:", labels.length);
                 skyMaster.setAttribute('sky-state', 'identifiedLabels', JSON.stringify(labels));
+
+                // Force immediate local update
+                if (typeof syncIdentifiedLabels === 'function') {
+                    syncIdentifiedLabels(labels);
+                }
             }
         }
 
@@ -394,11 +408,18 @@ AFRAME.registerComponent('identify', {
         console.log("Identify: Removing ALL identifications (Global)");
         const skyMaster = document.getElementById('sky-master');
         if (skyMaster && skyMaster.components['sky-state']) {
-            if (!NAF.utils.isMine(skyMaster)) {
-                NAF.utils.takeOwnership(skyMaster);
+            if (typeof NAF !== 'undefined' && NAF.connection.isConnected()) {
+                if (!NAF.utils.isMine(skyMaster)) {
+                    NAF.utils.takeOwnership(skyMaster);
+                }
             }
             // Just clear the list
             skyMaster.setAttribute('sky-state', 'identifiedLabels', '[]');
+
+            // Force immediate local update
+            if (typeof syncIdentifiedLabels === 'function') {
+                syncIdentifiedLabels([]);
+            }
         }
 
         if (this.el.components['haptics']) {

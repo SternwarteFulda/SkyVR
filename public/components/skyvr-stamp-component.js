@@ -297,8 +297,10 @@ AFRAME.registerComponent('stamp', {
 
         const skyMaster = document.getElementById('sky-master');
         if (skyMaster && skyMaster.components['sky-state']) {
-            if (!NAF.utils.isMine(skyMaster)) {
-                NAF.utils.takeOwnership(skyMaster);
+            if (typeof NAF !== 'undefined' && NAF.connection.isConnected()) {
+                if (!NAF.utils.isMine(skyMaster)) {
+                    NAF.utils.takeOwnership(skyMaster);
+                }
             }
             const state = skyMaster.getAttribute('sky-state');
             let shapes = [];
@@ -320,6 +322,11 @@ AFRAME.registerComponent('stamp', {
             shapes.push(newShape);
             console.log("Stamp: Adding shape, count:", shapes.length);
             skyMaster.setAttribute('sky-state', 'stampedShapes', JSON.stringify(shapes));
+
+            // Force immediate local update
+            if (typeof syncStampedShapes === 'function') {
+                syncStampedShapes(shapes);
+            }
         }
 
         if (this.el.components['haptics']) {
@@ -397,8 +404,10 @@ AFRAME.registerComponent('stamp', {
     removeLastShape: function () {
         const skyMaster = document.getElementById('sky-master');
         if (skyMaster && skyMaster.components['sky-state']) {
-            if (!NAF.utils.isMine(skyMaster)) {
-                NAF.utils.takeOwnership(skyMaster);
+            if (typeof NAF !== 'undefined' && NAF.connection.isConnected()) {
+                if (!NAF.utils.isMine(skyMaster)) {
+                    NAF.utils.takeOwnership(skyMaster);
+                }
             }
             const state = skyMaster.getAttribute('sky-state');
             let shapes = [];
@@ -410,6 +419,11 @@ AFRAME.registerComponent('stamp', {
                 shapes.pop();
                 console.log("Stamp: Removed last shape, count:", shapes.length);
                 skyMaster.setAttribute('sky-state', 'stampedShapes', JSON.stringify(shapes));
+
+                // Force immediate local update
+                if (typeof syncStampedShapes === 'function') {
+                    syncStampedShapes(shapes);
+                }
             }
         }
     },
@@ -417,11 +431,18 @@ AFRAME.registerComponent('stamp', {
     removeAllShapes: function () {
         const skyMaster = document.getElementById('sky-master');
         if (skyMaster && skyMaster.components['sky-state']) {
-            if (!NAF.utils.isMine(skyMaster)) {
-                NAF.utils.takeOwnership(skyMaster);
+            if (typeof NAF !== 'undefined' && NAF.connection.isConnected()) {
+                if (!NAF.utils.isMine(skyMaster)) {
+                    NAF.utils.takeOwnership(skyMaster);
+                }
             }
             console.log("Stamp: Clearing all shapes");
             skyMaster.setAttribute('sky-state', 'stampedShapes', '[]');
+
+            // Force immediate local update
+            if (typeof syncStampedShapes === 'function') {
+                syncStampedShapes([]);
+            }
         }
     }
 });

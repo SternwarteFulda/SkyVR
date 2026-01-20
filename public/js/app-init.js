@@ -18,6 +18,9 @@ window.reverseMouse = true; // Move sky (Default) vs Move camera
 
 // Helper to determine if we are safe to broadcast changes to the room
 window.canUpdateSkyState = function (forceAuthoritative = false) {
+    if (new URLSearchParams(window.location.search).get('room') === 'none') {
+        return true;
+    }
     if (typeof NAF === 'undefined' || !NAF.connection || !NAF.connection.adapter || !NAF.connection.isConnected()) return false;
 
     // If we've already synced with the room, or we are explicitly forcing an authoritative action (scrubbing), we are safe.
