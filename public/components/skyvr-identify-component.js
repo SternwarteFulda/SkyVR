@@ -2,6 +2,7 @@ AFRAME.registerComponent('identify', {
     init: function () {
         this.starfield = null;
         this.currentMode = 'draw';
+        this.magLimit = 6.5; // Naked eye limit
         this.stampedInfos = [];
         this.previewEl = document.createElement('a-entity');
         this.previewEl.setAttribute('id', 'identify-preview');
@@ -64,6 +65,9 @@ AFRAME.registerComponent('identify', {
             const starfieldEl = document.getElementById('stars-point-cloud');
             if (starfieldEl && starfieldEl.components['starfield']) {
                 this.starfield = starfieldEl.components['starfield'];
+                if (this.starfield.magLimit !== undefined) {
+                    this.magLimit = this.starfield.magLimit;
+                }
                 clearInterval(this.checkForStarfield);
                 console.log('Identify component connected to starfield');
             }
@@ -229,6 +233,9 @@ AFRAME.registerComponent('identify', {
             if (this.starfield.starsArray && this.starfield.starsArray.length > 0) {
                 for (let star of this.starfield.starsArray) {
                     if (!star.position) continue;
+                    // Limit identifying to naked-eye visible stars (matches shader non-bino limit)
+                    if (star.mag > this.magLimit) continue;
+
                     // Compare at same radius (400) for detection
                     const starPos = star.position.clone().normalize().multiplyScalar(400);
                     const dist = hitPoint.distanceTo(starPos);

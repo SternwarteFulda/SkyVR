@@ -1,18 +1,21 @@
 AFRAME.registerComponent('starfield', {
     init: function () {
+        this.magLimit = 6.5;
         var textureLoader = new THREE.TextureLoader();
         el = this.el;
         starShaderMaterial = new THREE.ShaderMaterial({
             uniforms: {
                 pointTexture: { value: textureLoader.load('assets/star.png') },
                 brightnessMultiplier: { value: 1.5 },
-                skyBrightness: { value: 0.0 }
+                skyBrightness: { value: 0.0 },
+                baseMagLimit: { value: this.magLimit }
             },
             vertexShader: `
           attribute float size;
           attribute vec3 color;
           attribute float magnitude;
           uniform float skyBrightness;
+          uniform float baseMagLimit;
           varying vec3 vColor;
           varying float vVisibility;
           void main() {
@@ -26,9 +29,9 @@ AFRAME.registerComponent('starfield', {
             gl_Position = projectionMatrix * mvPosition;
             
             // Dynamic magnitude limit based on zoom
-            // Normal view (zoomFactor ~1): limit 6.5
-            // Bino view (zoomFactor ~4): limit 8.0
-            float magLimit = 6.5 + clamp((zoomFactor - 1.0) / 3.0, 0.0, 1.0) * 1.5;
+            // Normal view (zoomFactor ~1): limit baseMagLimit
+            // Bino view (zoomFactor ~4): limit baseMagLimit + 1.5
+            float magLimit = baseMagLimit + clamp((zoomFactor - 1.0) / 3.0, 0.0, 1.0) * 1.5;
             if (magnitude > magLimit) {
                 gl_Position.z = -2000.0; 
             }
@@ -63,13 +66,15 @@ AFRAME.registerComponent('starfield', {
             uniforms: {
                 pointTexture: { value: textureLoader.load('assets/halo.png') },
                 brightnessMultiplier: { value: 0.7 },
-                skyBrightness: { value: 0.0 }
+                skyBrightness: { value: 0.0 },
+                baseMagLimit: { value: this.magLimit }
             },
             vertexShader: `
           attribute float size;
           attribute vec3 color;
           attribute float magnitude;
           uniform float skyBrightness;
+          uniform float baseMagLimit;
           varying vec3 vColor;
           varying float vVisibility;
           void main() {
@@ -83,7 +88,7 @@ AFRAME.registerComponent('starfield', {
             gl_Position = projectionMatrix * mvPosition;
 
             // Same limit for halos
-            float magLimit = 6.5 + clamp((zoomFactor - 1.0) / 3.0, 0.0, 1.0) * 1.5;
+            float magLimit = baseMagLimit + clamp((zoomFactor - 1.0) / 3.0, 0.0, 1.0) * 1.5;
             if (magnitude > magLimit) {
                 gl_Position.z = -2000.0; 
             }
