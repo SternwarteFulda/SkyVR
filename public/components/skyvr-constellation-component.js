@@ -1279,7 +1279,7 @@ AFRAME.registerComponent('constellation-renderer', {
                 const id = this.currentPointedConstellation ? this.currentPointedConstellation.id : '';
                 const isZod = this.isZodiac(id);
                 const type = this.previewIllustration.userData.type || 'illustration';
-                const target = (type === 'stick') ? 0.4 : 0.1;
+                const target = (type === 'stick') ? 0.8 : 0.1;
 
                 // Use inLerp for blooming
                 this.previewOpacity += (target - this.previewOpacity) * inLerp;
@@ -1299,9 +1299,9 @@ AFRAME.registerComponent('constellation-renderer', {
                             const boost = this.isVR ? 1.1 : 1.0;
 
                             let base = 1.0;
-                            if (node.userData.layerType === 'bloom') base = 0.02;
-                            else if (node.userData.layerType === 'inner') base = 0.04;
-                            else if (node.userData.layerType === 'core') base = 0.1;
+                            if (node.userData.layerType === 'bloom') base = 0.08;
+                            else if (node.userData.layerType === 'inner') base = 0.15;
+                            else if (node.userData.layerType === 'core') base = 0.3;
 
                             node.material.opacity = Math.min(this.previewOpacity * pulse * base * boost, 1.0);
 
@@ -1325,9 +1325,9 @@ AFRAME.registerComponent('constellation-renderer', {
                 item.obj.traverse(node => {
                     if (node.material && node.material.transparent) {
                         let base = 1.0;
-                        if (node.userData.layerType === 'bloom') base = 0.05;
-                        else if (node.userData.layerType === 'inner') base = 0.09;
-                        else if (node.userData.layerType === 'core') base = 0.2;
+                        if (node.userData.layerType === 'bloom') base = 0.08;
+                        else if (node.userData.layerType === 'inner') base = 0.15;
+                        else if (node.userData.layerType === 'core') base = 0.3;
 
                         if (node.material.uniforms && node.material.uniforms.opacity) {
                             const itemType = item.obj.userData.type || 'illustration';
