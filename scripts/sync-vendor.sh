@@ -17,6 +17,9 @@ mkdir -p "$VENDOR_DIR/astronomy-engine"
 mkdir -p "$VENDOR_DIR/luxon"
 mkdir -p "$VENDOR_DIR/i18next"
 mkdir -p "$VENDOR_DIR/i18next-browser-languagedetector"
+mkdir -p "$VENDOR_DIR/marked"
+mkdir -p "$VENDOR_DIR/marked-gfm-heading-id"
+mkdir -p "$VENDOR_DIR/dompurify"
 
 # Copy files
 # A-Frame: Find the versioned file and copy as aframe.min.js
@@ -38,6 +41,9 @@ cp node_modules/astronomy-engine/astronomy.browser.min.js "$VENDOR_DIR/astronomy
 cp node_modules/luxon/build/global/luxon.min.js "$VENDOR_DIR/luxon/" && echo "✓ Luxon"
 cp node_modules/i18next/dist/umd/i18next.min.js "$VENDOR_DIR/i18next/" && echo "✓ i18next"
 cp node_modules/i18next-browser-languagedetector/dist/umd/i18nextBrowserLanguageDetector.min.js "$VENDOR_DIR/i18next-browser-languagedetector/" && echo "✓ i18next Detector"
+cp node_modules/marked/lib/marked.umd.js "$VENDOR_DIR/marked/marked.min.js" && echo "✓ Marked"
+cp node_modules/marked-gfm-heading-id/lib/index.umd.js "$VENDOR_DIR/marked-gfm-heading-id/marked-gfm-heading-id.min.js" && echo "✓ Marked GFM Heading ID"
+cp node_modules/dompurify/dist/purify.min.js "$VENDOR_DIR/dompurify/" && echo "✓ DOMPurify"
 
 # Remote Assets
 echo "Fetching/Updating remote assets (optional)..."
