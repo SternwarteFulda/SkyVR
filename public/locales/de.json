@@ -12,7 +12,7 @@
         "seat": "Sitzplatz wird ausgewählt und gespawnt...",
         "fallback_text": "Dauert es länger als gewöhnlich? Die Mikrofonberechtigung könnte ausstehen oder blockiert sein.",
         "join_without_mic": "Ohne Mikrofon beitreten",
-        "mic_explanation": "Sie können andere hören, aber diese können Sie nicht hören.",
+        "mic_explanation": "Du kannst andere hören, aber sie können dich nicht hören.",
         "connected_to": "Verbunden mit Raum: {{room}}",
         "init_complete": "Anwendung initialisiert",
         "stars_complete": "Sternenkatalog geladen",
@@ -128,24 +128,28 @@
     },
     "nicknames": {
         "prefixes": [
-            "Nebel",
-            "Kometen",
             "Sonnen",
-            "Mond",
-            "Orbit",
-            "Zenit",
-            "Polar",
-            "Aura"
+            "Kometen",
+            "Quanten",
+            "Photonen",
+            "Neutrino",
+            "Spektral",
+            "Lichtjahr",
+            "Entropie",
+            "Regolith",
+            "Sternen",
+            "Licht"
         ],
         "suffixes": [
-            "Spechtler",
-            "Bummler",
-            "Gleiter",
-            "Reiter",
-            "Segler",
-            "Taucher",
-            "Surfer",
-            "Hüpfer"
+            "anbeter",
+            "jäger",
+            "forscher",
+            "sammler",
+            "fänger",
+            "analyst",
+            "zähler",
+            "wächter",
+            "brecher"
         ]
     },
     "about": {

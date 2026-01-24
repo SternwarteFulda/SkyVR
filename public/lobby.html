@@ -807,7 +807,9 @@
                 const pList = Array.isArray(prefixes) ? prefixes : ['Nebula', 'Solar', 'Lunar', 'Astral', 'Cosmos', 'Nova', 'Pulsar', 'Zenith'];
                 const sList = Array.isArray(suffixes) ? suffixes : ['Seeker', 'Sage', 'Watcher', 'Pilot', 'Nomad', 'Explorer'];
 
-                const randomName = pList[Math.floor(Math.random() * pList.length)] + ' ' +
+                const separator = i18next.language && i18next.language.startsWith('de') ? '' : ' ';
+
+                const randomName = pList[Math.floor(Math.random() * pList.length)] + separator +
                     sList[Math.floor(Math.random() * sList.length)] + ' ' +
                     Math.floor(Math.random() * 99);
                 document.getElementById('username').value = randomName;
