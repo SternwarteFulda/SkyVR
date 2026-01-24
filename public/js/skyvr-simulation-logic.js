@@ -781,7 +781,7 @@ function setupVRControllers() {
         }
     }
 
-    // Toggle visibility of control panel with X button
+    // Toggle visibility of control panel with menu button
     const togglePanel = () => {
         const panel = document.querySelector('a-control-panel');
         if (panel) {
