@@ -335,7 +335,7 @@ AFRAME.registerComponent('local-time-interpolator', {
                 // to prevent the Gap Correction (Part 4) from pulling us back.
                 window.targetSimulationTime = window.simulationTime;
 
-                throttledUpdateScene();
+                updateScene(true);
                 syncSky();
             } else if (window.targetTimeVelocity === 0 && window.currentTimeVelocity !== 0) {
                 window.currentTimeVelocity = 0;
@@ -352,13 +352,13 @@ AFRAME.registerComponent('local-time-interpolator', {
                 const step = diffSec * 5.0 * dtSec;
                 window.simTimeMs += step * 1000;
                 window.simulationTime = luxon.DateTime.fromMillis(window.simTimeMs);
-                throttledUpdateScene();
+                updateScene(true);
                 syncSky(true); // Throttled sync while gliding
             } else if (Math.abs(diffSec) > 0 && Math.abs(diffSec) <= 0.05) {
                 // Snap for perfect finish
                 window.simTimeMs = targetMs;
                 window.simulationTime = window.targetSimulationTime;
-                throttledUpdateScene();
+                updateScene(true);
                 syncSky(true);
             } else if (window.targetTimeVelocity === 0 && Math.abs(diffSec) === 0) {
                 // Ensure we broadcast one last time when absolutely still
@@ -479,13 +479,21 @@ function updateScene(force = false) {
     // Re-verify UI cache if needed (some elements might be added/removed)
     if (!UI.sceneEl) initUICache();
 
-    const simMs = simulationTime.toMillis();
+    // If time hasn't changed by more than 1ms, skip the heavy astronomical math.
+    // Also check if Latitude or Longitude changed.
+    if (!window._lastSceneState) window._lastSceneState = { simMs: 0, lat: 0, lon: 0 };
 
-    // If time hasn't changed by more than 10ms, skip the heavy astronomical math.
-    if (!force && Math.abs(simMs - lastRenderSimTimeMs) < 10) {
+    const simMs = simulationTime.toMillis();
+    const timeChanged = Math.abs(simMs - window._lastSceneState.simMs) >= 1;
+    const locChanged = Math.abs(window.latitude - window._lastSceneState.lat) > 0.01 ||
+        Math.abs(window.longitude - window._lastSceneState.lon) > 0.01;
+
+    if (!force && !timeChanged && !locChanged) {
         return;
     }
-    lastRenderSimTimeMs = simMs;
+    window._lastSceneState.simMs = simMs;
+    window._lastSceneState.lat = window.latitude;
+    window._lastSceneState.lon = window.longitude;
 
     const jsDate = simulationTime.toJSDate();
     const astroTime = Astronomy.MakeTime(jsDate);
@@ -578,8 +586,8 @@ function updateScene(force = false) {
 
     window._skyCache.lastSunUpdateTime = now;
 
-    // Throttle UI text updates to ~10Hz
-    if (now - lastUIUpdateTime > 100) {
+    // Throttle UI text updates to ~10Hz, unless forced (scrubbing)
+    if (force || (now - lastUIUpdateTime > 100)) {
 
         // --- VR Control Panel Updates ---
         const pad = (n) => String(n).padStart(2, '0');
@@ -628,7 +636,7 @@ function updateScene(force = false) {
         lastUIUpdateTime = now;
 
         if (UI.starsPointCloud && UI.starsPointCloud.components && UI.starsPointCloud.components.starfield) {
-            UI.starsPointCloud.components.starfield.update();
+            UI.starsPointCloud.components.starfield.update(force);
         }
     }
 }

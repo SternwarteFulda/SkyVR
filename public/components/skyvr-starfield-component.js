@@ -398,9 +398,14 @@ AFRAME.registerComponent('starfield', {
         this.throttledUpdatePlanets = AFRAME.utils.throttle(this.updatePlanets, 1000, this); // 1 fps
     },
 
-    update: function () {
-        this.throttledUpdateMoon();
-        this.throttledUpdatePlanets();
+    update: function (force = false) {
+        if (force === true) {
+            this.updateMoon(true);
+            this.updatePlanets(true);
+        } else {
+            this.throttledUpdateMoon();
+            this.throttledUpdatePlanets();
+        }
     },
 
     tick: (function () {
