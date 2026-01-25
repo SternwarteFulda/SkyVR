@@ -2,7 +2,7 @@ AFRAME.registerComponent('custom-fogless-text', {
   schema: {
     value: { type: 'string', default: '' },
     fontSize: { type: 'number', default: 40 },
-    fontFamily: { type: 'string', default: 'fonts/outfit-600.ttf' },
+    fontFamily: { type: 'string', default: 'fonts/Outfit-SemiBold.ttf' },
     textColor: { type: 'color', default: '#FFFFFF' },
     worldScale: { type: 'number', default: 0.1 },
     fixedWidth: { type: 'number', default: 0 },
@@ -73,19 +73,22 @@ AFRAME.registerComponent('custom-fogless-text', {
         obj._fogBypassWrapped = true;
       }
 
-      // 2. Material Stability
-      if (obj.material) {
-        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-        mats.forEach(mat => {
-          mat.fog = false;
-          mat.side = THREE.FrontSide;
-          mat.depthTest = true;
-          mat.depthWrite = false; // Prevents all world z-fighting
-          mat.transparent = true;
-          mat.alphaTest = 0.001;
-          mat.needsUpdate = true;
-        });
-      }
+        // 2. Material Stability
+        if (obj.material) {
+          const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+          mats.forEach(mat => {
+            mat.fog = false;
+            mat.side = THREE.FrontSide;
+            mat.depthTest = true;
+            mat.depthWrite = false; // Prevents world z-fighting
+            mat.polygonOffset = true;
+            mat.polygonOffsetFactor = -1;
+            mat.polygonOffsetUnits = -1;
+            mat.transparent = true;
+            mat.alphaTest = 0.001;
+            mat.needsUpdate = true;
+          });
+        }
       obj.renderOrder = finalOrder;
     });
   },
