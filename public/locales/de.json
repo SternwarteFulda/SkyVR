@@ -153,14 +153,32 @@
         ]
     },
     "about": {
+        "page_title": "SkyVR - Über das Projekt & Namensnennungen",
         "title": "Über SkyVR",
         "subtitle": "Lizenz & Namensnennungen",
         "description": "SkyVR ist ein Virtual-Reality-Erlebnis für mehrere Benutzer unter dem Himmel, das es Benutzern ermöglicht, gemeinsam Himmelsdaten zu erkunden.",
         "source_code": "Quellcode",
-        "license": "Project License",
+        "github_text": "Das Projekt wird auf GitHub bereitgestellt und gepflegt:",
+        "license": "Projektlizenz",
+        "license_description": "Dieses Projekt ist Open-Source-Software, die unter der <strong>GNU Affero General Public License v3.0</strong> lizenziert ist.",
+        "license_box": "Copyright (C) 2025 SkyVR-Mitwirkende<br><br>Dieses Programm ist freie Software: Sie können es unter den Bedingungen der GNU Affero General Public License, wie von der Free Software Foundation veröffentlicht, weitergeben und/oder modifizieren, entweder gemäß Version 3 der Lizenz oder (nach Ihrer Option) jeder späteren Version.",
+        "view_license": "Vollständige Lizenz ansehen",
         "software": "Software-Bibliotheken",
         "data_assets": "Daten & Assets",
-        "icons": "Icons"
+        "icons": "Icons",
+        "icons_mic": "Mikrofon An/Aus, Vollbild",
+        "icons_door": "Tür, Stempel, Pfeil",
+        "icons_constellation": "Sternbild, Zeichnen, Cursor",
+        "footer": "Mit Sternen und Webstandards entwickelt.",
+        "back_to_lobby": "Zurück zum Portal"
+    },
+    "about_assets": {
+        "star_data": "Sterndaten (ATHYG)",
+        "gaia": "Gaia Milchstraße",
+        "moon": "Mondtexturen",
+        "font": "Outfit-Schriftart",
+        "art": "Sternbild-Illustrationen",
+        "const_data": "Sternbild-Daten"
     },
     "general": {
         "imprint": "Impressum",

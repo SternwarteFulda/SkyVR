@@ -22,17 +22,37 @@ async function initI18n() {
 function updateContent() {
     const elements = document.querySelectorAll('[data-i18n]');
     elements.forEach(el => {
-        const key = el.getAttribute('data-i18n');
-        const translation = i18next.t(key);
+        const value = el.getAttribute('data-i18n');
 
-        if (el.tagName === 'INPUT' && el.getAttribute('placeholder')) {
-            el.setAttribute('placeholder', translation);
-        } else if (el.hasAttribute('title')) {
-            el.setAttribute('title', translation);
+        // Handle [attr]key syntax
+        const match = value.match(/^\[([a-z0-9-]+)\](.+)$/i);
+        if (match) {
+            const attr = match[1];
+            const key = match[2];
+            const translation = i18next.t(key);
+
+            if (attr === 'html') {
+                el.innerHTML = translation;
+            } else {
+                el.setAttribute(attr, translation);
+            }
         } else {
-            el.innerHTML = translation;
+            const translation = i18next.t(value);
+            if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) {
+                el.setAttribute('placeholder', translation);
+            } else if (el.hasAttribute('title')) {
+                el.setAttribute('title', translation);
+            } else {
+                el.innerHTML = translation;
+            }
         }
     });
+
+    // Handle document title
+    const titleKey = document.querySelector('title[data-i18n]');
+    if (titleKey) {
+        document.title = i18next.t(titleKey.getAttribute('data-i18n'));
+    }
 
     // Handle attributes like data-i18n-title, data-i18n-placeholder
     const attrElements = document.querySelectorAll('[data-i18n-title], [data-i18n-placeholder], [data-i18n-value]');
@@ -53,7 +73,7 @@ function updateContent() {
                 if (el.hasAttribute('troika-text')) {
                     el.setAttribute('troika-text', 'value', translation);
                 }
-                
+
                 // 2. Handle the 'text' component specifically
                 if (el.hasAttribute('text')) {
                     const textData = el.getAttribute('text');
@@ -67,7 +87,7 @@ function updateContent() {
                         el.setAttribute('text', 'value', translation);
                     }
                 }
-                
+
                 // 3. Always set the 'value' attribute for primitives like a-text or single-prop components
                 el.setAttribute('value', translation);
             } else {

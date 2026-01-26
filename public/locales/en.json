@@ -147,14 +147,32 @@
         ]
     },
     "about": {
+        "page_title": "SkyVR - About & Attribution",
         "title": "About SkyVR",
         "subtitle": "License & Attributions",
         "description": "SkyVR is a multi-user virtual reality experience under the sky, enabling users to explore celestial data together.",
         "source_code": "Source Code",
+        "github_text": "The project is hosted and maintained on GitHub:",
         "license": "Project License",
+        "license_description": "This project is open source software licensed under the <strong>GNU Affero General Public License v3.0</strong>.",
+        "license_box": "Copyright (C) 2025 SkyVR Contributors<br><br>This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.",
+        "view_license": "View Full License",
         "software": "Software Libraries",
         "data_assets": "Data & Assets",
-        "icons": "Icons"
+        "icons": "Icons",
+        "icons_mic": "Mic On/Off, Fullscreen",
+        "icons_door": "Door, Stamp, Arrow",
+        "icons_constellation": "Constellation, Draw, Cursor",
+        "footer": "Built with stars and web standards.",
+        "back_to_lobby": "Back to Lobby"
+    },
+    "about_assets": {
+        "star_data": "Star Data (ATHYG)",
+        "gaia": "Gaia Milky Way",
+        "moon": "Moon Textures",
+        "font": "Outfit Font",
+        "art": "Constellation Art",
+        "const_data": "Constellation Data"
     },
     "general": {
         "imprint": "Imprint",

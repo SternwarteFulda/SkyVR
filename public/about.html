@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SkyVR - About & Attribution</title>
+    <title data-i18n="about.page_title">SkyVR - About & Attribution</title>
     <link rel="stylesheet" type="text/css" href="/css/fonts.css" />
     <link rel="stylesheet" type="text/css" href="/css/style.css" />
     <script src="vendor/i18next/i18next.min.js"></script>
@@ -32,22 +32,24 @@
 
             <div class="credit-block">
                 <h3 style="margin-top: 1.5rem;" data-i18n="about.source_code">Source Code</h3>
-                <p>The project is hosted and maintained on GitHub: <strong><a
+                <p><span data-i18n="about.github_text">The project is hosted and maintained on GitHub:</span> <strong><a
                             href="https://github.com/SternwarteFulda/SkyVR"
                             target="_blank">SternwarteFulda/SkyVR</a></strong></p>
             </div>
 
             <h2 data-i18n="about.license">Project License</h2>
-            <p>This project is open source software licensed under the <strong>GNU Affero General Public License
-                    v3.0</strong>.</p>
-            <div class="license-box">
+            <p data-i18n="[html]about.license_description">This project is open source software licensed under the
+                <strong>GNU Affero General Public License
+                    v3.0</strong>.
+            </p>
+            <div class="license-box" data-i18n="[html]about.license_box">
                 Copyright (C) 2025 SkyVR Contributors<br><br>
                 This program is free software: you can redistribute it and/or modify it under the terms of the GNU
                 Affero General Public License as published by the Free Software Foundation, either version 3 of the
                 License, or (at your option) any later version.
             </div>
-            <p><a href="https://www.gnu.org/licenses/agpl-3.0.en.html" target="_blank"
-                    style="color: var(--accent);">View Full License</a></p>
+            <p><a href="https://www.gnu.org/licenses/agpl-3.0.en.html" target="_blank" style="color: var(--accent);"
+                    data-i18n="about.view_license">View Full License</a></p>
 
             <h2 data-i18n="about.software">Software Libraries</h2>
             <ul class="asset-list">
@@ -175,7 +177,7 @@
                 <li>
                     <div class="asset-info">
                         <a href="https://codeberg.org/astronexus/athyg" class="asset-name" target="_blank"
-                            rel="noopener noreferrer">Star Data (ATHYG)</a>
+                            rel="noopener noreferrer" data-i18n="about_assets.star_data">Star Data (ATHYG)</a>
                         <span class="asset-credit">David Nash / Astronexus</span>
                     </div>
                     <a href="https://creativecommons.org/licenses/by/4.0/" class="license-badge" target="_blank"
@@ -184,7 +186,8 @@
                 <li>
                     <div class="asset-info">
                         <a href="https://www.esa.int/ESA_Multimedia/Images/2020/12/The_colour_of_the_sky_from_Gaia_s_Early_Data_Release_32"
-                            class="asset-name" target="_blank" rel="noopener noreferrer">Gaia Milky Way</a>
+                            class="asset-name" target="_blank" rel="noopener noreferrer"
+                            data-i18n="about_assets.gaia">Gaia Milky Way</a>
                         <span class="asset-credit">ESA / Gaia / DPAC</span>
                     </div>
                     <a href="https://creativecommons.org/licenses/by-sa/3.0/igo/" class="license-badge" target="_blank"
@@ -193,7 +196,7 @@
                 <li>
                     <div class="asset-info">
                         <a href="https://svs.gsfc.nasa.gov/4720" class="asset-name" target="_blank"
-                            rel="noopener noreferrer">Moon Textures</a>
+                            rel="noopener noreferrer" data-i18n="about_assets.moon">Moon Textures</a>
                         <span class="asset-credit">NASA's Scientific Visualization Studio</span>
                     </div>
                     <a href="https://www.nasa.gov/nasa-brand-center/images-and-media/" class="license-badge"
@@ -202,7 +205,7 @@
                 <li>
                     <div class="asset-info">
                         <a href="https://github.com/Outfitio/Outfit-Fonts" class="asset-name" target="_blank"
-                            rel="noopener noreferrer">Outfit Font</a>
+                            rel="noopener noreferrer" data-i18n="about_assets.font">Outfit Font</a>
                         <span class="asset-credit">Outfitio</span>
                     </div>
                     <a href="https://scripts.sil.org/OFL" class="license-badge" target="_blank"
@@ -211,7 +214,7 @@
                 <li>
                     <div class="asset-info">
                         <a href="https://johanmeuris.eu/work/stellarium-constellation-art/" class="asset-name"
-                            target="_blank" rel="noopener noreferrer">Constellation Art</a>
+                            target="_blank" rel="noopener noreferrer" data-i18n="about_assets.art">Constellation Art</a>
                         <span class="asset-credit">Johan Meuris (Jomejome)</span>
                     </div>
                     <a href="http://artlibre.org/licence/lal/en/" class="license-badge" target="_blank"
@@ -220,7 +223,8 @@
                 <li>
                     <div class="asset-info">
                         <a href="https://github.com/Stellarium/stellarium/blob/master/skycultures/modern/index.json"
-                            class="asset-name" target="_blank" rel="noopener noreferrer">Constellation Data</a>
+                            class="asset-name" target="_blank" rel="noopener noreferrer"
+                            data-i18n="about_assets.const_data">Constellation Data</a>
                         <span class="asset-credit">Stellarium Contributors</span>
                     </div>
                     <a href="https://creativecommons.org/licenses/by-sa/4.0/" class="license-badge" target="_blank"
@@ -232,7 +236,8 @@
             <ul class="asset-list">
                 <li>
                     <div class="asset-info">
-                        <span class="asset-name">Mic On/Off, Fullscreen</span>
+                        <a href="https://github.com/google/material-design-icons" class="asset-name" target="_blank"
+                            rel="noopener noreferrer" data-i18n="about.icons_mic">Mic On/Off, Fullscreen</a>
                         <span class="asset-credit">Google Material Design Icons</span>
                     </div>
                     <a href="https://www.apache.org/licenses/LICENSE-2.0" class="license-badge" target="_blank"
@@ -240,7 +245,7 @@
                 </li>
                 <li>
                     <div class="asset-info">
-                        <span class="asset-name">Door, Stamp, Arrow</span>
+                        <span class="asset-name" data-i18n="about.icons_door">Door, Stamp, Arrow</span>
                         <span class="asset-credit">SkyVR Contributors</span>
                     </div>
                     <a href="https://www.gnu.org/licenses/agpl-3.0.en.html" class="license-badge" target="_blank"
@@ -248,7 +253,8 @@
                 </li>
                 <li>
                     <div class="asset-info">
-                        <span class="asset-name">Constellation, Draw, Cursor</span>
+                        <span class="asset-name" data-i18n="about.icons_constellation">Constellation, Draw,
+                            Cursor</span>
                         <span class="asset-credit">SkyVR Contributors</span>
                     </div>
                     <a href="https://www.gnu.org/licenses/agpl-3.0.en.html" class="license-badge" target="_blank"
@@ -258,13 +264,13 @@
 
 
 
-            <div class="footer">
+            <div class="footer" data-i18n="about.footer">
                 Built with stars and web standards.
             </div>
         </div>
     </div>
 
-    <a href="/lobby.html" class="info-btn" aria-label="Back to Lobby">
+    <a href="/lobby.html" class="info-btn" aria-label="Back to Lobby" data-i18n="[aria-label]about.back_to_lobby">
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="19" y1="12" x2="5" y2="12"></line>
