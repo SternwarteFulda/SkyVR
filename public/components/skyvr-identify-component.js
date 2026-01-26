@@ -23,6 +23,16 @@ AFRAME.registerComponent('identify', {
             color: '#00FF00',
             opacity: 0
         });
+        this.crosshairEl.addEventListener('materialtextureloaded', () => {
+            const mesh = this.crosshairEl.getObject3D('mesh');
+            if (mesh && mesh.material && mesh.material.map) {
+                mesh.material.map.anisotropy = 16;
+                mesh.material.map.magFilter = THREE.LinearFilter;
+                mesh.material.map.minFilter = THREE.LinearMipmapLinearFilter; // Use mipmaps for anti-aliased downscaling
+                mesh.material.map.generateMipmaps = true; // Ensure mipmaps are generated
+                mesh.material.map.needsUpdate = true;
+            }
+        });
         const renderSystem = this.el.sceneEl.systems['render-order'];
         this.crosshairEl.setAttribute('render-order', renderSystem ? 'ui' : '7');
         this.crosshairEl.setAttribute('animation__pulse', {
