@@ -1,8 +1,0 @@
-<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="white">
-  <!-- Central Dot -->
-  <circle cx="12" cy="11" r="2.5" />
-  <!-- Vertical Stem -->
-  <rect x="11.5" y="11" width="1" height="12" rx="0.5" />
-  <!-- Rays (Clean Material-style paths) -->
-  <path d="M12 2l.4 3.5h-.8z M17.5 4l-1.2 2.8.7.4 1.2-2.8z M21 8.5l-3 1 .2.8 3-1z M22.5 13.5l-3.8-.7.1-.9 3.8.7z M18.5 18.5l-2.6-2 .5-.7 2.6 2z M14.5 22.5l-1-4h.8z M9.5 22.5l1-4h-.8z M5.5 18.5l2.6-2-.5-.7-2.6 2z M1.5 13.5l3.8-.7-.1-.9-3.8.7z M3 8.5l3 1-.2.8-3-1z M6.5 4l1.2 2.8-.7.4-1.2-2.8z" />
-</svg>

@@ -360,7 +360,7 @@ Reveal star information.
 -   **Undo**: Remove last label.
 -   **Clear**: Remove all labels.
 
-### <img src="assets/icons/laser.svg" class="icon-inline"> Pointer Mode
+### <img src="assets/icons/arrow.svg" class="icon-inline"> Pointer Mode
 
 Laser pointer for pointing at objects and collaborating with others.
 
