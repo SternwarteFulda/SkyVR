@@ -2,7 +2,7 @@ AFRAME.registerComponent('identify', {
     init: function () {
         this.starfield = null;
         this.currentMode = 'draw';
-        this.magLimit = 6.5; // Naked eye limit
+        this.magLimit = null; // Will be set from starfield
         this.stampedInfos = [];
         this.previewEl = document.createElement('a-entity');
         this.previewEl.setAttribute('id', 'identify-preview');

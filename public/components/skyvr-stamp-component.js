@@ -2,6 +2,7 @@ AFRAME.registerComponent('stamp', {
     init: function () {
         this.starfield = null;
         this.currentMode = 'draw';
+        this.magLimit = null; // Will be set from starfield
         this.stampedInfos = [];
         this.previewEl = document.createElement('a-entity');
         this.previewEl.setAttribute('id', 'stamp-preview');
@@ -32,6 +33,9 @@ AFRAME.registerComponent('stamp', {
             const starfieldEl = document.getElementById('stars-point-cloud');
             if (starfieldEl && starfieldEl.components['starfield']) {
                 this.starfield = starfieldEl.components['starfield'];
+                if (this.starfield.magLimit !== undefined) {
+                    this.magLimit = this.starfield.magLimit;
+                }
                 clearInterval(this.checkForStarfield);
                 console.log('Stamp component connected to starfield');
             }
@@ -176,6 +180,9 @@ AFRAME.registerComponent('stamp', {
             if (this.starfield.starsArray && this.starfield.starsArray.length > 0) {
                 for (let star of this.starfield.starsArray) {
                     if (!star.position) continue;
+                    // Limit stamping to naked-eye visible stars (matches shader non-bino limit)
+                    if (star.mag > this.magLimit) continue;
+
                     const starPos = star.position.clone().normalize().multiplyScalar(400);
                     const dist = hitPoint.distanceTo(starPos);
                     if (dist < minDistance) {
@@ -191,7 +198,7 @@ AFRAME.registerComponent('stamp', {
 
             this.nearestObj = nearestObj;
             if (nearestObj) {
-                this.targetPreviewOpacity = 1.0;
+                this.targetPreviewOpacity = 0.6;
                 this.previewEl.setAttribute('visible', true);
 
                 const worldStarPos = this.starfield.el.object3D.localToWorld(nearestObj.position.clone().normalize().multiplyScalar(397));
@@ -210,7 +217,7 @@ AFRAME.registerComponent('stamp', {
                     this.lastNearestName = nearestObj.name;
                 }
             } else {
-                this.targetPreviewOpacity = 0.5;
+                this.targetPreviewOpacity = 0.3;
                 this.previewEl.setAttribute('visible', true);
 
                 const worldHit = hitPointWorld.clone().normalize().multiplyScalar(397);
@@ -388,6 +395,7 @@ AFRAME.registerComponent('stamp', {
 
         const material = new THREE.LineBasicMaterial({
             color: '#FFFF00', // Will be updated in tick
+            linewidth: 2,
             transparent: true,
             opacity: 1.0, // Outline usually needs higher base opacity but handled by tick
             depthTest: false, // Ensure visible on top
