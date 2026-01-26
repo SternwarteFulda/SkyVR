@@ -5,129 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SkyVR User Manual</title>
-    <link rel="stylesheet" href="css/fonts.css">
-    <style>
-        body {
-            font-family: 'Outfit', sans-serif;
-            line-height: 1.6;
-            color: #ccc;
-            background-color: #1a1a1a;
-            margin: 0;
-            padding: 0;
-        }
-
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 2rem;
-            background-color: #252525;
-            min-height: 100vh;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
-        }
-
-        h1,
-        h2,
-        h3 {
-            color: #fff;
-            margin-top: 2rem;
-            border-bottom: 1px solid #444;
-            padding-bottom: 0.5rem;
-        }
-
-        h1 {
-            margin-top: 0;
-            font-size: 2.5rem;
-            border-bottom: none;
-            text-align: center;
-        }
-
-        h2 {
-            font-size: 1.8rem;
-            color: #8a2be2;
-        }
-
-        /* Matching general theme color */
-        h3 {
-            font-size: 1.4rem;
-            color: #aaa;
-            border-bottom: none;
-        }
-
-        a {
-            color: #8a2be2;
-            text-decoration: none;
-        }
-
-        a:hover {
-            text-decoration: underline;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 1rem 0;
-            background: #333;
-        }
-
-        th,
-        td {
-            padding: 10px;
-            border: 1px solid #444;
-            text-align: left;
-        }
-
-        th {
-            background-color: #222;
-            color: #fff;
-        }
-
-        code {
-            background-color: #111;
-            padding: 2px 5px;
-            border-radius: 3px;
-            font-family: monospace;
-        }
-
-        ul {
-            padding-left: 20px;
-        }
-
-        li {
-            margin-bottom: 5px;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 2rem;
-            font-style: italic;
-        }
-
-        /* Icon styles */
-        .icon-inline {
-            vertical-align: middle;
-            height: 1.5em;
-            width: 1.5em;
-            display: inline-block;
-            margin: 0 0.2em;
-            filter: brightness(0) invert(1);
-        }
-
-        /* Table of Contents styling */
-        #content h2:first-of-type {
-            border-top: 2px solid #8a2be2;
-            padding-top: 1rem;
-            margin-top: 1.5rem;
-        }
-
-        #content a {
-            cursor: pointer;
-        }
-
-        /* Smooth scroll */
-        html {
-            scroll-behavior: smooth;
-        }
-    </style>
+    <link rel="stylesheet" href="/css/fonts.css">
+    <link rel="stylesheet" href="/css/style.css">
     <!-- Marked.js for Markdown rendering -->
     <script src="vendor/marked/marked.min.js"></script>
     <!-- Marked GFM Heading ID extension -->
@@ -136,9 +15,9 @@
     <script src="vendor/dompurify/purify.min.js"></script>
 </head>
 
-<body>
+<body class="page-manual">
 
-    <div class="container">
+    <div class="manual-container">
         <div id="content" class="markdown-body">
             <div class="loading">Loading Manual...</div>
         </div>
