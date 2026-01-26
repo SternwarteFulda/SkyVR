@@ -25,7 +25,7 @@ AFRAME.registerComponent('starfield', {
             float brightnessEffect = pow(1.0 - skyBrightness, 2.0);
             float adjustedSize = min(size * sizeScaleFactor * brightnessEffect, size);
             float zoomFactor = pow(projectionMatrix[1][1], 0.4); 
-            gl_PointSize = max(min(adjustedSize, size), 0.1) * (200.0 / -mvPosition.z) * zoomFactor;
+            gl_PointSize = max(min(adjustedSize, size), 0.0) * (200.0 / -mvPosition.z) * zoomFactor;
             gl_Position = projectionMatrix * mvPosition;
             
             // Dynamic magnitude limit based on zoom
@@ -36,7 +36,7 @@ AFRAME.registerComponent('starfield', {
                 gl_Position.z = -2000.0; 
             }
 
-            float baselineSize = 0.2;
+            float baselineSize = 0.1;
             if (gl_PointSize > baselineSize) {
               vVisibility = clamp((gl_PointSize - baselineSize) / (baselineSize * 2.0), 0.0, 1.0);
             } else {
@@ -84,7 +84,7 @@ AFRAME.registerComponent('starfield', {
             float brightnessEffect = pow(1.0 - skyBrightness, 2.0);
             float adjustedSize = min(size * sizeScaleFactor * brightnessEffect, size);
             float zoomFactor = pow(projectionMatrix[1][1], 0.2);
-            gl_PointSize = max(min(adjustedSize, size), 0.1) * (960.0 / -mvPosition.z) * zoomFactor;
+            gl_PointSize = max(min(adjustedSize, size), 0.0) * (960.0 / -mvPosition.z) * zoomFactor;
             gl_Position = projectionMatrix * mvPosition;
 
             // Same limit for halos
