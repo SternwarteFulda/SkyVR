@@ -21,7 +21,7 @@ AFRAME.registerComponent('identify', {
             depthWrite: false,
             depthTest: true,
             color: '#00FF00',
-            opacity: 0
+            opacity: 0 // Start at 0 for fade in
         });
         this.crosshairEl.addEventListener('materialtextureloaded', () => {
             const mesh = this.crosshairEl.getObject3D('mesh');
@@ -47,14 +47,14 @@ AFRAME.registerComponent('identify', {
         this.previewEl.appendChild(this.crosshairEl);
 
         this.previewOpacity = 0;
-        this.targetPreviewOpacity = 0;
+        this.targetPreviewOpacity = 0.15;
         this.labelOpacity = 0;
-        this.targetLabelOpacity = 0;
+        this.targetLabelOpacity = 0.5;
 
         // Text label (now a child of previewEl for perfect snapping)
         this.labelEl = document.createElement('a-entity');
         this.labelEl.setAttribute('id', 'identify-preview-label');
-        this.labelEl.setAttribute('position', '0 16 0');
+        this.labelEl.setAttribute('position', '0 18 0');
         this.labelEl.setAttribute('custom-fogless-text', {
             fontSize: 80,
             textColor: '#FFFFFF',
@@ -63,7 +63,7 @@ AFRAME.registerComponent('identify', {
             depthTest: true,
             depthWrite: false, // Ensure we don't occlude things behind us via depth buffer
             renderOrder: this.el.sceneEl.systems['render-order'] ? this.el.sceneEl.systems['render-order'].order['ui'] : 7,
-            opacity: 0
+            opacity: 0 // Start at 0
         });
         this.previewEl.appendChild(this.labelEl);
 
@@ -263,8 +263,8 @@ AFRAME.registerComponent('identify', {
 
             this.nearestObj = nearestObj;
             if (nearestObj) {
-                this.targetPreviewOpacity = 1.0;
-                this.targetLabelOpacity = 0.6;
+                this.targetPreviewOpacity = 0.6;
+                this.targetLabelOpacity = 0.5;
                 this.previewEl.setAttribute('visible', true);
                 this.labelEl.setAttribute('visible', true);
 
@@ -288,7 +288,7 @@ AFRAME.registerComponent('identify', {
                     this.lastNearestName = nearestObj.name;
                 }
             } else {
-                this.targetPreviewOpacity = 0.5;
+                this.targetPreviewOpacity = 0.2;
                 this.previewEl.setAttribute('visible', true);
 
                 // Also project non-target crosshair to 397 for consistency
@@ -305,14 +305,15 @@ AFRAME.registerComponent('identify', {
             }
         }
 
-        // Apply instant updates (No Fading)
-        this.previewOpacity = this.targetPreviewOpacity;
-        this.labelOpacity = this.targetLabelOpacity;
+        // Apply smooth updates
+        const lerpFactor = 1 - Math.pow(0.001, dt / 1000);
+        this.previewOpacity += (this.targetPreviewOpacity - this.previewOpacity) * lerpFactor;
+        this.labelOpacity += (this.targetLabelOpacity - this.labelOpacity) * lerpFactor;
 
         this.crosshairEl.setAttribute('material', 'opacity', this.previewOpacity);
         if (this.labelEl) {
             this.labelEl.setAttribute('custom-fogless-text', 'opacity', this.labelOpacity);
-            this.labelEl.setAttribute('visible', this.labelOpacity > 0);
+            this.labelEl.setAttribute('visible', this.labelOpacity > 0.01);
         }
 
         // Hide if fully hidden

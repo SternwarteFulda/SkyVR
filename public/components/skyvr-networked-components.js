@@ -579,28 +579,38 @@ AFRAME.registerComponent('identified-info', {
         name: { type: 'string', default: '' },
         info: { type: 'string', default: '' },
         type: { type: 'string', default: 'star' }, // 'star' or 'planet'
-        targetTextOpacity: { type: 'number', default: 0.6 },
-        targetMarkerOpacity: { type: 'number', default: 1.0 },
+        targetTextOpacity: { type: 'number', default: 0.5 },
+        targetMarkerOpacity: { type: 'number', default: 0.6 },
         isRemoving: { type: 'boolean', default: false }
     },
 
     init: function () {
         // Create the text entity
         this.textEl = document.createElement('a-entity');
-        this.textEl.setAttribute('position', '0 16 0');
+        this.textEl.setAttribute('position', '0 18 0');
         this.el.appendChild(this.textEl);
 
         // Marker crosshair (same as preview)
         this.markerEl = document.createElement('a-plane');
         this.markerEl.setAttribute('width', 15.0);
         this.markerEl.setAttribute('height', 15.0);
+        this.markerEl.setAttribute('animation__pulse', {
+            property: 'scale',
+            from: '1 1 1',
+            to: '1.2 1.2 1.2',
+            dir: 'alternate',
+            loop: true,
+            dur: 1500,
+            easing: 'easeInOutSine'
+        });
         this.markerEl.setAttribute('material', {
             src: '#asset-crosshair',
             transparent: true,
             shader: 'flat',
             fog: false,
             depthWrite: false,
-            color: '#00FF00'
+            color: '#00FF00',
+            opacity: 0
         });
         const renderSystem = this.el.sceneEl.systems['render-order'];
         this.markerEl.setAttribute('render-order', renderSystem ? 'ui' : '5');
@@ -608,8 +618,8 @@ AFRAME.registerComponent('identified-info', {
 
         this.textOpacity = 0;
         this.markerOpacity = 0;
-        this.targetTextOpacity = 0.6;
-        this.targetMarkerOpacity = 1.0;
+        this.targetTextOpacity = 0.5;
+        this.targetMarkerOpacity = 0.6;
         this.isRemoving = false;
         this.domRemoved = false;
 
@@ -642,6 +652,8 @@ AFRAME.registerComponent('identified-info', {
             this.isRemoving = this.data.isRemoving;
         }
 
+        // Update text content but preserve opacity (which is managed by tick)
+        const currentOpacity = this.textEl.getAttribute('custom-fogless-text')?.opacity ?? this.textOpacity;
         this.textEl.setAttribute('custom-fogless-text', {
             value: this.data.info ? `${this.data.name}\\n${this.data.info}` : this.data.name,
             fontSize: 80,
@@ -651,16 +663,8 @@ AFRAME.registerComponent('identified-info', {
             depthTest: true,
             depthWrite: false,
             renderOrder: this.el.sceneEl.systems['render-order'] ? this.el.sceneEl.systems['render-order'].order['ui'] : 5,
-            opacity: this.textOpacity
+            opacity: currentOpacity
         });
-        if (this.markerEl) {
-            this.markerEl.setAttribute('material', {
-                opacity: this.markerOpacity,
-                depthTest: true,
-                depthWrite: false,
-                transparent: true
-            });
-        }
     },
 
 
@@ -684,41 +688,29 @@ AFRAME.registerComponent('identified-info', {
             }
         }
 
-        // Fading Logic
-        let textDiff = Math.abs(this.textOpacity - this.targetTextOpacity);
-        let markerDiff = Math.abs(this.markerOpacity - this.targetMarkerOpacity);
+        // High-Quality Smooth Fading
+        const lerpFactor = 1 - Math.pow(0.001, dt / 1000); // Fades in ~1s
 
-        if (textDiff > 0.01 || markerDiff > 0.01) {
-            const delta = dt / 1000; // Slow fade for nice visual
-
-            // Text fade
-            if (this.textOpacity < this.targetTextOpacity) {
-                this.textOpacity = Math.min(this.targetTextOpacity, this.textOpacity + delta);
-            } else {
-                this.textOpacity = Math.max(this.targetTextOpacity, this.textOpacity - delta);
-            }
-
-            // Marker fade
-            if (this.markerOpacity < this.targetMarkerOpacity) {
-                this.markerOpacity = Math.min(this.targetMarkerOpacity, this.markerOpacity + delta);
-            } else {
-                this.markerOpacity = Math.max(this.targetMarkerOpacity, this.markerOpacity - delta);
-            }
-
+        let changed = false;
+        if (Math.abs(this.textOpacity - this.targetTextOpacity) > 0.001) {
+            this.textOpacity += (this.targetTextOpacity - this.textOpacity) * lerpFactor;
             this.textEl.setAttribute('custom-fogless-text', 'opacity', this.textOpacity);
+            changed = true;
+        }
+
+        if (Math.abs(this.markerOpacity - this.targetMarkerOpacity) > 0.001) {
+            this.markerOpacity += (this.targetMarkerOpacity - this.markerOpacity) * lerpFactor;
             if (this.markerEl) {
                 this.markerEl.setAttribute('material', 'opacity', this.markerOpacity);
             }
+            changed = true;
+        }
 
-            // Reliable Removal Lifecycle
-            if (this.isRemoving) {
-                // If fully faded, remove from DOM locally
-                if (this.textOpacity <= 0.05 && this.markerOpacity <= 0.05) {
-                    if (this.el.parentNode) {
-                        this.domRemoved = true;
-                        this.el.parentNode.removeChild(this.el);
-                    }
-                }
+        // Reliable Removal Lifecycle
+        if (this.isRemoving && this.textOpacity < 0.01 && this.markerOpacity < 0.01) {
+            if (this.el.parentNode && !this.domRemoved) {
+                this.domRemoved = true;
+                this.el.parentNode.removeChild(this.el);
             }
         }
 

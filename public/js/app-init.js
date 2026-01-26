@@ -77,8 +77,8 @@ window.syncIdentifiedLabels = function (targetLabels) {
             toKeep.add(existing);
             // Ensure it's not removing
             existing.setAttribute('identified-info', 'isRemoving', false);
-            existing.setAttribute('identified-info', 'targetTextOpacity', 0.6);
-            existing.setAttribute('identified-info', 'targetMarkerOpacity', 1.0);
+            existing.setAttribute('identified-info', 'targetTextOpacity', 0.5);
+            existing.setAttribute('identified-info', 'targetMarkerOpacity', 0.6);
         } else {
             // Create New
             const el = document.createElement('a-entity');
@@ -87,8 +87,8 @@ window.syncIdentifiedLabels = function (targetLabels) {
                 name: labelData.name,
                 info: labelData.info,
                 type: labelData.type,
-                targetTextOpacity: 0.6,
-                targetMarkerOpacity: 1.0,
+                targetTextOpacity: 0.5,
+                targetMarkerOpacity: 0.6,
                 isRemoving: false
             });
             el.setAttribute('position', labelData.position);
@@ -129,7 +129,7 @@ window.syncStampedShapes = function (targetShapes) {
         } else {
             const el = document.createElement('a-entity');
             el.classList.add('local-stamped-shape');
-            const finalOpacity = (shapeData.shape === 'star') ? 0.3 : 1.0;
+            const finalOpacity = (shapeData.shape === 'star') ? 0.2 : 0.4;
             el.setAttribute('stamped-shape', {
                 shape: shapeData.shape,
                 color: shapeData.color || '#FFFF00',

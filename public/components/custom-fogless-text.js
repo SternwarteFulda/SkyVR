@@ -73,22 +73,22 @@ AFRAME.registerComponent('custom-fogless-text', {
         obj._fogBypassWrapped = true;
       }
 
-        // 2. Material Stability
-        if (obj.material) {
-          const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-          mats.forEach(mat => {
-            mat.fog = false;
-            mat.side = THREE.FrontSide;
-            mat.depthTest = true;
-            mat.depthWrite = false; // Prevents world z-fighting
-            mat.polygonOffset = true;
-            mat.polygonOffsetFactor = -1;
-            mat.polygonOffsetUnits = -1;
-            mat.transparent = true;
-            mat.alphaTest = 0.001;
-            mat.needsUpdate = true;
-          });
-        }
+      // 2. Material Stability
+      if (obj.material) {
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        mats.forEach(mat => {
+          mat.fog = false;
+          mat.side = THREE.FrontSide;
+          mat.depthTest = true;
+          mat.depthWrite = false; // Prevents world z-fighting
+          mat.polygonOffset = true;
+          mat.polygonOffsetFactor = -1;
+          mat.polygonOffsetUnits = -1;
+          mat.transparent = true;
+          mat.alphaTest = 0.001;
+          mat.needsUpdate = true;
+        });
+      }
       obj.renderOrder = finalOrder;
     });
   },
@@ -98,6 +98,21 @@ AFRAME.registerComponent('custom-fogless-text', {
     if (this.el.object3D.renderOrder !== 9) {
       this.updateMaterialSettings();
     }
+
+    // Enforce opacity on text materials (troika-text manages its own materials)
+    const targetOpacity = this.data.opacity;
+    this.el.object3D.traverse(obj => {
+      if (obj.material) {
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        mats.forEach(mat => {
+          if (mat.opacity !== targetOpacity) {
+            mat.opacity = targetOpacity;
+            mat.transparent = true;
+            mat.needsUpdate = true;
+          }
+        });
+      }
+    });
   },
 
   remove: function () {
