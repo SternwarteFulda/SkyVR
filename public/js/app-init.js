@@ -480,38 +480,103 @@ if (typeof easyrtc !== 'undefined') {
         }
         return originalEnableVideo.apply(easyrtc, arguments);
     };
+
+    // --- CONNECTION STABILIZER ---
+    // A-Frame 1.7.0 and Networked-Aframe can sometimes trigger joinRoom 
+    // before the signaling socket is ready. These wrappers ensure proper sequencing.
+    const originalConnect = easyrtc.connect;
+    const originalJoinRoom = easyrtc.joinRoom;
+    const originalCall = easyrtc.call;
+    const queuedJoinRooms = [];
+
+    // Initialize list if needed
+    if (!window.queuedJoinRooms) window.queuedJoinRooms = queuedJoinRooms;
+
+    easyrtc.connect = function (app, success, failure) {
+        console.log("NAF-Stab: easyrtc.connect start...");
+        return originalConnect.call(easyrtc, app, (id, owner) => {
+            console.log("NAF-Stab: signaling connection SUCCESS", id);
+
+            // Flush queued joinRoom calls BEFORE notifying NAF
+            if (queuedJoinRooms.length > 0) {
+                console.log("NAF-Stab: Flushing " + queuedJoinRooms.length + " queued joins...");
+                const joinPromises = queuedJoinRooms.map(req => {
+                    return new Promise((resolve) => {
+                        originalJoinRoom.call(easyrtc, req.room, req.params, (...args) => {
+                            if (req.success) req.success(...args);
+                            resolve();
+                        }, (...args) => {
+                            if (req.failure) req.failure(...args);
+                            resolve();
+                        });
+                    });
+                });
+
+                Promise.all(joinPromises).then(() => {
+                    console.log("NAF-Stab: All rooms joined. Proceeding...");
+                    queuedJoinRooms.length = 0;
+                    if (success) success(id, owner);
+                });
+            } else {
+                if (success) success(id, owner);
+            }
+        }, (err, text) => {
+            console.error("NAF-Stab: signaling connection FAILURE", err, text);
+            if (failure) failure(err, text);
+        });
+    };
+
+    easyrtc.joinRoom = function (room, params, success, failure) {
+        // Block accidental joins to the 'default' room if we have a specific room intended.
+        // NAF sometimes triggers a 'default' join during its internal setup/schema validation.
+        if (room === 'default' && roomParam && roomParam !== 'default') {
+            console.log("NAF-Stab: Blocking incidental 'default' room join.");
+            if (success) success('default');
+            return;
+        }
+
+        if (!easyrtc.webSocket) {
+            console.log("NAF-Stab: Queueing joinRoom for:", room);
+            queuedJoinRooms.push({ room, params, success, failure });
+            return;
+        }
+        return originalJoinRoom.call(easyrtc, room, params, success, failure);
+    };
+
+    easyrtc.call = function (otherId, successCB, failureCB, acceptedCB, streamNames) {
+        const wrappedFailureCB = (code, text) => {
+            // Dismiss 'ALREADY_CONNECTED' errors as they are common glare during rapid P2P handshakes
+            if (code === "ALREADY_CONNECTED" || text === "Call already pending acceptance") {
+                console.debug("NAF-Stab: Suppressed ALREADY_CONNECTED glare for peer:", otherId);
+                return;
+            }
+            if (failureCB) failureCB(code, text);
+        };
+        return originalCall.call(easyrtc, otherId, successCB, wrappedFailureCB, acceptedCB, streamNames);
+    };
 }
+
+// --- DYNAMIC ROOM SETUP ---
+// By updating the schema default BEFORE the component is initialized in the HTML,
+// we ensure NAF uses the correct room ID from its very first tick, avoiding 'default'.
+const applyNafDefault = () => {
+    if (typeof AFRAME !== 'undefined' && AFRAME.components['networked-scene']) {
+        if (roomParam && roomParam !== 'none') {
+            AFRAME.components['networked-scene'].schema.room.default = roomParam;
+            console.log("NAF: Schema default room set to:", roomParam);
+        }
+    } else {
+        setTimeout(applyNafDefault, 5);
+    }
+};
+applyNafDefault();
 
 document.addEventListener('DOMContentLoaded', () => {
     const sceneEl = document.querySelector('a-scene');
     const cameraEl = document.getElementById('camera');
-    const micEnabled = urlParams.get('mic') !== 'false';
 
     if (sceneEl) {
-        if (roomParam && roomParam !== 'none') {
-            // Sanitized global 'presenceParam' is already available
-            // CRITICAL FIX: We set both audio and video to true ALWAYS.
-            // This ensures the PeerConnection is configured to receive both from others.
-            const audioEnabledForScene = true;
-            const videoEnabledForScene = true;
-
-            // Show network sub-item
-            const networkSubItem = document.getElementById('status-network-sub');
-            if (networkSubItem) {
-                networkSubItem.style.display = 'flex';
-            }
-
-            // CRITICAL: We must rebuild the attribute string because multiple setAttributes might fail with NAF's parser
-            const config = `
-        room: ${roomParam};
-        adapter: easyrtc;
-        audio: ${audioEnabledForScene};
-        video: ${videoEnabledForScene};
-        onConnect: onConnect;
-      `;
-            console.log("DEBUG: networked-scene config:", config);
-            sceneEl.setAttribute('networked-scene', config);
-        } else if (roomParam === 'none') {
+        if (roomParam === 'none') {
             console.log("Standalone mode: Disabling NAF and auto-completing network syncing.");
             sceneEl.removeAttribute('networked-scene');
             window.loadingStatus.network = true;
@@ -585,30 +650,28 @@ window.onConnect = function () {
     const urlParams = new URL(window.location.href).searchParams;
     const micEnabledParam = urlParams.get('mic') !== 'false';
 
-    // --- Pre-Connect Stream Management ---
-    if (typeof easyrtc !== 'undefined') {
-        // If the user isn't in webcam mode, tell EasyRTC not to capture local video.
-        // This prevents the camera prompt while still allowing the scene to receive video.
-        if (presenceParam !== 'webcam') {
-            console.log("NAF: Presence is 'avatar'. Disabling local video capture (to avoid prompt) but keeping scene video-capable.");
-            easyrtc.enableVideo(false);
-        } else {
-            easyrtc.enableVideo(true);
-        }
-    }
+    // Note: Media track enabling/disabling is handled by the initial hooks 
+    // to avoid re-negotiation glare during connection setup.
 
     if (NAF && NAF.connection && NAF.connection.adapter) {
         // --- Microphone Logic ---
         if (typeof NAF.connection.adapter.enableMicrophone === 'function') {
             if (micEnabledParam) {
-                // Join Muted (standard privacy default)
+                // To trigger the browser permission prompt, we must call with 'true' first.
+                // We immediately follow with 'false' to honor the privacy requirement to join muted.
+                NAF.connection.adapter.enableMicrophone(true);
                 NAF.connection.adapter.enableMicrophone(false);
                 window.micEnabled = false;
-                console.log("NAF: Join Muted - mic checkbox was checked, but starting muted.");
+                console.log("NAF: Requested Microphone permission (Joining Muted).");
             } else {
                 window.micEnabled = false;
-                console.log("NAF: Microphone disabled (lobby choice).");
+                console.log("NAF: Microphone capture skipped (choice from lobby).");
             }
+        }
+
+        if (presenceParam === 'webcam' && typeof NAF.connection.adapter.enableCamera === 'function') {
+            NAF.connection.adapter.enableCamera(true);
+            console.log("NAF: Requested Webcam permission.");
         }
 
         // --- Camera / Webcam Logic ---

@@ -12,14 +12,14 @@
   <script src="vendor/aframe-multi-camera/aframe-multi-camera.js"></script>
   <script src="vendor/socket.io/socket.io.min.js"></script>
   <script src="easyrtc/easyrtc.js"></script>
+  <script src="js/app-init.js"></script>
   <script src="vendor/networked-aframe/networked-aframe.min.js"></script>
+  <script src="js/naf-templates.js"></script>
   <script src="vendor/astronomy-engine/astronomy.browser.min.js"></script>
   <script src="vendor/luxon/luxon.min.js"></script>
   <script src="vendor/i18next/i18next.min.js"></script>
   <script src="vendor/i18next-browser-languagedetector/i18nextBrowserLanguageDetector.min.js"></script>
   <script src="js/i18n-setup.js"></script>
-  <script src="js/app-init.js"></script>
-  <script src="js/naf-templates.js"></script>
   <script src="components/aframe-environment-component.js"></script>
   <script src="components/custom-fogless-text.js"></script>
   <script src="components/skyvr-sky-state-component.js"></script>
@@ -462,6 +462,7 @@
 
   <a-scene loading-screen="enabled: false" vr-mode-ui="enabled: true" high-res
     render-order="background, atmosphere, milkyway, illustrations, boundaries, lines, starfield, stars, avatars, ui, overlay"
+    networked-scene="adapter: easyrtc; audio: true; video: true; onConnect: onConnect; broadcastInterval: 2; connectOnLoad: true"
     renderer="
       sortObjects: true;
       antialias: true;
@@ -494,10 +495,9 @@
       grid: crosses;
       dressingOnPlayArea: 0;
       gridColor: #39d2f2;
-      shadow: false" networked-scene="
-      adapter: easyrtc;
-      broadcastInterval: 2;
-      onConnect: onConnect;" id="scene-root">
+      dressingOnPlayArea: 0;
+      gridColor: #39d2f2;
+      shadow: false" id="scene-root">
 
     <!-- 2D Infobar Overlay (Inside scene allows it to stay visible during A-Frame's internal fullscreen mode) -->
 

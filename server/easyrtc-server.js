@@ -101,6 +101,7 @@ console.log("Using ICE servers:", myIceServers.map(s => s.urls));
 easyrtc.setOption("appIceServers", myIceServers);
 easyrtc.setOption("logLevel", "info");
 easyrtc.setOption("demosEnable", false);
+easyrtc.setOption("roomDefaultEnable", false);
 
 // Overriding the default easyrtcAuth listener, only so we can directly access its callback
 easyrtc.events.on("easyrtcAuth", (socket, easyrtcid, msg, socketCallback, callback) => {
