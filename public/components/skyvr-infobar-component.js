@@ -235,7 +235,7 @@ AFRAME.registerComponent('skyvr-infobar', {
         this.roomText.setAttribute('width', 0.4);
         this.roomText.setAttribute('align', 'left');
         this.roomText.setAttribute('position', '0.03 0 0');
-        this.roomText.setAttribute('font', 'mozillavr');
+        this.roomText.setAttribute('font', 'fonts/mozillavr.fnt');
         this.roomGroup.appendChild(this.roomText);
 
         // Mic Section (Center)

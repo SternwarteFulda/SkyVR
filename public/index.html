@@ -549,8 +549,8 @@
           </a-entity>
 
           <!-- here we add a text component for a nametag; the value will be updated by the player-info component -->
-          <a-text class="nametag" value="?" rotation="0 0 0" position="0 -.35 0" align="center" font="mozillavr"
-            side="front" scale=".5 .5 .5"></a-text>
+          <a-text class="nametag" value="?" rotation="0 0 0" position="0 -.35 0" align="center"
+            font="fonts/mozillavr.fnt" side="front" scale=".5 .5 .5"></a-text>
         </a-entity>
       </template>
       <template id="left-controller-template">
@@ -922,7 +922,7 @@
             <!-- TAB 1: TIME -->
             <a-entity id="tab-time" visible="true">
               <a-text value="TIME SETTINGS" position="0 0.20 0.002" width="0.8" color="#a855f7" align="center"
-                font="mozillavr"></a-text>
+                font="fonts/mozillavr.fnt"></a-text>
 
               <!-- Date Row -->
               <a-entity position="0 0.12 0">
@@ -936,8 +936,8 @@
                 <a-rounded id="input-vr-year" width="0.065" height="0.035" radius="0.005" position="-0.12 0 0.001"
                   color="#000" opacity="0.8" class="control-panel-button" data-raycastable
                   onclick="openNumpad('input-vr-year')">
-                  <a-text value="2026" align="center" baseline="center" width="0.8" color="#00ffaa" font="monoid"
-                    position="-0.003 -0.002 0.01"></a-text>
+                  <a-text value="2026" align="center" baseline="center" width="0.8" color="#00ffaa"
+                    font="fonts/Monoid.fnt" position="-0.003 -0.002 0.01"></a-text>
                 </a-rounded>
 
                 <a-rounded width="0.035" height="0.035" radius="0.005" position="-0.07 0 0.001" color="#2a2a3a"
@@ -954,8 +954,8 @@
                 <a-rounded id="input-vr-month" width="0.04" height="0.035" radius="0.005" position="0.075 0 0.001"
                   color="#000" opacity="0.8" class="control-panel-button" data-raycastable
                   onclick="openNumpad('input-vr-month')">
-                  <a-text value="01" align="center" baseline="center" width="0.8" color="#00ffaa" font="monoid"
-                    position="-0.002 -0.002 0.01"></a-text>
+                  <a-text value="01" align="center" baseline="center" width="0.8" color="#00ffaa"
+                    font="fonts/Monoid.fnt" position="-0.002 -0.002 0.01"></a-text>
                 </a-rounded>
 
                 <a-rounded width="0.035" height="0.035" radius="0.005" position="0.1125 0 0.001" color="#2a2a3a"
@@ -972,8 +972,8 @@
                 <a-rounded id="input-vr-day" width="0.04" height="0.035" radius="0.005" position="0.235 0 0.001"
                   color="#000" opacity="0.8" class="control-panel-button" data-raycastable
                   onclick="openNumpad('input-vr-day')">
-                  <a-text value="10" align="center" baseline="center" width="0.8" color="#00ffaa" font="monoid"
-                    position="-0.002 -0.002 0.01"></a-text>
+                  <a-text value="10" align="center" baseline="center" width="0.8" color="#00ffaa"
+                    font="fonts/Monoid.fnt" position="-0.002 -0.002 0.01"></a-text>
                 </a-rounded>
 
                 <a-rounded width="0.035" height="0.035" radius="0.005" position="0.2725 0 0.001" color="#2a2a3a"
@@ -1005,8 +1005,8 @@
                 <a-rounded id="input-vr-hour" width="0.04" height="0.035" radius="0.005" position="-0.055 0 0.001"
                   color="#000" opacity="0.8" class="control-panel-button" data-raycastable
                   onclick="openNumpad('input-vr-hour')">
-                  <a-text value="00" align="center" baseline="center" width="0.8" color="#00ffaa" font="monoid"
-                    position="-0.002 -0.002 0.01"></a-text>
+                  <a-text value="00" align="center" baseline="center" width="0.8" color="#00ffaa"
+                    font="fonts/Monoid.fnt" position="-0.002 -0.002 0.01"></a-text>
                 </a-rounded>
 
                 <a-rounded width="0.035" height="0.035" radius="0.005" position="-0.0175 0 0.001" color="#2a2a3a"
@@ -1023,8 +1023,8 @@
                 <a-rounded id="input-vr-minute" width="0.04" height="0.035" radius="0.005" position="0.145 0 0.001"
                   color="#000" opacity="0.8" class="control-panel-button" data-raycastable
                   onclick="openNumpad('input-vr-minute')">
-                  <a-text value="00" align="center" baseline="center" width="0.8" color="#00ffaa" font="monoid"
-                    position="-0.002 -0.002 0.01"></a-text>
+                  <a-text value="00" align="center" baseline="center" width="0.8" color="#00ffaa"
+                    font="fonts/Monoid.fnt" position="-0.002 -0.002 0.01"></a-text>
                 </a-rounded>
 
                 <a-rounded width="0.035" height="0.035" radius="0.005" position="0.1825 0 0.001" color="#2a2a3a"
@@ -1041,7 +1041,7 @@
             <!-- TAB 2: LOCATION -->
             <a-entity id="tab-location" visible="false">
               <a-text value="LOCATION" position="0 0.20 0.002" width="0.8" color="#a855f7" align="center"
-                font="mozillavr"></a-text>
+                font="fonts/mozillavr.fnt"></a-text>
 
               <!-- Latitude Row -->
               <a-entity position="0 0.08 0">
@@ -1055,8 +1055,8 @@
                 <a-rounded id="input-vr-lat" width="0.12" height="0.04" radius="0.01" position="-0.06 0 0.001"
                   color="#000" opacity="0.8" class="control-panel-button" data-raycastable
                   onclick="openNumpad('input-vr-lat')">
-                  <a-text value="50.0" align="center" baseline="center" width="0.8" color="#00ffaa" font="monoid"
-                    position="-0.003 -0.002 0.01"></a-text>
+                  <a-text value="50.0" align="center" baseline="center" width="0.8" color="#00ffaa"
+                    font="fonts/Monoid.fnt" position="-0.003 -0.002 0.01"></a-text>
                 </a-rounded>
 
                 <a-rounded width="0.05" height="0.04" radius="0.01" position="0.025 0 0.001" color="#2a2a3a"
@@ -1080,8 +1080,8 @@
                 <a-rounded id="input-vr-lon" width="0.12" height="0.04" radius="0.01" position="-0.06 0 0.001"
                   color="#000" opacity="0.8" class="control-panel-button" data-raycastable
                   onclick="openNumpad('input-vr-lon')">
-                  <a-text value="10.0" align="center" baseline="center" width="0.8" color="#00ffaa" font="monoid"
-                    position="-0.003 -0.002 0.01"></a-text>
+                  <a-text value="10.0" align="center" baseline="center" width="0.8" color="#00ffaa"
+                    font="fonts/Monoid.fnt" position="-0.003 -0.002 0.01"></a-text>
                 </a-rounded>
 
                 <a-rounded width="0.05" height="0.04" radius="0.01" position="0.025 0 0.001" color="#2a2a3a"
@@ -1097,7 +1097,7 @@
             <!-- TAB 3: VIEW (VISIBILITY) -->
             <a-entity id="tab-view" visible="false">
               <a-text value="VISIBILITY" position="0 0.20 0.002" width="0.8" color="#a855f7" align="center"
-                font="mozillavr"></a-text>
+                font="fonts/mozillavr.fnt"></a-text>
 
               <a-entity position="-0.08 0.02 0">
                 <a-entity id="switch-hints"

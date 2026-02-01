@@ -82,4 +82,29 @@ else
     echo "⚠ Could not update Constellation Data (will use local version)"
 fi
 
+mkdir -p "public/fonts"
+if curl -sL "https://cdn.aframe.io/fonts/mozillavr.fnt" -o "public/fonts/mozillavr.fnt"; then
+    echo "✓ mozillavr Font (.fnt) updated"
+else
+    echo "⚠ Could not update mozillavr.fnt (will use local version)"
+fi
+
+if curl -sL "https://cdn.aframe.io/fonts/mozillavr.png" -o "public/fonts/mozillavr.png"; then
+    echo "✓ mozillavr Font (.png) updated"
+else
+    echo "⚠ Could not update mozillavr.png (will use local version)"
+fi
+
+if curl -sL "https://cdn.aframe.io/fonts/Monoid.fnt" -o "public/fonts/Monoid.fnt"; then
+    echo "✓ Monoid Font (.fnt) updated"
+else
+    echo "⚠ Could not update Monoid.fnt (will use local version)"
+fi
+
+if curl -sL "https://cdn.aframe.io/fonts/Monoid.png" -o "public/fonts/Monoid.png"; then
+    echo "✓ Monoid Font (.png) updated"
+else
+    echo "⚠ Could not update Monoid.png (will use local version)"
+fi
+
 echo "Vendor sync complete."

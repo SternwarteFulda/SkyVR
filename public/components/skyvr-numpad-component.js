@@ -34,7 +34,7 @@ AFRAME.registerComponent('skyvr-numpad', {
         this.display.setAttribute('baseline', 'center');
         this.display.setAttribute('width', 0.8);
         this.display.setAttribute('position', '0.10 0.18 0.01');
-        this.display.setAttribute('font', 'monoid');
+        this.display.setAttribute('font', 'fonts/Monoid.fnt');
         this.display.setAttribute('color', '#00ffaa');
         this.el.appendChild(this.display);
 
