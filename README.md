@@ -75,7 +75,7 @@ We gratefully acknowledge the use of data and assets from:
 *   **Constellation Art**: Created by Johan Meuris (Jomejome). (Free Art License)
 *   **Gaia Milky Way**: Data from the European Space Agency (ESA) mission Gaia, processed by the Gaia Data Processing and Analysis Consortium (DPAC). (CC BY-SA 3.0 IGO)
 *   **Moon Textures**: NASA's Scientific Visualization Studio. (Public Domain)
-*   **Font**: 'Outfit' by Jeremy Tribby. (OFL)
+*   **Font**: 'Outfit' by Smartsheet Inc. (OFL)
 
 For a full detailed list of credits and licenses, please visit the **About & Attribution** page within the application (accessible from the Lobby).
 
