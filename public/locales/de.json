@@ -49,6 +49,7 @@
         "identify_undo": "Letzte Identifizierung entfernen",
         "identify_clear": "Alle Identifizierungen löschen",
         "pointer": "Zeigermodus",
+        "rocket": "Raketen-Modus",
         "standalone": "Standalone-Sitzung",
         "connecting": "Verbindung wird hergestellt..."
     },
@@ -165,11 +166,8 @@
         "view_license": "Vollständige Lizenz ansehen",
         "software": "Software-Bibliotheken",
         "data_assets": "Daten & Assets",
-        "icons": "Icons",
-        "icons_mic": "Mikrofon An/Aus, Vollbild",
-        "icons_door": "Tür, Stempel, Pfeil",
-        "icons_constellation": "Sternbild, Zeichnen, Cursor",
-        "footer": "Mit Sternen und Webstandards entwickelt.",
+        "additional_icons": "Zusätzliche Icons",
+        "footer": "Mit Sternenstaub und Webstandards entwickelt.",
         "back_to_lobby": "Zurück zum Portal"
     },
     "about_assets": {

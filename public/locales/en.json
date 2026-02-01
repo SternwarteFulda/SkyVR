@@ -49,6 +49,7 @@
         "identify_undo": "Remove Last Identification",
         "identify_clear": "Clear All Identifications",
         "pointer": "Pointer Mode",
+        "rocket": "Rocket Mode",
         "standalone": "Standalone Session",
         "connecting": "Connecting..."
     },
@@ -159,11 +160,8 @@
         "view_license": "View Full License",
         "software": "Software Libraries",
         "data_assets": "Data & Assets",
-        "icons": "Icons",
-        "icons_mic": "Mic On/Off, Fullscreen",
-        "icons_door": "Door, Stamp, Arrow",
-        "icons_constellation": "Constellation, Draw, Cursor",
-        "footer": "Built with stars and web standards.",
+        "additional_icons": "Additional Icons",
+        "footer": "Built with stardust and web standards.",
         "back_to_lobby": "Back to Lobby"
     },
     "about_assets": {

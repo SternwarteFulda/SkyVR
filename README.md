@@ -5,8 +5,6 @@
 ## ✨ Features
 
 - **Multi-User Exploration**: Join rooms with others, see their avatars, and communicate in real-time.
-- **Realistic Sky**: Accurate star positions and constellation data powered by the Astronomy Engine and ATHYG star catalog.
-- **Interactive Moon**: Detailed lunar visualization using LROC data and NASA visualizations.
 - **VR Ready**: Fully immersive experience compatible with WebXR-enabled headsets (Quest, etc.) via A-Frame.
 - **Cross-Platform**: accessible from desktop browsers and mobile devices.
 
@@ -45,32 +43,39 @@ Start the server:
 npm start
 ```
 
-Open your browser and navigate to `http://localhost:8080` (or the port specified in the console).
+**⚠️ Important: SSL Required**
+
+**Networked A-Frame requires SSL/HTTPS to function** - this applies to **all environments**, including local development. Multi-user networking features **will not work** over HTTP, even on local networks. You must set up SSL certificates for development and production.
+
+### Deployment
+
+For production deployment, it is **strongly recommended** to:
+
+1. Install SkyVR on a server behind a **reverse proxy** (e.g., Nginx, Apache, Caddy)
+2. Configure SSL certificates (e.g., using Let's Encrypt)
+3. Proxy requests from HTTPS to your Node.js server (Default port: `8080`)
+
+Without SSL, WebRTC connections (used for multi-user networking) will fail in most modern browsers due to security restrictions.
 
 ## 🛠️ Built With
 
 *   **[A-Frame](https://aframe.io/)** (MIT) - WebVR framework for building virtual reality experiences.
-*   **[Networked-Aframe](https://github.com/networked-aframe/networked-aframe)** (MPL 2.0) - Multi-user networking for A-Frame.
+*   **[Networked-Aframe](https://github.com/networked-aframe/networked-aframe)** (MIT) - Multi-user networking for A-Frame.
 *   **[A-Frame Environment](https://github.com/supermedium/aframe-environment-component)** (MIT) - Infinite backgrounds for A-Frame.
 *   **[A-Frame Extras](https://github.com/c-frame/aframe-extras)** (MIT) - Add-ons and helpers for A-Frame.
 *   **[A-Frame Multi-Camera](https://github.com/diarmidmackenzie/aframe-multi-camera)** (MIT) - System for multiple cameras in A-Frame.
 *   **[A-Frame Render Order](https://github.com/supermedium/superframe/tree/master/components/render-order)** (MIT) - Component to manually set rendering order for A-Frame entities.
 *   **[Astronomy Engine](https://github.com/cosinekitty/astronomy)** (MIT) - Rigorous calculations of celestial body positions.
-*   **[Socket.IO](https://socket.io/)** (MIT) - Real-time bidirectional event-based communication.
-*   **[Luxon](https://moment.github.io/luxon/)** (MIT) - Powerful date and time wrapper for JavaScript.
 
 ## 📚 Data & Attributions
 
-SkyVR stands on the shoulders of giants. We gratefully acknowledge the use of data and assets from:
+We gratefully acknowledge the use of data and assets from:
 
 *   **Star Data (ATHYG)**: ATHYG database by David Nash / Astronexus. (CC BY 4.0)
 *   **Constellation Art**: Created by Johan Meuris (Jomejome). (Free Art License)
 *   **Gaia Milky Way**: Data from the European Space Agency (ESA) mission Gaia, processed by the Gaia Data Processing and Analysis Consortium (DPAC). (CC BY-SA 3.0 IGO)
 *   **Moon Textures**: NASA's Scientific Visualization Studio. (Public Domain)
 *   **Font**: 'Outfit' by Jeremy Tribby. (OFL)
-*   **Icons**:
-    *   Mic On/Off, Fullscreen: [Google Material Design Icons](https://fonts.google.com/icons) (Apache 2.0)
-    *   Door, Stamp, Arrow, Constellation, Draw, Cursor: SkyVR Contributors (AGPLv3)
 
 For a full detailed list of credits and licenses, please visit the **About & Attribution** page within the application (accessible from the Lobby).
 
