@@ -15,6 +15,8 @@ window.skyStateInitialized = false;
 window.skyStateLastSync = 0;
 window.nafConnectTime = 0; // Track when NAF actually connected
 window.reverseMouse = true; // Move sky (Default) vs Move camera
+window.RAD_TO_DEG = 180 / Math.PI;
+window.DEG_TO_RAD = Math.PI / 180;
 
 // Helper to determine if we are safe to broadcast changes to the room
 window.canUpdateSkyState = function (forceAuthoritative = false) {
@@ -777,8 +779,8 @@ document.addEventListener('controllermodelready', (evt) => {
         // Calculate rotation for the bottom-origin-cylinder component
         // The cylinder points -Y. We need to find the Euler angles (X, Y) to match rayOrigin.direction
         const dir = rayOrigin.direction;
-        const pitch = Math.acos(-dir.y) * (180 / Math.PI);
-        const yaw = Math.atan2(-dir.x, -dir.z) * (180 / Math.PI);
+        const pitch = Math.acos(-dir.y) * RAD_TO_DEG;
+        const yaw = Math.atan2(-dir.x, -dir.z) * RAD_TO_DEG;
 
         pointerEl.setAttribute('bottom-origin-cylinder', 'rotation', { x: pitch, y: yaw, z: 0 });
     }

@@ -164,7 +164,7 @@ AFRAME.registerComponent('constellation-renderer', {
 
     raDecToPosition: function (ra, dec, radius) {
         const raRad = (ra / 12) * Math.PI;
-        const decRad = (dec * Math.PI) / 180;
+        const decRad = dec * DEG_TO_RAD;
 
         const x = radius * Math.cos(decRad) * Math.cos(raRad);
         const y = radius * Math.cos(decRad) * Math.sin(raRad);
@@ -357,7 +357,7 @@ AFRAME.registerComponent('constellation-renderer', {
         const y = vector.y;
         const z = vector.z;
 
-        const dec = Math.asin(y) * 180 / Math.PI;
+        const dec = Math.asin(y) * RAD_TO_DEG;
         let ra = Math.atan2(x, z) * 12 / Math.PI;
         if (ra < 0) ra += 24;
 

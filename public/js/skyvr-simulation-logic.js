@@ -465,8 +465,6 @@ let lastUIUpdateTime = 0;
 let lastLightUpdateTime = 0;
 
 // Pre-calculate constants for performance
-const DEG_TO_RAD = Math.PI / 180;
-const RAD_TO_DEG = 180 / Math.PI;
 const PRECESSION_RATE = 360 / 25750; // degrees per year
 const DISTANCE_SUN = 400;
 
@@ -1392,7 +1390,7 @@ function setupVRControllers() {
             if (pointerMode === 'arrow') {
                 // Arrow Mode: Stick rotates Arrow
                 if (stickActive) {
-                    const angleDeg = Math.atan2(-stickY, stickX) * (180 / Math.PI) + 180;
+                    const angleDeg = Math.atan2(-stickY, stickX) * RAD_TO_DEG + 180;
                     lastArrowAngle = angleDeg;
                     const pointer = document.getElementById("pointer");
                     const arrow = pointer ? pointer.querySelector('.pointer-arrow') : null;

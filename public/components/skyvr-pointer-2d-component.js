@@ -113,7 +113,7 @@ AFRAME.registerComponent('skyvr-pointer-2d', {
         }
 
         if (arrowVisible) {
-            const angleDeg = Math.atan2(-stickY, stickX) * (180 / Math.PI) + 180;
+            const angleDeg = Math.atan2(-stickY, stickX) * RAD_TO_DEG + 180;
             // X: 90 is critical, Y is rotation around beam
             this.arrowEl.object3D.rotation.set(Math.PI / 2, THREE.MathUtils.degToRad(angleDeg - 90), 0);
 
