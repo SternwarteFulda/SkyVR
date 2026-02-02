@@ -4,10 +4,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script>console.log("SKYVR-MANIFEST: Version 1.7.0.2 - MERGER REMOVED");</script>
   <script src="vendor/aframe/aframe.min.js"></script>
   <script src="vendor/aframe-extras/aframe-extras.primitives.min.js"></script>
   <script src="vendor/aframe-troika-text/aframe-troika-text.min.js"></script>
-  <script src="vendor/aframe-geometry-merger-component/aframe-geometry-merger-component.min.js"></script>
   <script src="vendor/aframe-render-order-component/aframe-render-order-component.min.js"></script>
   <script src="vendor/aframe-multi-camera/aframe-multi-camera.js"></script>
   <script src="vendor/socket.io/socket.io.min.js"></script>
@@ -555,8 +555,7 @@
       </template>
       <template id="left-controller-template">
         <a-entity player-info>
-          <a-entity class="binoculars-model" visible="false" scale="1.76 1.76 1.76"
-            geometry-merger="preserveOrig: false">
+          <a-entity class="binoculars-model" visible="false" scale="1.76 1.76 1.76">
             <!-- Visual Offset Wrapper -->
             <a-entity position="0 0 -0.1">
               <!-- Left Barrel -->
