@@ -149,6 +149,11 @@ window.syncStampedShapes = function (targetShapes) {
 };
 
 window.checkLoadingComplete = function () {
+    // Robustness: if localPlayerSpawned is true, ensure spawn status is true
+    if (window.localPlayerSpawned && !window.loadingStatus.spawn) {
+        window.loadingStatus.spawn = true;
+    }
+
     if (performance.now() % 5000 < 100) { // Log every ~5s
         console.log("Loading Status:", JSON.parse(JSON.stringify(window.loadingStatus)), "PlayerSpawned:", window.localPlayerSpawned);
     }
@@ -587,7 +592,9 @@ document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => {
                 window.updateLoadingIndicator('network', true);
                 window.updateLoadingIndicator('sync', true);
-                window.updateLoadingIndicator('spawn', false, true); // Show "Selecting seat and spawning..."
+                if (!window.localPlayerSpawned) {
+                    window.updateLoadingIndicator('spawn', false, true); // Show "Selecting seat and spawning..."
+                }
             }, 100);
         }
 

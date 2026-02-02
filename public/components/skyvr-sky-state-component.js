@@ -84,7 +84,9 @@ AFRAME.registerComponent('sky-state', {
                     window.skyStateInitialized = true;
                     if (typeof updateLoadingIndicator === 'function') {
                         updateLoadingIndicator('sync', true);
-                        updateLoadingIndicator('spawn', false, true);
+                        if (!window.localPlayerSpawned) {
+                            updateLoadingIndicator('spawn', false, true);
+                        }
                     }
                 }
             }
@@ -170,7 +172,9 @@ AFRAME.registerComponent('sky-state', {
             window.skyStateInitialized = true;
             if (typeof updateLoadingIndicator === 'function') {
                 updateLoadingIndicator('sync', true);
-                updateLoadingIndicator('spawn', false, true);
+                if (!window.localPlayerSpawned) {
+                    updateLoadingIndicator('spawn', false, true);
+                }
             }
         }
 
