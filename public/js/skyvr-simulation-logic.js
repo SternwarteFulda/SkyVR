@@ -832,14 +832,16 @@ function setupVRControllers() {
     leftController.addEventListener("noneup", togglePanel);
 
     leftController.addEventListener("gripdown", function (event) {
-        if (sceneEl.is('vr-mode') && NAF.connection && NAF.connection.adapter) {
+        const sceneEl = document.querySelector('a-scene');
+        if (sceneEl && sceneEl.is('vr-mode') && NAF.connection && NAF.connection.adapter) {
             NAF.connection.adapter.enableMicrophone(true);
             window.micEnabled = true;
         }
     });
 
     leftController.addEventListener("gripup", function (event) {
-        if (sceneEl.is('vr-mode') && NAF.connection && NAF.connection.adapter) {
+        const sceneEl = document.querySelector('a-scene');
+        if (sceneEl && sceneEl.is('vr-mode') && NAF.connection && NAF.connection.adapter) {
             NAF.connection.adapter.enableMicrophone(false);
             window.micEnabled = false;
         }
@@ -1188,12 +1190,9 @@ function setupVRControllers() {
                 }
             } else if (currentMode === 'identify') {
                 if (rightController.components['identify']) {
-                    if (this.el && this.el.sceneEl && this.el.sceneEl.is('vr-mode')) {
+                    const sceneEl = document.querySelector('a-scene');
+                    if (sceneEl && sceneEl.is('vr-mode')) {
                         rightController.components['identify'].stampInfo();
-                    } else {
-                        if (document.querySelector('a-scene').is('vr-mode')) {
-                            rightController.components['identify'].stampInfo();
-                        }
                     }
                 }
             } else if (currentMode === 'stamp') {
