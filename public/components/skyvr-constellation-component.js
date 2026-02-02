@@ -622,7 +622,7 @@ AFRAME.registerComponent('constellation-renderer', {
                         entity.setAttribute('constellation-stick-figure', {
                             constellationId: id,
                             color: this.data.stickFigureColor,
-                            opacity: 1.0
+                            opacity: 0.8
                         });
 
                         // Flash new stick figures as they bloom into being

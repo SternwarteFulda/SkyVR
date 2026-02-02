@@ -373,7 +373,7 @@ AFRAME.registerComponent('constellation-stick-figure', {
     schema: {
         constellationId: { type: 'string' },
         color: { type: 'color', default: '#00ffff' },
-        opacity: { type: 'number', default: 1.0 }
+        opacity: { type: 'number', default: 0.8 }
     },
 
     init: function () {
@@ -481,15 +481,26 @@ AFRAME.registerComponent('constellation-stick-figure', {
                 // Use Authoritative Layer 8.1 system with ID-based jitter
                 const idHash = (this.data.constellationId.charCodeAt(0) + this.data.constellationId.charCodeAt(1) || 0) * 0.0001;
                 const baseOrder = 8.1 + idHash;
+
                 let layerOffset = 0;
-                if (nodeRenderOrder % 10 === 0) layerOffset = 0; // bloom
-                if (nodeRenderOrder % 10 === 1) layerOffset = 0.001; // inner
-                if (nodeRenderOrder % 10 === 2) layerOffset = 0.002; // core
+                let base = 0.1;
+                const layerType = entry.node.userData.layerType;
+
+                if (layerType === 'bloom') {
+                    layerOffset = 0;
+                    base = 0.08;
+                } else if (layerType === 'inner') {
+                    layerOffset = 0.001;
+                    base = 0.15;
+                } else if (layerType === 'core') {
+                    layerOffset = 0.002;
+                    base = 0.3;
+                }
 
                 const finalOrder = baseOrder + layerOffset;
                 if (entry.node) entry.node.renderOrder = finalOrder;
 
-                const opacity = Math.min(finalAlpha * (nodeRenderOrder % 10 === 0 ? 0.02 : (nodeRenderOrder % 10 === 1 ? 0.04 : 0.1)) * (this.vrBoost || 1.0), 1.0);
+                const opacity = Math.min(finalAlpha * base * (this.vrBoost || 1.0), 1.0);
                 if (nodeMaterial.uniforms && nodeMaterial.uniforms.opacity) {
                     nodeMaterial.uniforms.opacity.value = opacity;
                 } else {
@@ -497,7 +508,7 @@ AFRAME.registerComponent('constellation-stick-figure', {
                 }
 
                 // Dynamic Color Enforcement
-                let targetColor = (nodeRenderOrder % 10 === 2)
+                let targetColor = (layerType === 'core')
                     ? (isZod ? '#fff4cc' : '#ffffff')
                     : (isZod ? zodiacColor : standardColor);
 
