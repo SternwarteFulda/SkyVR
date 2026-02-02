@@ -48,10 +48,15 @@ sed -i "/Object.assign(this.environmentData, this.el.components.environment.attr
 
 rm /tmp/parse_block.js
 
+# 5. Suppress component settings logging
+sed -i "s/console\.log('%c' + params\.join('; '), 'color: #f48;font-weight:bold');/\/\/ console.log('%c' + params.join('; '), 'color: #f48;font-weight:bold');/g" "$DEST_FILE"
+sed -i "s/console\.log(this\.environmentData);/\/\/ console.log(this.environmentData);/g" "$DEST_FILE"
+
 echo "✓ L0: 0.1 → 0.01"
 echo "✓ cutoffAngle/steepness adjusted"
 echo "✓ Auto-stars disabled"
 echo "✓ Attribute parsing logic injected"
+echo "✓ Logging suppressed (both params and environmentData)"
 echo ""
 echo "Note: stageSize (400) should be set via HTML attribute"
 echo ""
