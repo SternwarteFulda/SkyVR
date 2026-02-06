@@ -71,11 +71,11 @@ Without SSL, WebRTC connections (used for multi-user networking) will fail in mo
 
 We gratefully acknowledge the use of data and assets from:
 
-*   **Star Data (ATHYG)**: ATHYG database by David Nash / Astronexus. (CC BY 4.0)
-*   **Constellation Art**: Created by Johan Meuris (Jomejome). (Free Art License)
-*   **Gaia Milky Way**: Data from the European Space Agency (ESA) mission Gaia, processed by the Gaia Data Processing and Analysis Consortium (DPAC). (CC BY-SA 3.0 IGO)
-*   **Moon Textures**: NASA's Scientific Visualization Studio. (Public Domain)
-*   **Font**: 'Outfit' by Smartsheet Inc. (OFL)
+*   **[Star Data (ATHYG)](https://codeberg.org/astronexus/athyg)**: ATHYG database by David Nash / Astronexus. (CC BY 4.0)
+*   **[Constellation Art](https://johanmeuris.eu/work/stellarium-constellation-art/)**: Created by Johan Meuris (Jomejome). (Free Art License)
+*   **[Gaia Milky Way](https://www.esa.int/ESA_Multimedia/Images/2020/12/The_colour_of_the_sky_from_Gaia_s_Early_Data_Release_32)**: Data from the European Space Agency (ESA) mission Gaia, processed by the Gaia Data Processing and Analysis Consortium (DPAC). (CC BY-SA 3.0 IGO)
+*   **[Moon Textures](https://svs.gsfc.nasa.gov/4720)**: NASA's Scientific Visualization Studio. (Public Domain)
+*   **[Font](https://github.com/Outfitio/Outfit-Fonts)**: 'Outfit' by Smartsheet Inc. (OFL)
 
 For a full detailed list of credits and licenses, please visit the **About & Attribution** page within the application (accessible from the Lobby).
 
