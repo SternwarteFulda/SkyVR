@@ -11,9 +11,10 @@ AFRAME.registerComponent('bino-optimizer', {
         const secondary = this.el.components['secondary-camera'];
         if (!secondary || !secondary.camera) return;
 
-        // Force camera to Layer 0 to see ground, landscape and daylight sky
-        if (this.el.object3D.layers.mask !== 1) {
+        // Face camera to Layer 0 (Normal) and Layer 1 (Binocular High Detail)
+        if (this.el.object3D.layers.mask !== 3) { // 1 | 2 = 3
             this.el.object3D.layers.set(0);
+            this.el.object3D.layers.enable(1);
         }
 
         // Ensure far plane is long enough for the landscape and sky sphere

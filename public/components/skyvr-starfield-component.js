@@ -36,6 +36,11 @@ AFRAME.registerComponent('starfield', {
                 gl_Position.z = -2000.0; 
             }
 
+            // Hide special objects (like Jupiter sprite) in magnified view
+            if (magnitude < -50.0 && zoomFactor > 1.5) {
+                gl_Position.z = -3000.0;
+            }
+
             float baselineSize = 0.1;
             if (gl_PointSize > baselineSize) {
               vVisibility = clamp((gl_PointSize - baselineSize) / (baselineSize * 2.0), 0.0, 1.0);
@@ -91,6 +96,10 @@ AFRAME.registerComponent('starfield', {
             float magLimit = baseMagLimit + clamp((zoomFactor - 1.0) / 3.0, 0.0, 1.0) * 1.5;
             if (magnitude > magLimit) {
                 gl_Position.z = -2000.0; 
+            }
+
+            if (magnitude < -50.0 && zoomFactor > 1.5) {
+                gl_Position.z = -3000.0;
             }
 
             float baselineSize = 0.2;
@@ -346,10 +355,18 @@ AFRAME.registerComponent('starfield', {
                 }
             });
         this.planetsData = this.calculatePlanetsData();
-        this.planetsHalos = this.createPlanetsObjects("halos");
+        this.planetsHalos = this.createPlanetsObjects("halos", 0); // Layer 0
         el.object3D.add(this.planetsHalos);
-        this.planets = this.createPlanetsObjects("planets");
+        this.planets = this.createPlanetsObjects("planets", 0); // Layer 0
         el.object3D.add(this.planets);
+
+        // Created separately for Layer 1 (Binocular only)
+        this.binoPlanetsHalos = this.createPlanetsObjects("halos", 1);
+        this.binoPlanetsHalos.layers.set(1);
+        el.object3D.add(this.binoPlanetsHalos);
+        this.binoPlanets = this.createPlanetsObjects("planets", 1);
+        this.binoPlanets.layers.set(1);
+        el.object3D.add(this.binoPlanets);
 
         // Create the Moon sphere and directional light
         const moonTexture = textureLoader.load('assets/lroc_color_poles_1k.jpg');
@@ -385,13 +402,43 @@ AFRAME.registerComponent('starfield', {
         this.moonLight.castShadow = false;
         el.object3D.add(this.moonLight);
 
+        // Jupiter sphere
+        const jupiterTexture = textureLoader.load('assets/jupiter.png');
+        const jupiterGeometry = new THREE.SphereGeometry(0.12, 64, 64);
+        jupiterGeometry.rotateY(Math.PI);
+        const jupiterMaterial = new THREE.MeshLambertMaterial({
+            map: jupiterTexture,
+            fog: false,
+            transparent: true,
+            depthWrite: true,
+            depthTest: true,
+            blending: THREE.CustomBlending,
+            blendSrc: THREE.OneFactor,
+            blendDst: THREE.OneMinusSrcColorFactor,
+            blendEquation: THREE.AddEquation,
+        });
+        this.jupiter = new THREE.Mesh(jupiterGeometry, jupiterMaterial);
+        this.jupiter.renderOrder = renderSystem ? renderSystem.order['stars'] : 5;
+        this.jupiter.layers.set(1);
+        el.object3D.add(this.jupiter);
+
+        this.jupiterLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        this.jupiterLight.target = this.jupiter;
+        this.jupiterLight.layers.set(1);
+        this.jupiterLight.castShadow = false;
+        el.object3D.add(this.jupiterLight);
+
         // Target states for interpolation
         this.targetMoonPosition = new THREE.Vector3();
         this.targetMoonQuaternion = new THREE.Quaternion();
+        this.targetJupiterPosition = new THREE.Vector3();
+        this.targetJupiterQuaternion = new THREE.Quaternion();
         this.tempMoonObj = new THREE.Object3D();
+        this.tempJupiterObj = new THREE.Object3D();
         this.illuminationDirection = new THREE.Vector3();
-        this.firstMoonUpdate = true;
-        this.lastMoonDate = null;
+        this.jupiterIlluminationDirection = new THREE.Vector3();
+        this.firstBodyUpdate = true;
+        this.lastBodyDate = null;
 
         // Initialize throttled functions
         this.throttledUpdateMoon = AFRAME.utils.throttle(this.updateMoon, 50, this); // 20 fps
@@ -420,7 +467,7 @@ AFRAME.registerComponent('starfield', {
             // Using a factor that feels responsive but smooth
             const lerpFactor = 1 - Math.pow(0.001, dt / 1000);
 
-            if (this.moon && !this.firstMoonUpdate) {
+            if (this.moon && !this.firstBodyUpdate) {
                 // Optimization: use distanceToSquared for performance
                 const distSq = this.moon.position.distanceToSquared(this.targetMoonPosition);
                 if (distSq < 0.0001) {
@@ -437,6 +484,23 @@ AFRAME.registerComponent('starfield', {
                     this.moonLight.position.copy(this.moon.position);
                     this.moonLight.position.addScaledVector(this.illuminationDirection, 100);
                     this.moonLight.lookAt(this.moon.position);
+                }
+            }
+
+            if (this.jupiter && !this.firstBodyUpdate) {
+                const distSq = this.jupiter.position.distanceToSquared(this.targetJupiterPosition);
+                if (distSq < 0.0001) {
+                    this.jupiter.position.copy(this.targetJupiterPosition);
+                    this.jupiter.quaternion.copy(this.targetJupiterQuaternion);
+                } else {
+                    this.jupiter.position.lerp(this.targetJupiterPosition, lerpFactor);
+                    this.jupiter.quaternion.slerp(this.targetJupiterQuaternion, lerpFactor);
+                }
+
+                if (this.jupiterLight) {
+                    this.jupiterLight.position.copy(this.jupiter.position);
+                    this.jupiterLight.position.addScaledVector(this.jupiterIlluminationDirection, 100);
+                    this.jupiterLight.lookAt(this.jupiter.position);
                 }
             }
 
@@ -495,14 +559,13 @@ AFRAME.registerComponent('starfield', {
             this.tempMoonObj.rotateZ(THREE.MathUtils.degToRad(lib.elat));
             this.targetMoonQuaternion.copy(this.tempMoonObj.quaternion);
 
-            const timeJump = this.lastMoonDate ? Math.abs(date - this.lastMoonDate) : 0;
-            this.lastMoonDate = date;
+            const timeJump = this.lastBodyDate ? Math.abs(date - this.lastBodyDate) : 0;
+            this.lastBodyDate = date;
 
             // Snap if first update OR if time jump > 2 hours (7,200,000 ms), unless forced interpolation
-            if (!forceInterpolation && (this.firstMoonUpdate || timeJump > 7200000)) {
+            if (!forceInterpolation && (this.firstBodyUpdate || timeJump > 7200000)) {
                 this.moon.position.copy(this.targetMoonPosition);
                 this.moon.quaternion.copy(this.targetMoonQuaternion);
-                this.firstMoonUpdate = false;
 
                 // Initial light setup
                 if (this.moonLight) {
@@ -523,6 +586,43 @@ AFRAME.registerComponent('starfield', {
             this.updateBodyData(bodyList[i], date, i + 1, forceInterpolation);
         }
         this.updatePlanetsPositions(); // Buffer update
+
+        // Update Jupiter 3D Object state
+        const jupiterData = this.planetsData[4]; // Jupiter is index 4 in ['Moon', 'Mercury', ...]
+        if (jupiterData && jupiterData.targetPosition) {
+            this.targetJupiterPosition.copy(jupiterData.targetPosition);
+
+            const sunVector = new Astronomy.GeoVector('Sun', date, false);
+            const jupVector = new Astronomy.GeoVector('Jupiter', date, false);
+            this.jupiterIlluminationDirection.set(
+                sunVector.x - jupVector.x,
+                sunVector.y - jupVector.y,
+                sunVector.z - jupVector.z
+            ).normalize();
+
+            const pole = Astronomy.RotationAxis('Jupiter', date);
+            const poleJ2000 = new THREE.Vector3(pole.north.x, pole.north.y, pole.north.z);
+
+            this.tempJupiterObj.position.copy(this.targetJupiterPosition);
+            this.tempJupiterObj.up.copy(poleJ2000);
+            this.tempJupiterObj.lookAt(0, 0, 0);
+            this.tempJupiterObj.rotateY(Math.PI / 2);
+            this.tempJupiterObj.rotateY(THREE.MathUtils.degToRad(pole.spin));
+            this.targetJupiterQuaternion.copy(this.tempJupiterObj.quaternion);
+
+            const timeJump = this.lastBodyDate ? Math.abs(date - this.lastBodyDate) : 0;
+            if (!forceInterpolation && (this.firstBodyUpdate || timeJump > 7200000)) {
+                this.jupiter.position.copy(this.targetJupiterPosition);
+                this.jupiter.quaternion.copy(this.targetJupiterQuaternion);
+                this.firstBodyUpdate = false;
+
+                if (this.jupiterLight) {
+                    this.jupiterLight.position.copy(this.jupiter.position);
+                    this.jupiterLight.position.addScaledVector(this.jupiterIlluminationDirection, 100);
+                    this.jupiterLight.lookAt(this.jupiter.position);
+                }
+            }
+        }
     },
     calculatePlanetsData: function () {
         // Initial population of the planetsData array
@@ -595,31 +695,50 @@ AFRAME.registerComponent('starfield', {
         data.targetPosition.set(x, y, z);
 
         // Huge jump detection - snap if > 2 hours or first update, unless forced to interpolate
-        const timeJump = this.lastMoonDate ? Math.abs(date - this.lastMoonDate) : 0;
-        if (!forceInterpolation && (this.firstMoonUpdate || timeJump > 7200000)) {
+        const timeJump = this.lastBodyDate ? Math.abs(date - this.lastBodyDate) : 0;
+        if (!forceInterpolation && (this.firstBodyUpdate || timeJump > 7200000)) {
             data.currentPosition.copy(data.targetPosition);
         }
 
-        data.size = bodyName === "Moon" ? 0.0 : size;
-        data.haloSize = bodyName === "Moon" ? 0.0 : size;
-        data.color[0] = 1.0;
+        data.size = (bodyName === "Moon" || bodyName === "Jupiter") ? 0.0 : size;
+        data.haloSize = (bodyName === "Moon" || bodyName === "Jupiter") ? 0.0 : size;
+
+        // Restore Jupiter point sprite for naked-eye view, but hide it for magnification
+        if (bodyName === "Jupiter") {
+            data.size = size;
+            data.haloSize = size;
+            data.magnitude = -60.0; // Special marker for bino-replacement
+        } else if (isMoon) {
+            data.magnitude = mag; // Normal mag, but object is on Layer 1
+        } else {
+            data.magnitude = mag;
+        }
+
+        // Visibility flagging for layered rendering
+        data.layer = isMoon ? 1 : 0;
         data.color[1] = 1.0;
         data.color[2] = 1.0;
     },
-    createPlanetsObjects: function (type) {
+    createPlanetsObjects: function (type, layerNum) {
         const planetsGeometry = new THREE.BufferGeometry();
         const planetsPositions = [];
         const planetsSizes = [];
         const planetsColors = [];
+        const planetsMags = [];
+
         for (let planetData of this.planetsData) {
+            const isVisible = (planetData.layer === layerNum);
             const pos = planetData.currentPosition || new THREE.Vector3();
-            planetsPositions.push(pos.x, pos.y, pos.z);
-            planetsSizes.push(type === "halos" ? planetData.haloSize : planetData.size);
+            planetsPositions.push(isVisible ? pos.x : 0, isVisible ? pos.y : 0, isVisible ? pos.z : 0);
+            planetsSizes.push(isVisible ? (type === "halos" ? planetData.haloSize : planetData.size) : 0);
             planetsColors.push(...planetData.color);
+            planetsMags.push(planetData.magnitude || 0);
         }
         planetsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(planetsPositions, 3));
         planetsGeometry.setAttribute('size', new THREE.Float32BufferAttribute(planetsSizes, 1));
         planetsGeometry.setAttribute('color', new THREE.Float32BufferAttribute(planetsColors, 3));
+        planetsGeometry.setAttribute('magnitude', new THREE.Float32BufferAttribute(planetsMags, 1));
+
         let shader = starShaderMaterial;
         if (type === "halos") {
             shader = haloShaderMaterial;
@@ -630,18 +749,25 @@ AFRAME.registerComponent('starfield', {
         return points;
     },
     updatePlanetsPositions: function () {
-        const posAttr = this.planets.geometry.attributes.position;
-        const haloPosAttr = this.planetsHalos.geometry.attributes.position;
+        const objects = [
+            { pos: this.planets.geometry.attributes.position, halo: this.planetsHalos.geometry.attributes.position, layer: 0 },
+            { pos: this.binoPlanets.geometry.attributes.position, halo: this.binoPlanetsHalos.geometry.attributes.position, layer: 1 }
+        ];
 
-        for (let i = 0; i < this.planetsData.length; i++) {
-            const pos = this.planetsData[i].currentPosition;
-            if (pos) {
-                posAttr.setXYZ(i, pos.x, pos.y, pos.z);
-                haloPosAttr.setXYZ(i, pos.x, pos.y, pos.z);
+        for (let obj of objects) {
+            for (let i = 0; i < this.planetsData.length; i++) {
+                const data = this.planetsData[i];
+                if (data.layer === obj.layer && data.currentPosition) {
+                    obj.pos.setXYZ(i, data.currentPosition.x, data.currentPosition.y, data.currentPosition.z);
+                    obj.halo.setXYZ(i, data.currentPosition.x, data.currentPosition.y, data.currentPosition.z);
+                } else if (data.currentPosition) {
+                    // Hide points that don't belong to this layer by moving them far away
+                    obj.pos.setXYZ(i, 0, 0, 0);
+                    obj.halo.setXYZ(i, 0, 0, 0);
+                }
             }
+            obj.pos.needsUpdate = true;
+            obj.halo.needsUpdate = true;
         }
-
-        posAttr.needsUpdate = true;
-        haloPosAttr.needsUpdate = true;
     },
 });

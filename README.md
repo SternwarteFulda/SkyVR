@@ -75,6 +75,7 @@ We gratefully acknowledge the use of data and assets from:
 *   **[Constellation Art](https://johanmeuris.eu/work/stellarium-constellation-art/)**: Created by Johan Meuris (Jomejome). (Free Art License)
 *   **[Gaia Milky Way](https://www.esa.int/ESA_Multimedia/Images/2020/12/The_colour_of_the_sky_from_Gaia_s_Early_Data_Release_32)**: Data from the European Space Agency (ESA) mission Gaia, processed by the Gaia Data Processing and Analysis Consortium (DPAC). (CC BY-SA 3.0 IGO)
 *   **[Moon Textures](https://svs.gsfc.nasa.gov/4720)**: NASA's Scientific Visualization Studio. (Public Domain)
+*   **[Jupiter Texture](https://science.nasa.gov/asset/hubble/jupiter-global-map-2019/)**: NASA, ESA, A. Simon (GSFC), M.H. Wong (UC Berkeley), and the OPAL team. (Public Domain)
 *   **[Font](https://github.com/Outfitio/Outfit-Fonts)**: 'Outfit' by Smartsheet Inc. (OFL)
 
 For a full detailed list of credits and licenses, please visit the **About & Attribution** page within the application (accessible from the Lobby).
