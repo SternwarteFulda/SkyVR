@@ -224,9 +224,10 @@ AFRAME.registerComponent('identify', {
                         minDistance = dist;
                         let infoStr = (planet.name === 'Sun') ? 'Star' : 'Planet';
                         if (planet.name === 'Moon') infoStr = '';
+                        if (['Io', 'Europa', 'Ganymede', 'Callisto'].includes(planet.name)) infoStr = 'Moon of Jupiter';
 
                         if (planet.mag !== undefined && planet.mag !== null) {
-                            infoStr = `Data: Mag ${planet.mag.toFixed(1)}`;
+                            infoStr = `${infoStr ? infoStr + ', ' : ''}Mag ${planet.mag.toFixed(1)}`;
                         }
 
                         nearestObj = {

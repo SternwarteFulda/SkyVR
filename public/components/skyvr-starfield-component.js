@@ -517,7 +517,7 @@ AFRAME.registerComponent('starfield', {
     updatePlanets: function (forceInterpolation = false) {
         if (!this.planetsData) this.calculatePlanetsData();
         const date = simulationTime.toJSDate();
-        const bodyList = ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune'];
+        const bodyList = ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Io', 'Europa', 'Ganymede', 'Callisto', 'Saturn', 'Uranus', 'Neptune'];
         // Start index 1 since Moon is 0
         for (let i = 0; i < bodyList.length; i++) {
             this.updateBodyData(bodyList[i], date, i + 1, forceInterpolation);
@@ -527,7 +527,7 @@ AFRAME.registerComponent('starfield', {
     calculatePlanetsData: function () {
         // Initial population of the planetsData array
         if (!this.planetsData) this.planetsData = [];
-        const bodyList = ['Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune'];
+        const bodyList = ['Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Io', 'Europa', 'Ganymede', 'Callisto', 'Saturn', 'Uranus', 'Neptune'];
         const date = simulationTime.toJSDate();
 
         // Clear array to be safe on re-init
@@ -542,21 +542,44 @@ AFRAME.registerComponent('starfield', {
     },
 
     updateBodyData: function (bodyName, date, index, forceInterpolation = false) {
-        const equ_2000 = Astronomy.Equator(bodyName, date, observer, false, false);
-        let mag = Astronomy.Illumination(bodyName, date).mag;
-        if (bodyName === "Moon" || bodyName === "Sun") {
-            mag = -26.7; // Hardcode brightness for Sun/Moon to ensure visibility
+        let x, y, z, mag;
+        const isMoon = ['Io', 'Europa', 'Ganymede', 'Callisto'].includes(bodyName);
+
+        if (isMoon) {
+            const jMoons = Astronomy.JupiterMoons(date);
+            const jupVector = Astronomy.GeoVector('Jupiter', date, false);
+            const moonState = jMoons[bodyName.toLowerCase()];
+
+            // Moon's geocentric EQJ vector
+            const mx = jupVector.x + moonState.x;
+            const my = jupVector.y + moonState.y;
+            const mz = jupVector.z + moonState.z;
+
+            const dist = Math.sqrt(mx * mx + my * my + mz * mz);
+            const distance = 400;
+            x = (mx / dist) * distance;
+            y = (my / dist) * distance;
+            z = (mz / dist) * distance;
+
+            const moonMags = { 'Io': 5.0, 'Europa': 5.3, 'Ganymede': 4.6, 'Callisto': 5.6 };
+            mag = moonMags[bodyName];
+        } else {
+            const equ_2000 = Astronomy.Equator(bodyName, date, observer, false, false);
+            mag = Astronomy.Illumination(bodyName, date).mag;
+            if (bodyName === "Moon" || bodyName === "Sun") {
+                mag = -26.7; // Hardcode brightness for Sun/Moon to ensure visibility
+            }
+
+            // Performance Optimization: Use radians directly and cache common trig
+            const raRad = (equ_2000.ra / 24) * 6.283185307179586; // 2 * PI
+            const decRad = equ_2000.dec * 0.017453292519943295; // PI / 180
+            const cosDec = Math.cos(decRad);
+
+            const distance = (bodyName === "Moon" || bodyName === "Sun") ? 398 : 400;
+            x = distance * cosDec * Math.cos(raRad);
+            y = distance * cosDec * Math.sin(raRad);
+            z = distance * Math.sin(decRad);
         }
-
-        // Performance Optimization: Use radians directly and cache common trig
-        const raRad = (equ_2000.ra / 24) * 6.283185307179586; // 2 * PI
-        const decRad = equ_2000.dec * 0.017453292519943295; // PI / 180
-        const cosDec = Math.cos(decRad);
-
-        const distance = (bodyName === "Moon" || bodyName === "Sun") ? 398 : 400;
-        const x = distance * cosDec * Math.cos(raRad);
-        const y = distance * cosDec * Math.sin(raRad);
-        const z = distance * Math.sin(decRad);
 
         const size = (bodyName === "Sun") ? 15.0 : mapRange(mag, -5.0, 5.5, 14.0, 0.9);
 
