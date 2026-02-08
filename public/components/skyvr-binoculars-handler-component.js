@@ -105,9 +105,28 @@ AFRAME.registerComponent('binoculars-handler', {
                 if (this.data.stabilized) {
                     if (!this.smoothedQuat) this.smoothedQuat = new THREE.Quaternion().copy(cameraWorldQuat);
 
-                    // Slerp the cached 'ideal' rotation towards the real head rotation slowly (Low Pass Filter)
-                    // Lower factor = More lag/smoothness. 0.02 is quite heavy (premium feel).
-                    this.smoothedQuat.slerp(cameraWorldQuat, 0.02);
+                    // Adaptive Stabilization Logic
+                    // 1. Calculate how far the smoothed view is lagging behind the real head rotation
+                    const angle = this.smoothedQuat.angleTo(cameraWorldQuat); // radians
+
+                    // 2. Base smoothing for fine detail (jitter reduction).
+                    // Lower = smoother/heavier. 0.015 is extremely stable.
+                    let smoothingFactor = 0.015;
+
+                    // 3. Dynamic Catch-up: If we lag behind significantly (> 2 degrees), boost speed 
+                    // so the user doesn't feel "drunk" or "delayed" during large pans.
+                    const threshold = THREE.MathUtils.degToRad(2.0); // ~0.035 rad
+                    if (angle > threshold) {
+                        // Linearly increase factor based on lag
+                        // For every radian of lag, add considerable speed
+                        smoothingFactor += (angle - threshold) * 3.0;
+                    }
+
+                    // 4. Cap the speed to maintain *some* smoothness even during fast turns
+                    // 0.4 ensures it catches up quickly but doesn't snap instantly
+                    smoothingFactor = Math.min(smoothingFactor, 0.4);
+
+                    this.smoothedQuat.slerp(cameraWorldQuat, smoothingFactor);
 
                     // Apply the difference to the secondary camera
                     // ChildLocal = ParentWorld^-1 * SmoothedWorld
