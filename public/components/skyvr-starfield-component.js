@@ -440,7 +440,7 @@ AFRAME.registerComponent('starfield', {
         // Jupiter Moons spheres
         this.jMoons = {};
         const moonNames = ['Io', 'Europa', 'Ganymede', 'Callisto'];
-        const moonSizes = { 'Io': 0.006, 'Europa': 0.005, 'Ganymede': 0.009, 'Callisto': 0.008 };
+        const moonSizes = { 'Io': 0.012, 'Europa': 0.011, 'Ganymede': 0.018, 'Callisto': 0.016 };
         moonNames.forEach(name => {
             const geom = new THREE.SphereGeometry(moonSizes[name], 16, 16);
             const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, fog: false });
