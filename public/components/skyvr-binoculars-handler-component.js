@@ -3,7 +3,8 @@
 AFRAME.registerComponent('binoculars-handler', {
     schema: {
         minFov: { type: 'number', default: 8 },
-        maxFov: { type: 'number', default: 80 }
+        maxFov: { type: 'number', default: 80 },
+        stabilized: { type: 'boolean', default: false }
     },
     init: function () {
         this.camera = document.getElementById('camera');
@@ -21,6 +22,8 @@ AFRAME.registerComponent('binoculars-handler', {
 
         this.tempVec = new THREE.Vector3();
         this.tempQuat = new THREE.Quaternion();
+        this.smoothedQuat = null; // Will be initialized on first use
+        this.secondaryCam = document.getElementById('bino-secondary-cam');
 
         // Simply activate bino by default in 2D for debugging
         /*
@@ -90,18 +93,56 @@ AFRAME.registerComponent('binoculars-handler', {
             if (dTarget < 0.01) this.isLocked = true;
 
             if (this.isLocked) {
+                // Hard lock the DEVICE to the face so exit pupils remain aligned with eyes
                 this.el.object3D.position.copy(targetPos);
                 this.el.object3D.quaternion.copy(targetQuat);
+
+                // --- STABILIZATION LOGIC ---
+                // We stabilize the VIEW (secondary camera) while keeping the DEVICE locked to the head.
+                const cameraWorldQuat = new THREE.Quaternion();
+                this.camera.object3D.getWorldQuaternion(cameraWorldQuat);
+
+                if (this.data.stabilized) {
+                    if (!this.smoothedQuat) this.smoothedQuat = new THREE.Quaternion().copy(cameraWorldQuat);
+
+                    // Slerp the cached 'ideal' rotation towards the real head rotation slowly (Low Pass Filter)
+                    // Lower factor = More lag/smoothness. 0.02 is quite heavy (premium feel).
+                    this.smoothedQuat.slerp(cameraWorldQuat, 0.02);
+
+                    // Apply the difference to the secondary camera
+                    // ChildLocal = ParentWorld^-1 * SmoothedWorld
+                    // Since ParentWorld == CameraWorldQuat (we just locked it),
+                    // Correction = CameraWorldQuat^-1 * SmoothedQuat
+                    const correction = cameraWorldQuat.clone().invert().multiply(this.smoothedQuat);
+
+                    if (this.secondaryCam) {
+                        this.secondaryCam.object3D.quaternion.copy(correction);
+                    }
+                } else {
+                    // Sync smoothedQuat to prevent jumps when toggling ON
+                    if (this.smoothedQuat) this.smoothedQuat.copy(cameraWorldQuat);
+
+                    // Reset secondary camera to look straight ahead (relative to device)
+                    if (this.secondaryCam) {
+                        this.secondaryCam.object3D.quaternion.identity();
+                    }
+                }
             } else {
                 // Smoothly move towards the eyes from the controller
                 this.el.object3D.position.lerp(targetPos, 0.2);
                 this.el.object3D.quaternion.slerp(targetQuat, 0.2);
+
+                // Ensure secondary cam is reset during transition
+                if (this.secondaryCam) this.secondaryCam.object3D.quaternion.identity();
             }
         } else {
             // Return to controller with standard smoothing
             const lerpFactor = 1 - Math.pow(0.0001, dt / 1000);
             this.el.object3D.position.lerp(targetPos, Math.min(lerpFactor, 1));
             this.el.object3D.quaternion.slerp(targetQuat, Math.min(lerpFactor, 1));
+
+            // Ensure secondary cam is reset
+            if (this.secondaryCam) this.secondaryCam.object3D.quaternion.identity();
         }
 
         // 5. Dynamic Binocular Exit Pupil Scaling
@@ -141,11 +182,58 @@ AFRAME.registerComponent('binoculars-handler', {
         }
         this.pulse(0.3, 100);
 
-        // Update hint text
+        this.updateHint();
+    },
+    update: function (oldData) {
+        // Trigger hint update if stabilized changed
+        if (oldData.stabilized !== this.data.stabilized) {
+            this.updateHint();
+        }
+    },
+    updateHint: function () {
         const hintXText = document.getElementById('hint-x-text');
         const hintXBg = document.getElementById('hint-x-bg');
-        if (hintXText) hintXText.setAttribute('value', this.holding ? 'Ditch Bino (X)' : 'Binoculars (X)');
-        if (hintXBg) hintXBg.setAttribute('width', this.holding ? 0.16 : 0.14);
-        if (hintXBg) hintXBg.setAttribute('position', this.holding ? '-0.08 -0.0125 0' : '-0.07 -0.0125 0');
+        const stabIndicator = document.getElementById('bino-stab-indicator'); // New indicator in model
+
+        // Update in-model indicator visibility and text
+        if (stabIndicator) {
+            // Because stabIndicator is an a-entity containing an a-text
+            const textEl = stabIndicator.querySelector('a-text');
+            if (textEl) {
+                if (this.data.stabilized) {
+                    textEl.setAttribute('value', 'STAB: ON');
+                    textEl.setAttribute('color', '#00ff00');
+                    textEl.setAttribute('opacity', 0.8);
+                } else {
+                    textEl.setAttribute('value', 'STAB: OFF');
+                    textEl.setAttribute('color', '#ffaa00');
+                    textEl.setAttribute('opacity', 0.3);
+                }
+            }
+        }
+
+        if (!hintXText) return;
+
+        let label = 'Binoculars (X)';
+        let width = 0.14;
+        let pos = '-0.07 -0.0125 0';
+
+        if (this.holding) {
+            if (this.data.stabilized) {
+                label = 'Exit (X) | Stab: ON';
+                width = 0.24;
+                pos = '-0.12 -0.0125 0';
+            } else {
+                label = 'Ditch Bino (X)';
+                width = 0.16;
+                pos = '-0.08 -0.0125 0';
+            }
+        }
+
+        hintXText.setAttribute('value', label);
+        if (hintXBg) {
+            hintXBg.setAttribute('width', width);
+            hintXBg.setAttribute('position', pos);
+        }
     }
 });

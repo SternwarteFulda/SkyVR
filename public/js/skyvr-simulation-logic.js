@@ -874,6 +874,24 @@ function setupVRControllers() {
     leftController.addEventListener('ybuttondown', onYButtonDown);
     leftController.addEventListener('ybuttonup', onYButtonUp);
 
+    leftController.addEventListener('thumbstickdown', () => {
+        const binocModel = document.getElementById('binoculars-model');
+        if (binocModel && binocModel.components['binoculars-handler']) {
+            const handler = binocModel.components['binoculars-handler'];
+            // Only toggle if binoculars are active/held
+            if (handler.holding) {
+                const newState = !handler.data.stabilized;
+                binocModel.setAttribute('binoculars-handler', 'stabilized', newState);
+
+                // Feedback
+                if (leftController.components['haptics']) {
+                    leftController.components['haptics'].pulse(newState ? 0.8 : 0.2, 150);
+                }
+                console.log(`Binoculars Stabilization: ${newState ? 'ON' : 'OFF'}`);
+            }
+        }
+    });
+
     // Tab Switching Logic for VR Control Panel
     window.switchTab = function (tabName) {
         const tabs = ['time', 'location', 'view'];

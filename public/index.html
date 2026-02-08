@@ -766,9 +766,16 @@
           <a-entity id="bino-secondary-cam" camera="active: false; near: 0.2"
             secondary-camera="outputElement: #left-lens; output: plane; quality: high; sequence: before; cameraType: perspective"
             force-bino-settings bino-optimizer position="0 0 -0.4" rotation="0 0 0">
+            <!-- Stabilization HUD (Pinned to camera view) -->
+            <!-- FOV is ~2.5 deg. At 0.5m dist, view height is ~2.2cm. Text needs to be tiny. -->
+            <a-entity id="bino-stab-indicator" position="0 -0.009 -0.5">
+              <a-text value="STAB: OFF" align="center" width="0.02" color="#ffaa00" font="fonts/Monoid.fnt"
+                opacity="0.5"></a-text>
+            </a-entity>
           </a-entity>
 
           <!-- Left Barrel -->
+
           <a-entity position="-0.034 0 0">
             <!-- Main Barrel Body -->
             <a-cylinder radius="0.025" height="0.12" color="#1a1a1a" rotation="90 0 0" open-ended="true"

@@ -126,6 +126,7 @@ Enter VR mode by clicking the **"VR"** button in the bottom right corner (on sup
 **Thumbstick:**
 -   **Left/Right**: Control time flow (time travel). Push further for faster time changes. Hold trigger while moving stick for turbo speed (5x).
 -   **Up/Down (full deflection)**: Adjust latitude (tilt your view north/south).
+-   **Click (while holding binoculars)**: Toggle image stabilization on/off.
 
 **Buttons:**
 -   **X Button**: Toggle binoculars on/off.
@@ -137,6 +138,7 @@ Enter VR mode by clicking the **"VR"** button in the bottom right corner (on sup
 **Binoculars:**
 -   Your left hand holds virtual binoculars. Bring them close to your headset to activate magnified view.
 -   Useful for resolving double stars or craters on the Moon, viewing faint objects, and examining details.
+-   **Stabilization**: Click the left thumbstick to toggle stabilization. This smooths out hand tremors for a steady view.
 
 ### Right Controller (Interaction)
 
