@@ -420,19 +420,45 @@ AFRAME.registerComponent('starfield', {
         this.jupiter = new THREE.Mesh(jupiterGeometry, jupiterMaterial);
         this.jupiter.renderOrder = renderSystem ? renderSystem.order['stars'] : 5;
         this.jupiter.layers.set(1);
+        this.jupiter.receiveShadow = true;
         el.object3D.add(this.jupiter);
 
-        this.jupiterLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        this.jupiterLight = new THREE.DirectionalLight(0xffffff, 0.9);
         this.jupiterLight.target = this.jupiter;
         this.jupiterLight.layers.set(1);
-        this.jupiterLight.castShadow = false;
+        this.jupiterLight.castShadow = true;
+        this.jupiterLight.shadow.bias = -0.001;
+        this.jupiterLight.shadow.mapSize.set(1024, 1024);
+        this.jupiterLight.shadow.camera.left = -3.5;
+        this.jupiterLight.shadow.camera.right = 3.5;
+        this.jupiterLight.shadow.camera.top = 3.5;
+        this.jupiterLight.shadow.camera.bottom = -3.5;
+        this.jupiterLight.shadow.camera.near = 0.1;
+        this.jupiterLight.shadow.camera.far = 200;
         el.object3D.add(this.jupiterLight);
+
+        // Jupiter Moons spheres
+        this.jMoons = {};
+        const moonNames = ['Io', 'Europa', 'Ganymede', 'Callisto'];
+        const moonSizes = { 'Io': 0.006, 'Europa': 0.005, 'Ganymede': 0.009, 'Callisto': 0.008 };
+        moonNames.forEach(name => {
+            const geom = new THREE.SphereGeometry(moonSizes[name], 16, 16);
+            const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, fog: false });
+            const mesh = new THREE.Mesh(geom, mat);
+            mesh.layers.set(1);
+            mesh.castShadow = true;
+            mesh.receiveShadow = false;
+            mesh.renderOrder = renderSystem ? renderSystem.order['stars'] : 5;
+            el.object3D.add(mesh);
+            this.jMoons[name] = mesh;
+        });
 
         // Target states for interpolation
         this.targetMoonPosition = new THREE.Vector3();
         this.targetMoonQuaternion = new THREE.Quaternion();
         this.targetJupiterPosition = new THREE.Vector3();
         this.targetJupiterQuaternion = new THREE.Quaternion();
+        this.targetJMoonsPositions = { 'Io': new THREE.Vector3(), 'Europa': new THREE.Vector3(), 'Ganymede': new THREE.Vector3(), 'Callisto': new THREE.Vector3() };
         this.tempMoonObj = new THREE.Object3D();
         this.tempJupiterObj = new THREE.Object3D();
         this.illuminationDirection = new THREE.Vector3();
@@ -501,6 +527,21 @@ AFRAME.registerComponent('starfield', {
                     this.jupiterLight.position.copy(this.jupiter.position);
                     this.jupiterLight.position.addScaledVector(this.jupiterIlluminationDirection, 100);
                     this.jupiterLight.lookAt(this.jupiter.position);
+                }
+
+                // Smoothly interpolate Jupiter Moons
+                if (this.jMoons) {
+                    for (let name in this.jMoons) {
+                        const moon = this.jMoons[name];
+                        const targetPos = this.targetJMoonsPositions[name];
+                        if (targetPos) {
+                            if (this.firstBodyUpdate) {
+                                moon.position.copy(targetPos);
+                            } else {
+                                moon.position.lerp(targetPos, lerpFactor);
+                            }
+                        }
+                    }
                 }
             }
 
@@ -611,9 +652,27 @@ AFRAME.registerComponent('starfield', {
             this.targetJupiterQuaternion.copy(this.tempJupiterObj.quaternion);
 
             const timeJump = this.lastBodyDate ? Math.abs(date - this.lastBodyDate) : 0;
+
+            // Update JMoons Targets
+            const moonNames = ['Io', 'Europa', 'Ganymede', 'Callisto'];
+            moonNames.forEach(name => {
+                const moonData = this.planetsData.find(p => p.name === name);
+                if (moonData && moonData.targetPosition) {
+                    this.targetJMoonsPositions[name].copy(moonData.targetPosition);
+                }
+            });
+
             if (!forceInterpolation && (this.firstBodyUpdate || timeJump > 7200000)) {
                 this.jupiter.position.copy(this.targetJupiterPosition);
                 this.jupiter.quaternion.copy(this.targetJupiterQuaternion);
+
+                // Snap Moons
+                moonNames.forEach(name => {
+                    if (this.jMoons[name]) {
+                        this.jMoons[name].position.copy(this.targetJMoonsPositions[name]);
+                    }
+                });
+
                 this.firstBodyUpdate = false;
 
                 if (this.jupiterLight) {
@@ -700,8 +759,8 @@ AFRAME.registerComponent('starfield', {
             data.currentPosition.copy(data.targetPosition);
         }
 
-        data.size = (bodyName === "Moon" || bodyName === "Jupiter") ? 0.0 : size;
-        data.haloSize = (bodyName === "Moon" || bodyName === "Jupiter") ? 0.0 : size;
+        data.size = (bodyName === "Moon" || bodyName === "Jupiter" || isMoon) ? 0.0 : size;
+        data.haloSize = (bodyName === "Moon" || bodyName === "Jupiter" || isMoon) ? 0.0 : size;
 
         // Restore Jupiter point sprite for naked-eye view, but hide it for magnification
         if (bodyName === "Jupiter") {
