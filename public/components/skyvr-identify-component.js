@@ -215,6 +215,9 @@ AFRAME.registerComponent('identify', {
             if (this.starfield.planetsData) {
                 const bodyList = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune'];
                 for (let planet of this.starfield.planetsData) {
+                    // Only snap to major bodies in the list
+                    if (!bodyList.includes(planet.name)) continue;
+
                     if (!planet.currentPosition) continue;
                     const planetPos = planet.currentPosition;
                     // Compare at same radius for distance check
@@ -224,7 +227,6 @@ AFRAME.registerComponent('identify', {
                         minDistance = dist;
                         let infoStr = (planet.name === 'Sun') ? 'Star' : 'Planet';
                         if (planet.name === 'Moon') infoStr = '';
-                        if (['Io', 'Europa', 'Ganymede', 'Callisto'].includes(planet.name)) infoStr = 'Moon of Jupiter';
 
                         if (planet.mag !== undefined && planet.mag !== null) {
                             infoStr = `${infoStr ? infoStr + ', ' : ''}Mag ${planet.mag.toFixed(1)}`;

@@ -161,6 +161,9 @@ AFRAME.registerComponent('stamp', {
             if (this.starfield.planetsData) {
                 const bodyList = ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune'];
                 for (let planet of this.starfield.planetsData) {
+                    // Only snap to major bodies in the list
+                    if (!bodyList.includes(planet.name)) continue;
+
                     if (!planet.currentPosition) continue;
                     const planetPos = planet.currentPosition;
                     const comparePoint = planetPos.clone().normalize().multiplyScalar(400);
