@@ -52,10 +52,16 @@ AFRAME.registerComponent('binoculars-handler', {
         if (AFRAME.utils.device.checkHeadsetConnected()) {
             if (distance < 0.22 && !this.zoomed) {
                 this.zoomed = true;
+                window.binocularsActive = true;
+                const starfield = document.getElementById('stars-point-cloud');
+                if (starfield && starfield.components.starfield) {
+                    starfield.components.starfield.update(true); // Force immediate recalculation of moons
+                }
                 this.isLocked = false;
                 this.pulse(0.7, 100);
             } else if (distance >= 0.32 && this.zoomed) {
                 this.zoomed = false;
+                window.binocularsActive = false;
                 this.isLocked = false;
                 this.pulse(0.3, 50);
             }

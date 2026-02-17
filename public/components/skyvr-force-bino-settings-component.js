@@ -19,6 +19,9 @@ AFRAME.registerComponent('force-bino-settings', {
                 cam.fov = 2.5; // Force high magnification (approx 35x)
                 cam.updateProjectionMatrix();
             }
+            if (cam) window.currentBinoFov = cam.fov;
+        } else if (cam) {
+            window.currentBinoFov = cam.fov;
         }
     }
 });
