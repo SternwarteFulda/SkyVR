@@ -400,47 +400,55 @@ AFRAME.registerComponent('starfield', {
         this.moonLight = new THREE.DirectionalLight(0xffffff, 1);
         this.moonLight.target = this.moon;
         this.moonLight.castShadow = false;
+        this.moonLight.layers.set(0); // Strictly Layer 0 for Earth Moon
         el.object3D.add(this.moonLight);
 
         // Jupiter sphere
         const jupiterTexture = textureLoader.load('assets/jupiter.png');
         const jupiterGeometry = new THREE.SphereGeometry(0.12, 64, 64);
         jupiterGeometry.rotateY(Math.PI);
-        const jupiterMaterial = new THREE.MeshLambertMaterial({
+        const jupiterMaterial = new THREE.MeshPhongMaterial({
             map: jupiterTexture,
+            shininess: 0,
+            specular: 0x000000,
+            emissive: 0x000000,
             fog: false,
-            transparent: true,
+            transparent: false,
             depthWrite: true,
-            depthTest: true,
-            blending: THREE.CustomBlending,
-            blendSrc: THREE.OneFactor,
-            blendDst: THREE.OneMinusSrcColorFactor,
-            blendEquation: THREE.AddEquation,
+            depthTest: true
         });
         this.jupiter = new THREE.Mesh(jupiterGeometry, jupiterMaterial);
         this.jupiter.renderOrder = renderSystem ? renderSystem.order['stars'] : 5;
-        this.jupiter.layers.set(1);
+        this.jupiter.layers.set(1); // Back to Layer 1
         this.jupiter.receiveShadow = true;
         el.object3D.add(this.jupiter);
 
-        this.jupiterLight = new THREE.DirectionalLight(0xffffff, 0.9);
+        this.jupiterLight = new THREE.DirectionalLight(0xffffff, 1.1); // Increased contrast
         this.jupiterLight.target = this.jupiter;
-        this.jupiterLight.layers.set(1);
+        this.jupiterLight.layers.set(1); // Correctly hit objects on Layer 1
         this.jupiterLight.castShadow = true;
-        this.jupiterLight.shadow.bias = -0.001;
+        this.jupiterLight.shadow.bias = -0.00005; // Tight bias for high-res shadow
         this.jupiterLight.shadow.mapSize.set(1024, 1024);
-        this.jupiterLight.shadow.camera.left = -3.5;
-        this.jupiterLight.shadow.camera.right = 3.5;
-        this.jupiterLight.shadow.camera.top = 3.5;
-        this.jupiterLight.shadow.camera.bottom = -3.5;
-        this.jupiterLight.shadow.camera.near = 0.1;
-        this.jupiterLight.shadow.camera.far = 200;
+        // Tighter frustum for higher shadow resolution on the planet
+        this.jupiterLight.shadow.camera.left = -0.15;
+        this.jupiterLight.shadow.camera.right = 0.15;
+        this.jupiterLight.shadow.camera.top = 0.15;
+        this.jupiterLight.shadow.camera.bottom = -0.15;
+        this.jupiterLight.shadow.camera.near = 0.5;
+        this.jupiterLight.shadow.camera.far = 1000;
+        this.jupiterLight.shadow.camera.layers.set(1);
         el.object3D.add(this.jupiterLight);
 
-        // Jupiter Moons spheres
+        // Jupiter Moons spheres (Realistic proportions, but with 2.5x visual multiplier for stability)
         this.jMoons = {};
         const moonNames = ['Io', 'Europa', 'Ganymede', 'Callisto'];
-        const moonSizes = { 'Io': 0.012, 'Europa': 0.011, 'Ganymede': 0.018, 'Callisto': 0.016 };
+        const visualMult = 2.5;
+        const moonSizes = {
+            'Io': 0.00306 * visualMult,
+            'Europa': 0.00262 * visualMult,
+            'Ganymede': 0.00442 * visualMult,
+            'Callisto': 0.00405 * visualMult
+        };
         moonNames.forEach(name => {
             const geom = new THREE.SphereGeometry(moonSizes[name], 16, 16);
             const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, fog: false });
@@ -525,8 +533,7 @@ AFRAME.registerComponent('starfield', {
 
                 if (this.jupiterLight) {
                     this.jupiterLight.position.copy(this.jupiter.position);
-                    this.jupiterLight.position.addScaledVector(this.jupiterIlluminationDirection, 100);
-                    this.jupiterLight.lookAt(this.jupiter.position);
+                    this.jupiterLight.position.addScaledVector(this.jupiterIlluminationDirection, 500);
                 }
 
                 // Smoothly interpolate Jupiter Moons
@@ -621,6 +628,24 @@ AFRAME.registerComponent('starfield', {
     updatePlanets: function (forceInterpolation = false) {
         if (!this.planetsData) this.calculatePlanetsData();
         const date = simulationTime.toJSDate();
+
+        // Calculate Jupiter's apparent vs geometric shift to anchor moons
+        const jupApp = Astronomy.Equator('Jupiter', date, observer, true, false);
+        const jupGeo = Astronomy.Equator('Jupiter', date, observer, false, false);
+
+        // Geometric J2000 center (using GeoVector to stay in J2000 axes)
+        const jupJ2000 = Astronomy.GeoVector('Jupiter', date, false);
+        this.currentJupDistAU = Math.sqrt(jupJ2000.x * jupJ2000.x + jupJ2000.y * jupJ2000.y + jupJ2000.z * jupJ2000.z);
+        this.currentSystemScale = 400 / this.currentJupDistAU;
+
+        // The 'apparent shift' is how much we move the J2000 configuration to match the sky today
+        this.jupShiftRA = jupApp.ra - jupGeo.ra;
+        this.jupShiftDec = jupApp.dec - jupGeo.dec;
+
+        // Handle RA wrap-around
+        if (this.jupShiftRA > 12) this.jupShiftRA -= 24;
+        if (this.jupShiftRA < -12) this.jupShiftRA += 24;
+
         const bodyList = ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Io', 'Europa', 'Ganymede', 'Callisto', 'Saturn', 'Uranus', 'Neptune'];
         // Start index 1 since Moon is 0
         for (let i = 0; i < bodyList.length; i++) {
@@ -634,12 +659,24 @@ AFRAME.registerComponent('starfield', {
             this.targetJupiterPosition.copy(jupiterData.targetPosition);
 
             const sunVector = new Astronomy.GeoVector('Sun', date, false);
-            const jupVector = new Astronomy.GeoVector('Jupiter', date, false);
+            const jupRadiusAU = 0.00047789;
+            const sceneJupRadius = jupRadiusAU * this.currentSystemScale;
+
+            // Base geometry is 0.12, so we scale it to match sceneJupRadius
+            this.jupiter.scale.setScalar(sceneJupRadius / 0.12);
+
+            // Light direction from Sun to Jupiter in J2000
             this.jupiterIlluminationDirection.set(
-                sunVector.x - jupVector.x,
-                sunVector.y - jupVector.y,
-                sunVector.z - jupVector.z
+                sunVector.x - jupJ2000.x,
+                sunVector.y - jupJ2000.y,
+                sunVector.z - jupJ2000.z
             ).normalize();
+
+            // Rotate light direction to match the apparent shift of the Jovian system
+            // We approximate this by adding the RA/Dec shift as a rotation
+            const raRot = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -this.jupShiftRA * (6.2831853 / 24));
+            const decRot = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -this.jupShiftDec * (3.14159 / 180));
+            this.jupiterIlluminationDirection.applyQuaternion(raRot).applyQuaternion(decRot);
 
             const pole = Astronomy.RotationAxis('Jupiter', date);
             const poleJ2000 = new THREE.Vector3(pole.north.x, pole.north.y, pole.north.z);
@@ -659,6 +696,13 @@ AFRAME.registerComponent('starfield', {
                 const moonData = this.planetsData.find(p => p.name === name);
                 if (moonData && moonData.targetPosition) {
                     this.targetJMoonsPositions[name].copy(moonData.targetPosition);
+
+                    // Scale moons to match Jupiter's system scale
+                    if (this.jMoons[name]) {
+                        // The moons were created with realistic sizes for 1:1 scale with Jupiter(0.12)
+                        // We scale them by the same factor we scale Jupiter
+                        this.jMoons[name].scale.setScalar(sceneJupRadius / 0.12);
+                    }
                 }
             });
 
@@ -677,8 +721,7 @@ AFRAME.registerComponent('starfield', {
 
                 if (this.jupiterLight) {
                     this.jupiterLight.position.copy(this.jupiter.position);
-                    this.jupiterLight.position.addScaledVector(this.jupiterIlluminationDirection, 100);
-                    this.jupiterLight.lookAt(this.jupiter.position);
+                    this.jupiterLight.position.addScaledVector(this.jupiterIlluminationDirection, 500);
                 }
             }
         }
@@ -691,6 +734,13 @@ AFRAME.registerComponent('starfield', {
 
         // Clear array to be safe on re-init
         this.planetsData.length = 0;
+
+        // Initialize shift variables to prevent first-run crash
+        this.jupShiftRA = 0;
+        this.jupShiftDec = 0;
+        const jupJ2000 = Astronomy.GeoVector('Jupiter', date, false);
+        this.currentJupDistAU = Math.sqrt(jupJ2000.x * jupJ2000.x + jupJ2000.y * jupJ2000.y + jupJ2000.z * jupJ2000.z);
+        this.currentSystemScale = 400 / this.currentJupDistAU;
 
         for (let i = 0; i < bodyList.length; i++) {
             // Push a placeholder object we will fill with updateBodyData
@@ -705,25 +755,43 @@ AFRAME.registerComponent('starfield', {
         const isMoon = ['Io', 'Europa', 'Ganymede', 'Callisto'].includes(bodyName);
 
         if (isMoon) {
-            const jMoons = Astronomy.JupiterMoons(date);
-            const jupVector = Astronomy.GeoVector('Jupiter', date, false);
+            // Light-travel time correction for the orbital clock
+            const lightDelaySeconds = this.currentJupDistAU * 499.004784;
+            const correctedDate = new Date(date.getTime() - (lightDelaySeconds * 1000));
+            const jMoons = Astronomy.JupiterMoons(correctedDate);
             const moonState = jMoons[bodyName.toLowerCase()];
 
-            // Moon's geocentric EQJ vector
-            const mx = jupVector.x + moonState.x;
-            const my = jupVector.y + moonState.y;
-            const mz = jupVector.z + moonState.z;
+            // 1. Calculate J2000 Apparent position of Jupiter's center at distance 400
+            const jupApp = Astronomy.Equator('Jupiter', date, observer, true, false);
+            const raRadJ = (jupApp.ra / 24) * 6.283185307179586;
+            const decRadJ = jupApp.dec * 0.017453292519943295;
+            const cosDecJ = Math.cos(decRadJ);
 
-            const dist = Math.sqrt(mx * mx + my * my + mz * mz);
-            const distance = 400;
-            x = (mx / dist) * distance;
-            y = (my / dist) * distance;
-            z = (mz / dist) * distance;
+            const jx = 400 * cosDecJ * Math.cos(raRadJ);
+            const jy = 400 * cosDecJ * Math.sin(raRadJ);
+            const jz = 400 * Math.sin(decRadJ);
+
+            // 2. Calculate the 3D relative offset in J2000 (scaled to scene units)
+            // moonState is Jovicentric EQJ (J2000)
+            const offsetX = moonState.x * this.currentSystemScale;
+            const offsetY = moonState.y * this.currentSystemScale;
+            const offsetZ = moonState.z * this.currentSystemScale;
+            const offsetVec = new THREE.Vector3(offsetX, offsetY, offsetZ);
+
+            // 3. Rotate the relative offset to match the 'Date' orientation shift
+            const raRot = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.jupShiftRA * (6.2831853 / 24));
+            const decRot = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), this.jupShiftDec * (3.14159 / 180));
+            offsetVec.applyQuaternion(raRot).applyQuaternion(decRot);
+
+            // 4. Final Position = Jupiter Center + Rotated Offset
+            x = jx + offsetVec.x;
+            y = jy + offsetVec.y;
+            z = jz + offsetVec.z;
 
             const moonMags = { 'Io': 5.0, 'Europa': 5.3, 'Ganymede': 4.6, 'Callisto': 5.6 };
             mag = moonMags[bodyName];
         } else {
-            const equ_2000 = Astronomy.Equator(bodyName, date, observer, false, false);
+            const equ_2000 = Astronomy.Equator(bodyName, date, observer, true, false);
             mag = Astronomy.Illumination(bodyName, date).mag;
             if (bodyName === "Moon" || bodyName === "Sun") {
                 mag = -26.7; // Hardcode brightness for Sun/Moon to ensure visibility
@@ -817,8 +885,16 @@ AFRAME.registerComponent('starfield', {
             for (let i = 0; i < this.planetsData.length; i++) {
                 const data = this.planetsData[i];
                 if (data.layer === obj.layer && data.currentPosition) {
-                    obj.pos.setXYZ(i, data.currentPosition.x, data.currentPosition.y, data.currentPosition.z);
-                    obj.halo.setXYZ(i, data.currentPosition.x, data.currentPosition.y, data.currentPosition.z);
+                    // In Layer 1 (Binocular), hide Points for objects that have 3D Meshes (Jupiter + Moons)
+                    // to prevent z-flickering between the billboard Point and the 3D Sphere.
+                    const isJupSystem = ['Jupiter', 'Io', 'Europa', 'Ganymede', 'Callisto'].includes(data.name);
+                    if (obj.layer === 1 && isJupSystem) {
+                        obj.pos.setXYZ(i, 0, 0, 0);
+                        obj.halo.setXYZ(i, 0, 0, 0);
+                    } else {
+                        obj.pos.setXYZ(i, data.currentPosition.x, data.currentPosition.y, data.currentPosition.z);
+                        obj.halo.setXYZ(i, data.currentPosition.x, data.currentPosition.y, data.currentPosition.z);
+                    }
                 } else if (data.currentPosition) {
                     // Hide points that don't belong to this layer by moving them far away
                     obj.pos.setXYZ(i, 0, 0, 0);

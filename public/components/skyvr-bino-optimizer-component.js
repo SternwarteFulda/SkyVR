@@ -11,8 +11,9 @@ AFRAME.registerComponent('bino-optimizer', {
         const secondary = this.el.components['secondary-camera'];
         if (!secondary || !secondary.camera) return;
 
-        // Face camera to Layer 0 (Normal) and Layer 1 (Binocular High Detail)
-        if (this.el.object3D.layers.mask !== 3) { // 1 | 2 = 3
+        // Face entity to Layer 0 (Normal) and Layer 1 (Binocular High Detail)
+        // Note: secondary-camera component syncs its internal camera to this entity's layers every frame.
+        if (this.el.object3D.layers.mask !== 3) { // 1|2 = 3
             this.el.object3D.layers.set(0);
             this.el.object3D.layers.enable(1);
         }
@@ -59,6 +60,9 @@ AFRAME.registerComponent('bino-optimizer', {
                 renderer.getClearColor(this.originalClearColor);
                 this.originalClearAlpha = renderer.getClearAlpha();
                 renderer.setClearColor(0x000000, 1.0);
+
+                // Re-enable shadows which are disabled by secondary-camera component
+                renderer.shadowMap.autoUpdate = true;
 
                 if (originalRender) originalRender(renderer, scene, camera);
             };

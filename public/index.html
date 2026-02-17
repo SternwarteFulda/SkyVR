@@ -469,7 +469,7 @@
       logarithmicDepthBuffer: true;
       highRefreshRate: true;
       shadowMap: true;
-      foveationLevel: 0.3" environment="
+      foveationLevel: 0.3" light="defaultLightsEnabled: false" environment="
       active: true;
       stageSize: 401;
       preset: none;
@@ -763,7 +763,7 @@
           <!-- Secondary Camera (Magnifier) -->
           <!-- Positioned forward (-0.4) to clear controller geometry -->
           <!-- MUST specify cameraType: perspective for celestial viewing -->
-          <a-entity id="bino-secondary-cam" camera="active: false; near: 0.2"
+          <a-entity id="bino-secondary-cam" camera="active: false; near: 0.5"
             secondary-camera="outputElement: #left-lens; output: plane; quality: high; sequence: before; cameraType: perspective"
             force-bino-settings bino-optimizer position="0 0 -0.4" rotation="0 0 0">
             <!-- Stabilization HUD (Pinned to camera view) -->
