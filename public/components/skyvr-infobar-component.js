@@ -178,6 +178,7 @@ AFRAME.registerComponent('skyvr-infobar', {
         this.container.appendChild(this.roomGroup);
 
         this.roomIcon = this.createIcon(this.ICONS.room, this.CONFIG.iconSize);
+        this.roomIcon.setAttribute('position', '0 0 0.001');
 
         const onExitClick = () => {
             // 1. Play exit animation on the icon (3D)
@@ -869,7 +870,8 @@ AFRAME.registerComponent('skyvr-infobar', {
             src: src,
             color: '#FFFFFF',
             transparent: true,
-            shader: 'flat'
+            shader: 'flat',
+            depthWrite: false
         });
 
         icon.addEventListener('mouseenter', () => {
@@ -995,7 +997,8 @@ AFRAME.registerComponent('skyvr-infobar', {
             src: src,
             color: color || 'white',
             transparent: true,
-            shader: 'flat'
+            shader: 'flat',
+            depthWrite: false
         });
     },
 

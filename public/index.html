@@ -640,22 +640,22 @@
       <img id="moon-bump" src="assets/ldem_3_8bit.jpg">
 
       <!-- UI Icons -->
-      <img id="icon-door" src="assets/icons/door.svg">
-      <img id="icon-mic-on" src="assets/icons/mic-on.svg">
-      <img id="icon-mic-off" src="assets/icons/mic-off.svg">
-      <img id="icon-camera-on" src="assets/icons/camera-on.svg">
-      <img id="icon-camera-off" src="assets/icons/camera-off.svg">
-      <img id="icon-draw" src="assets/icons/draw.svg">
-      <img id="icon-identify" src="assets/icons/gps_not_fixed.svg">
-      <img id="icon-stamp" src="assets/icons/shape-star.svg">
-      <img id="icon-stickfigure" src="assets/icons/stickfigure.svg">
-      <img id="icon-constellation" src="assets/icons/constellation.svg">
-      <img id="icon-mouse-move" src="assets/icons/mouse-move.svg">
-      <img id="icon-undo" src="assets/icons/undo.svg">
-      <img id="icon-clear" src="assets/icons/clear.svg">
-      <img id="icon-show-all" src="assets/icons/show-all.svg">
-      <img id="icon-zoom-in" src="assets/icons/zoom-in.svg">
-      <img id="icon-zoom-out" src="assets/icons/zoom-out.svg">
+      <img id="icon-door" src="assets/icons/door.svg" width="512" height="512">
+      <img id="icon-mic-on" src="assets/icons/mic-on.svg" width="512" height="512">
+      <img id="icon-mic-off" src="assets/icons/mic-off.svg" width="512" height="512">
+      <img id="icon-camera-on" src="assets/icons/camera-on.svg" width="512" height="512">
+      <img id="icon-camera-off" src="assets/icons/camera-off.svg" width="512" height="512">
+      <img id="icon-draw" src="assets/icons/draw.svg" width="512" height="512">
+      <img id="icon-identify" src="assets/icons/gps_not_fixed.svg" width="512" height="512">
+      <img id="icon-stamp" src="assets/icons/shape-star.svg" width="512" height="512">
+      <img id="icon-stickfigure" src="assets/icons/stickfigure.svg" width="512" height="512">
+      <img id="icon-constellation" src="assets/icons/constellation.svg" width="512" height="512">
+      <img id="icon-mouse-move" src="assets/icons/mouse-move.svg" width="512" height="512">
+      <img id="icon-undo" src="assets/icons/undo.svg" width="512" height="512">
+      <img id="icon-clear" src="assets/icons/clear.svg" width="512" height="512">
+      <img id="icon-show-all" src="assets/icons/show-all.svg" width="512" height="512">
+      <img id="icon-zoom-in" src="assets/icons/zoom-in.svg" width="512" height="512">
+      <img id="icon-zoom-out" src="assets/icons/zoom-out.svg" width="512" height="512">
       <img id="asset-crosshair" src="assets/icons/crosshair.svg" width="2048" height="2048">
     </a-assets>
 
@@ -682,7 +682,7 @@
           material="transparent: true; shader: flat; fog: false; depthTest: false; depthWrite: false;"></a-image>
       </a-entity>
       <!-- Infobar placed in front of user, visible when looking down -->
-      <a-entity id="infobar" skyvr-infobar position="0 0.8 -0.6" rotation="-40 0 0"></a-entity>
+      <a-entity id="infobar" skyvr-infobar position="0 0.8 -0.6" rotation="-40 0 0" render-order="ui"></a-entity>
       <a-entity id="right-controller" player-info
         networked="template:#right-controller-template;attachTemplateToLocal:false;" meta-touch-controls="hand: right"
         laser-controls haptics raycaster="objects: [data-raycastable]; far: 600; lineOpacity: 0.5;" drawing
