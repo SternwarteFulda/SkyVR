@@ -22,9 +22,86 @@ process.title = "networked-aframe-server";
 // Get port or default to 8080
 const port = process.env.PORT || 8080;
 
+const { IceHealthMonitor } = require("./ice-health");
+
+// Load ICE (STUN/TURN) servers from environment or defaults
+const myIceServers = [];
+if (!process.env.STUN_URL_1 && !process.env.TURN_URL_1) {
+	myIceServers.push(
+		{ "urls": "stun:stun1.l.google.com:19302" },
+		{ "urls": "stun:stun2.l.google.com:19302" }
+	);
+} else {
+	// Loop through possible indices (limit to 10 to prevent infinite loops)
+	for (let i = 1; i <= 10; i++) {
+		// STUN
+		if (process.env[`STUN_URL_${i}`]) {
+			myIceServers.push({ "urls": process.env[`STUN_URL_${i}`] });
+		}
+
+		// TURN
+		if (process.env[`TURN_URL_${i}`]) {
+			const turnServer = {
+				"urls": process.env[`TURN_URL_${i}`]
+			};
+			if (process.env[`TURN_USER_${i}`] && process.env[`TURN_CRED_${i}`]) {
+				turnServer.username = process.env[`TURN_USER_${i}`];
+				turnServer.credential = process.env[`TURN_CRED_${i}`];
+			}
+			myIceServers.push(turnServer);
+		}
+	}
+}
+
+console.log("Using ICE servers:", myIceServers.map(s => s.urls));
+
+const legalLinks = {
+	imprintUrl: process.env.IMPRINT_URL,
+	privacyPolicyUrl: process.env.PRIVACY_POLICY_URL
+};
+
+// Initialize and start background ICE and legal link reachability checks
+const iceHealthMonitor = new IceHealthMonitor(myIceServers, legalLinks);
+iceHealthMonitor.start();
+
 // Setup and configure Express http server.
 const app = express();
 
+const healthCheck = async (req, res) => {
+	res.set("Cache-Control", "no-cache, no-store, must-revalidate");
+	const health = await iceHealthMonitor.getStatus();
+
+	// Overall status is healthy if ICE servers are operational and any configured legal links are reachable
+	const iceHealthy = health.summary.stunAvailable && health.summary.turnAvailable;
+	const legalHealthy = health.summary.legalAvailable;
+	const isHealthy = iceHealthy && legalHealthy;
+	const statusCode = isHealthy ? 200 : 503;
+
+	res.status(statusCode).json({
+		status: isHealthy ? "ok" : "degraded",
+		uptime: process.uptime(),
+		timestamp: new Date().toISOString(),
+		iceServers: {
+			status: iceHealthy ? "healthy" : "degraded",
+			summary: {
+				stunAvailable: health.summary.stunAvailable,
+				turnAvailable: health.summary.turnAvailable,
+				stunUp: health.summary.stunUp,
+				stunTotal: health.summary.stunTotal,
+				turnUp: health.summary.turnUp,
+				turnTotal: health.summary.turnTotal,
+				total: health.summary.total,
+				up: health.summary.up,
+				down: health.summary.down
+			},
+			lastChecked: health.lastChecked,
+			servers: health.servers
+		},
+		legalLinks: health.legalLinks
+	});
+};
+
+app.get("/health", healthCheck);
 
 app.get('/config', (req, res) => {
 	res.json({
@@ -54,37 +131,6 @@ const webServer = http.createServer(app);
 
 // Start Socket.io so it attaches itself to Express server
 const socketServer = socketIo(webServer, { "log level": 1 });
-const myIceServers = [];
-
-// Load defaults if no environment variables are set
-if (!process.env.STUN_URL_1 && !process.env.TURN_URL_1) {
-	myIceServers.push(
-		{ "urls": "stun:stun1.l.google.com:19302" },
-		{ "urls": "stun:stun2.l.google.com:19302" }
-	);
-} else {
-	// Loop through possible indices (limit to 10 to prevent infinite loops)
-	for (let i = 1; i <= 10; i++) {
-		// STUN
-		if (process.env[`STUN_URL_${i}`]) {
-			myIceServers.push({ "urls": process.env[`STUN_URL_${i}`] });
-		}
-
-		// TURN
-		if (process.env[`TURN_URL_${i}`]) {
-			const turnServer = {
-				"urls": process.env[`TURN_URL_${i}`]
-			};
-			if (process.env[`TURN_USER_${i}`] && process.env[`TURN_CRED_${i}`]) {
-				turnServer.username = process.env[`TURN_USER_${i}`];
-				turnServer.credential = process.env[`TURN_CRED_${i}`];
-			}
-			myIceServers.push(turnServer);
-		}
-	}
-}
-
-console.log("Using ICE servers:", myIceServers.map(s => s.urls));
 
 easyrtc.setOption("appIceServers", myIceServers);
 easyrtc.setOption("logLevel", "info");

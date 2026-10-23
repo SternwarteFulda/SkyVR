@@ -57,6 +57,76 @@ For production deployment, it is **strongly recommended** to:
 
 Without SSL, WebRTC connections (used for multi-user networking) will fail in most modern browsers due to security restrictions.
 
+### Monitoring & Health Checks
+
+SkyVR includes a health check endpoint for monitoring systems and uptime checkers:
+
+- **Endpoint**: `/health`
+- **Method**: `GET` or `HEAD`
+
+The endpoint reports server status, uptime, and the reachability of configured STUN/TURN servers and optional legal links defined in `.env`:
+- **Active Probes**: Probes STUN (UDP binding requests), TURN (UDP/TCP/TLS), and legal links (`IMPRINT_URL`, `PRIVACY_POLICY_URL` via HTTP/HTTPS if configured) to verify infrastructure reachability.
+- **Cached Probes**: Runs checks asynchronously in the background (default: every 60 seconds) so health check HTTP responses return instantly (<1ms).
+- **HTTP 200 OK**: The server is up, ICE infrastructure (STUN and TURN) has operational servers, and any configured legal links are reachable.
+- **HTTP 503 Service Unavailable**: The server is running but either all STUN/TURN servers are unreachable or configured legal links are failing (degraded state).
+
+#### Example Response (`200 OK`)
+
+```json
+{
+  "status": "ok",
+  "uptime": 234.8,
+  "timestamp": "2026-10-23T10:10:00.000Z",
+  "iceServers": {
+    "status": "healthy",
+    "summary": {
+      "stunAvailable": true,
+      "turnAvailable": true,
+      "stunUp": 2,
+      "stunTotal": 2,
+      "turnUp": 5,
+      "turnTotal": 5,
+      "total": 7,
+      "up": 7,
+      "down": 0
+    },
+    "lastChecked": "2026-10-23T10:09:45.000Z",
+    "servers": [
+      {
+        "url": "stun:stun.example.com:3478",
+        "protocol": "stun",
+        "transport": "udp",
+        "status": "up",
+        "latencyMs": 14
+      },
+      {
+        "url": "turn:turn.example.com:3478",
+        "protocol": "turn",
+        "transport": "udp",
+        "status": "up",
+        "latencyMs": 15
+      }
+    ]
+  },
+  "legalLinks": {
+    "configured": true,
+    "status": "healthy",
+    "imprint": {
+      "url": "https://example.com/imprint",
+      "status": "up",
+      "statusCode": 200,
+      "latencyMs": 52
+    },
+    "privacyPolicy": {
+      "url": "https://example.com/privacy",
+      "status": "up",
+      "statusCode": 200,
+      "latencyMs": 48
+    }
+  }
+}
+```
+
 ## 🛠️ Built With
 
 *   **[A-Frame](https://aframe.io/)** (MIT) - WebVR framework for building virtual reality experiences.
