@@ -77,6 +77,32 @@ For production deployment, it is **strongly recommended** to:
 
 Without SSL, WebRTC connections (used for multi-user networking) will fail in most modern browsers due to security restrictions.
 
+### Updating
+
+To update an existing SkyVR installation to the latest version:
+
+1. **Pull the latest changes:**
+   ```bash
+   git pull
+   ```
+
+2. **Update dependencies and assets:**
+   ```bash
+   npm install
+   ```
+   *Note: This will automatically execute the postinstall scripts to patch dependencies and sync vendor assets.*
+
+3. **Check for configuration changes:**
+   Compare your `.env` with `.env.example` in case new environment variables were introduced:
+   ```bash
+   diff .env .env.example
+   ```
+
+4. **Restart the server:**
+   ```bash
+   npm start
+   ```
+
 ### Monitoring & Health Checks
 
 SkyVR includes a health check endpoint for monitoring systems and uptime checkers:
