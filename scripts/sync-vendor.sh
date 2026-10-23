@@ -46,8 +46,10 @@ cp node_modules/dompurify/dist/purify.min.js "$VENDOR_DIR/dompurify/" && echo "�
 # Remote Assets
 echo "Fetching/Updating remote assets (optional)..."
 
+CURL_OPTS="-sL --connect-timeout 5 --max-time 15"
+
 mkdir -p "$VENDOR_DIR/aframe-multi-camera"
-if curl -sL "https://raw.githubusercontent.com/diarmidmackenzie/aframe-multi-camera/master/src/multi-camera.js" -o "$VENDOR_DIR/aframe-multi-camera/aframe-multi-camera.js"; then
+if curl $CURL_OPTS "https://raw.githubusercontent.com/diarmidmackenzie/aframe-multi-camera/master/src/multi-camera.js" -o "$VENDOR_DIR/aframe-multi-camera/aframe-multi-camera.js"; then
     echo "✓ aframe-multi-camera updated"
 else
     echo "⚠ Could not update aframe-multi-camera (will use local version)"
@@ -57,13 +59,13 @@ mkdir -p "public/data"
 # Dynamically discover the latest hyglike subset version from Codeberg
 echo "Locating latest star data on Codeberg..."
 SUBSET_PAGE="https://codeberg.org/astronexus/athyg/src/branch/main/data/subsets"
-LATEST_FILENAME=$(curl -s "$SUBSET_PAGE" | grep -oE 'hyglike_from_athyg_v[0-9]+\.csv\.gz' | sort -V | tail -n 1)
+LATEST_FILENAME=$(curl $CURL_OPTS "$SUBSET_PAGE" | grep -oE 'hyglike_from_athyg_v[0-9]+\.csv\.gz' | sort -V | tail -n 1)
 
 if [ -n "$LATEST_FILENAME" ]; then
     echo "Found latest version: $LATEST_FILENAME"
     STAR_DATA_URL="https://codeberg.org/astronexus/athyg/media/branch/main/data/subsets/$LATEST_FILENAME"
     
-    if curl -sL "$STAR_DATA_URL" -o "public/data/stars.csv.gz"; then
+    if curl $CURL_OPTS "$STAR_DATA_URL" -o "public/data/stars.csv.gz"; then
         gunzip -f "public/data/stars.csv.gz"
         echo "✓ Star Data updated (discovered $LATEST_FILENAME, saved as stars.csv)"
     else
@@ -74,32 +76,32 @@ else
 fi
 
 mkdir -p "public/assets/constellations"
-if curl -sL "https://raw.githubusercontent.com/Stellarium/stellarium/master/skycultures/modern/index.json" -o "public/assets/constellations/index.json"; then
+if curl $CURL_OPTS "https://raw.githubusercontent.com/Stellarium/stellarium/master/skycultures/modern/index.json" -o "public/assets/constellations/index.json"; then
     echo "✓ Constellation Data updated (Stellarium)"
 else
     echo "⚠ Could not update Constellation Data (will use local version)"
 fi
 
 mkdir -p "public/fonts"
-if curl -sL "https://cdn.aframe.io/fonts/mozillavr.fnt" -o "public/fonts/mozillavr.fnt"; then
+if curl $CURL_OPTS "https://cdn.aframe.io/fonts/mozillavr.fnt" -o "public/fonts/mozillavr.fnt"; then
     echo "✓ mozillavr Font (.fnt) updated"
 else
     echo "⚠ Could not update mozillavr.fnt (will use local version)"
 fi
 
-if curl -sL "https://cdn.aframe.io/fonts/mozillavr.png" -o "public/fonts/mozillavr.png"; then
+if curl $CURL_OPTS "https://cdn.aframe.io/fonts/mozillavr.png" -o "public/fonts/mozillavr.png"; then
     echo "✓ mozillavr Font (.png) updated"
 else
     echo "⚠ Could not update mozillavr.png (will use local version)"
 fi
 
-if curl -sL "https://cdn.aframe.io/fonts/Monoid.fnt" -o "public/fonts/Monoid.fnt"; then
+if curl $CURL_OPTS "https://cdn.aframe.io/fonts/Monoid.fnt" -o "public/fonts/Monoid.fnt"; then
     echo "✓ Monoid Font (.fnt) updated"
 else
     echo "⚠ Could not update Monoid.fnt (will use local version)"
 fi
 
-if curl -sL "https://cdn.aframe.io/fonts/Monoid.png" -o "public/fonts/Monoid.png"; then
+if curl $CURL_OPTS "https://cdn.aframe.io/fonts/Monoid.png" -o "public/fonts/Monoid.png"; then
     echo "✓ Monoid Font (.png) updated"
 else
     echo "⚠ Could not update Monoid.png (will use local version)"
