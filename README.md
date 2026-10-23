@@ -12,7 +12,7 @@
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (v16 or higher recommended)
+- [Node.js](https://nodejs.org/) (v22 LTS or higher)
 - [npm](https://www.npmjs.com/)
 
 ### Installation
@@ -33,7 +33,27 @@
     ```bash
     cp .env.example .env
     ```
-    Edit `.env` to add your TURN server credentials (if needed for production NAT traversal) and optionally configure custom Imprint/Privacy Policy URLs.
+    Configure the variables in `.env` as described in the section below.
+
+### Environment Variables (`.env`)
+
+SkyVR uses environment variables defined in `.env` to configure ports, WebRTC ICE servers (STUN/TURN), and optional legal links:
+
+| Variable | Required | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `PORT` | No | `8080` | Port for the HTTP and WebSocket server. |
+| `STUN_URL_1` .. `_10` | No | Google public STUN | STUN server URLs for WebRTC NAT discovery (e.g. `stun:stun.example.com:3478`). |
+| `TURN_URL_1` .. `_10` | No | *None* | TURN server URLs for WebRTC relay traversal through restrictive NATs/firewalls (e.g. `turn:relay.example.com:3478`, `turns:relay.example.com:443?transport=tcp`). |
+| `TURN_USER_1` .. `_10` | If TURN URL set | *None* | Username for authentication on `TURN_URL_X`. |
+| `TURN_CRED_1` .. `_10` | If TURN URL set | *None* | Password/credential for authentication on `TURN_URL_X`. |
+| `IMPRINT_URL` | No | *None* | Link to your Imprint/Impressum page (exposed via `/config` and displayed in the UI footer). |
+| `PRIVACY_POLICY_URL` | No | *None* | Link to your Privacy Policy page (exposed via `/config` and displayed in the UI footer). |
+
+> [!NOTE]
+> - Up to 10 STUN and TURN server entries (`STUN_URL_1`–`10`, `TURN_URL_1`–`10`) can be configured. Each `TURN_URL_X` must have a matching `TURN_USER_X` and `TURN_CRED_X`.
+> - If no STUN or TURN variables are set, SkyVR automatically falls back to Google's public STUN servers (`stun:stun1.l.google.com:19302` and `stun:stun2.l.google.com:19302`).
+> - In production environments, configuring at least one TURN relay server is essential for users on mobile connections or behind symmetric NATs.
+> - All configured STUN/TURN servers and legal links are actively monitored by the [`/health`](#monitoring--health-checks) endpoint.
 
 ### Running locally
 
