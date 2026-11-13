@@ -968,6 +968,20 @@ body.a-fullscreen .legal-links-fixed {
   pointer-events: none;
 }
 
+.corner-actions {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  z-index: 10;
+}
+
+.corner-actions .info-btn {
+  position: static;
+}
+
 .info-btn {
   position: fixed;
   bottom: 2rem;
@@ -991,6 +1005,59 @@ body.a-fullscreen .legal-links-fixed {
 /* ========================================= */
 /* Lobby Page Styles                         */
 /* ========================================= */
+
+.lobby-share-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 0.9rem;
+}
+
+.btn-secondary {
+  flex: 1 1 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.85);
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  white-space: nowrap;
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #fff;
+}
+
+.btn-secondary svg {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.vr-remark {
+  margin-top: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.vr-remark svg {
+  flex-shrink: 0;
+  opacity: 0.75;
+}
 
 .lobby-card {
   position: relative;
@@ -1679,6 +1746,18 @@ html {
 
   .license-badge {
     align-self: flex-end;
+  }
+
+  .corner-actions {
+    position: static;
+    margin: 0 auto 1.5rem;
+    order: 2;
+    justify-content: center;
+    gap: 1rem;
+  }
+
+  .corner-actions .info-btn {
+    margin: 0;
   }
 
   .info-btn {

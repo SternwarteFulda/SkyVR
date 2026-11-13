@@ -116,6 +116,12 @@
         "voice_desc": "Enable microphone for spatial chat",
         "join": "JOIN ROOM",
         "start": "START",
+        "copy_link": "Copy link",
+        "copied": "Copied!",
+        "share": "Share",
+        "send_to_quest": "Send to Meta Quest",
+        "vr_remark": "Best experienced with a VR headset",
+        "github": "GitHub Repository",
         "observer_prefix": "observer-",
         "warnings": {
             "room_invalid": "Room name contained invalid characters and was corrected.",

@@ -116,6 +116,12 @@
         "voice_desc": "Mikrofon für räumlichen Chat aktivieren",
         "join": "RAUM BEITRETEN",
         "start": "START",
+        "copy_link": "Link kopieren",
+        "copied": "Kopiert!",
+        "share": "Teilen",
+        "send_to_quest": "An Meta Quest senden",
+        "vr_remark": "Verwende für das beste Erlebnis eine VR-Brille",
+        "github": "GitHub-Repository",
         "observer_prefix": "beobachter-",
         "warnings": {
             "room_invalid": "Der Raumname enthielt ungültige Zeichen und wurde korrigiert.",

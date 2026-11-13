@@ -120,6 +120,42 @@
 
         <button class="btn-join" onclick="joinSession()"><span class="btn-text" data-i18n="lobby.join">JOIN
                 ROOM</span></button>
+
+        <div class="lobby-share-actions">
+            <button type="button" id="copy-share-btn" class="btn-secondary" onclick="handleCopyOrShare()">
+                <svg id="copy-share-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                    fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                    aria-hidden="true">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+                <span id="copy-share-label" data-i18n="lobby.copy_link">Copy link</span>
+            </button>
+            <a id="quest-link-btn" class="btn-secondary" href="https://www.oculus.com/open_url/" target="_blank"
+                rel="noopener noreferrer" onclick="updateQuestLink(this)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                    aria-hidden="true">
+                    <path
+                        d="M2 8a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-4.5l-2.1-2.8a1.75 1.75 0 0 0-2.8 0L8.5 18H4a2 2 0 0 1-2-2V8z" />
+                    <circle cx="8" cy="12" r="2" />
+                    <circle cx="16" cy="12" r="2" />
+                </svg>
+                <span data-i18n="lobby.send_to_quest">Send to Meta Quest</span>
+            </a>
+        </div>
+
+        <div class="vr-remark">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                aria-hidden="true">
+                <path
+                    d="M2 8a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-4.5l-2.1-2.8a1.75 1.75 0 0 0-2.8 0L8.5 18H4a2 2 0 0 1-2-2V8z" />
+                <circle cx="8" cy="12" r="2" />
+                <circle cx="16" cy="12" r="2" />
+            </svg>
+            <span data-i18n="lobby.vr_remark">Best experienced with a VR headset</span>
+        </div>
     </div>
 
     <script>
@@ -505,15 +541,107 @@
         document.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') joinSession();
         });
+
+        function getShareUrl() {
+            const url = new URL(window.location.href);
+            url.search = '';
+            url.hash = '';
+            const soloMode = document.getElementById('solo-toggle').checked;
+            const room = sanitizeRoomName(document.getElementById('room-id').value || '');
+            if (!soloMode && room) {
+                url.searchParams.set('room', room);
+            }
+            return url.toString();
+        }
+
+        function updateQuestLink(el) {
+            el.href = 'https://www.oculus.com/open_url/?url=' + encodeURIComponent(getShareUrl());
+        }
+
+        const isMetaQuestBrowser = /OculusBrowser/i.test(navigator.userAgent);
+        if (isMetaQuestBrowser) {
+            const shareActions = document.querySelector('.lobby-share-actions');
+            if (shareActions) shareActions.style.display = 'none';
+        }
+
+        const isMobileShare = (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+            (navigator.maxTouchPoints > 1 && window.matchMedia('(pointer: coarse)').matches)) &&
+            typeof navigator.share === 'function';
+
+        function applyCopyShareMode() {
+            const label = document.getElementById('copy-share-label');
+            const icon = document.getElementById('copy-share-icon');
+            if (!label || !icon) return;
+            if (isMobileShare) {
+                label.setAttribute('data-i18n', 'lobby.share');
+                label.textContent = typeof i18next !== 'undefined' && i18next.isInitialized ? i18next.t('lobby.share') : 'Share';
+                icon.innerHTML = '<circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>';
+            }
+        }
+
+        applyCopyShareMode();
+        window.addEventListener('languageChanged', applyCopyShareMode);
+
+        async function copyTextFallback(text) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(text);
+                return;
+            }
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+        }
+
+        let copyResetTimer = null;
+        async function handleCopyOrShare() {
+            const url = getShareUrl();
+            if (isMobileShare) {
+                try {
+                    await navigator.share({ title: 'SkyVR', url });
+                    return;
+                } catch (err) {
+                    if (err && err.name === 'AbortError') return;
+                }
+            }
+            try {
+                await copyTextFallback(url);
+                const label = document.getElementById('copy-share-label');
+                if (label) {
+                    label.textContent = typeof i18next !== 'undefined' && i18next.isInitialized ? i18next.t('lobby.copied') : 'Copied!';
+                    clearTimeout(copyResetTimer);
+                    copyResetTimer = setTimeout(() => {
+                        const key = isMobileShare ? 'lobby.share' : 'lobby.copy_link';
+                        label.textContent = typeof i18next !== 'undefined' && i18next.isInitialized ? i18next.t(key) : (isMobileShare ? 'Share' : 'Copy link');
+                    }, 2000);
+                }
+            } catch (err) {
+                console.error('Failed to copy link:', err);
+            }
+        }
     </script>
-    <a href="/about.html" class="info-btn" aria-label="About & Licenses">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="16" x2="12" y2="12"></line>
-            <line x1="12" y1="8" x2="12.01" y2="8"></line>
-        </svg>
-    </a>
+    <div class="corner-actions">
+        <a href="https://github.com/SternwarteFulda/SkyVR" target="_blank" rel="noopener noreferrer" class="info-btn"
+            aria-label="GitHub Repository" title="GitHub Repository" data-i18n="[aria-label]lobby.github"
+            data-i18n-title="lobby.github">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                <path
+                    d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
+            </svg>
+        </a>
+        <a href="/about.html" class="info-btn" aria-label="About & Licenses">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="16" x2="12" y2="12"></line>
+                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+        </a>
+    </div>
 
     <div id="legal-links-lobby" class="legal-links-fixed" style="display: none;">
         <a id="imprint-link-lobby" href="#" target="_blank" rel="noopener noreferrer"
