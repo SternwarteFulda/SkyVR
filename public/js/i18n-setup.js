@@ -1,8 +1,8 @@
 /* global i18next, i18nextBrowserLanguageDetector */
 
 async function initI18n() {
-    const enRes = await fetch('/locales/en.json').then(r => r.json());
-    const deRes = await fetch('/locales/de.json').then(r => r.json());
+    const enRes = await fetch('/locales/en.json', { cache: 'no-cache' }).then(r => r.json());
+    const deRes = await fetch('/locales/de.json', { cache: 'no-cache' }).then(r => r.json());
 
     await i18next
         .use(i18nextBrowserLanguageDetector)

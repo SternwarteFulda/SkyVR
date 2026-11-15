@@ -30,8 +30,8 @@ self.addEventListener('fetch', (event) => {
 
     const url = event.request.url;
 
-    // 1. Bypass Service Worker for socket.io and dynamic routes
-    if (url.includes('/socket.io/') || url.includes('/easyrtc/') || url.includes('/config')) {
+    // 1. Bypass Service Worker for socket.io, locales, and dynamic routes
+    if (url.includes('/socket.io/') || url.includes('/easyrtc/') || url.includes('/config') || url.includes('/locales/')) {
         return;
     }
 
