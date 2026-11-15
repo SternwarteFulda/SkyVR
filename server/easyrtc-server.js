@@ -117,7 +117,16 @@ const publicPath = path.resolve(__dirname, "..", "public");
 //   res.sendFile(path.join(publicPath, 'skyvr.html'));
 // });
 // For everything else (scripts, textures, assets, components), look in the public folder
-app.use(express.static(publicPath));
+const assetsPath = path.join(publicPath, "assets");
+const vendorPath = path.join(publicPath, "vendor");
+app.use(express.static(publicPath, {
+	setHeaders: (res, filePath) => {
+		const isAssetOrVendor = filePath.startsWith(assetsPath + path.sep) || filePath.startsWith(vendorPath + path.sep);
+		if (!isAssetOrVendor && /\.(html|js|css|json)$/i.test(filePath)) {
+			res.setHeader("Cache-Control", "no-cache");
+		}
+	}
+}));
 
 
 // Vendor libraries are served from public/vendor/ via the static middleware above.
