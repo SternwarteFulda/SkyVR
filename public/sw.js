@@ -1,4 +1,4 @@
-const CACHE_NAME = 'skyvr-cache-v67';
+const CACHE_NAME = 'skyvr-cache-v68';
 
 self.addEventListener('install', (event) => {
     self.skipWaiting();
