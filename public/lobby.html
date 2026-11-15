@@ -184,7 +184,8 @@
         const nameParamRaw = urlParams.get('name');
 
         // Sanitize URL parameters
-        let roomInit = sanitizeRoomName(roomParamRaw) || localStorage.getItem('skyvr_room');
+        const roomParamSanitized = sanitizeRoomName(roomParamRaw);
+        let roomInit = roomParamSanitized || localStorage.getItem('skyvr_room');
         if (roomInit === 'none') roomInit = null;
         let nameInit = sanitizePlayerName(nameParamRaw) || localStorage.getItem('skyvr_name');
 
@@ -195,7 +196,8 @@
         const colorInit = colorInitRaw ? decodeURIComponent(colorInitRaw) : null;
 
         const micInit = localStorage.getItem('skyvr_mic') !== 'false'; // Default TRUE
-        const soloInit = localStorage.getItem('skyvr_solo') === 'true'; // Default FALSE
+        const hasRoomParam = Boolean(roomParamSanitized && roomParamSanitized !== 'none');
+        const soloInit = hasRoomParam ? false : localStorage.getItem('skyvr_solo') === 'true'; // Default FALSE
         const presenceInit = localStorage.getItem('skyvr_presence') || 'avatar'; // Default avatar
 
         // Check if URL parameters were modified by sanitization and show warning
