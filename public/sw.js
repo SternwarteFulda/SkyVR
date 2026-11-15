@@ -1,4 +1,4 @@
-const CACHE_NAME = 'skyvr-cache-v69';
+const CACHE_NAME = 'skyvr-cache-v70';
 
 self.addEventListener('install', (event) => {
     self.skipWaiting();
@@ -6,19 +6,27 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
     event.waitUntil(
-        Promise.all([
-            caches.keys().then((cacheNames) => {
-                return Promise.all(
-                    cacheNames.map((cacheName) => {
-                        if (cacheName !== CACHE_NAME) {
-                            console.log('Deleting old cache:', cacheName);
-                            return caches.delete(cacheName);
-                        }
-                    })
-                );
-            }),
-            self.clients.claim()
-        ])
+        (async () => {
+            const existingClients = await self.clients.matchAll({ type: 'window' });
+            const cacheNames = await caches.keys();
+            await Promise.all(
+                cacheNames.map((cacheName) => {
+                    if (cacheName !== CACHE_NAME) {
+                        console.log('Deleting old cache:', cacheName);
+                        return caches.delete(cacheName);
+                    }
+                })
+            );
+            await self.clients.claim();
+            // On SW upgrade, reload lobby tabs once so older sessions pick up fresh
+            // HTML/JS/locales without disrupting active VR sessions (?room=...).
+            for (const client of existingClients) {
+                const u = new URL(client.url);
+                if (u.pathname.endsWith('/lobby.html') || (u.pathname === '/' && !u.searchParams.has('room'))) {
+                    client.navigate(client.url);
+                }
+            }
+        })()
     );
 });
 
