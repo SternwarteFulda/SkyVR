@@ -342,13 +342,20 @@
         // Initialize presence from storage/default
         selectPresence(presenceInit);
 
+        const isMetaQuestBrowser = /OculusBrowser/i.test(navigator.userAgent);
+
         // Check for camera capability
         async function checkCamera() {
+            const presenceGroup = document.getElementById('presence-group');
+            if (isMetaQuestBrowser) {
+                if (presenceGroup) presenceGroup.style.display = 'none';
+                selectPresence('avatar');
+                return;
+            }
             try {
                 const devices = await navigator.mediaDevices.enumerateDevices();
                 const hasCamera = devices.some(device => device.kind === 'videoinput');
 
-                const presenceGroup = document.getElementById('presence-group');
                 const optAvatar = document.getElementById('opt-avatar');
                 const optWebcam = document.getElementById('opt-webcam');
 
@@ -558,10 +565,11 @@
             el.href = 'https://www.oculus.com/open_url/?url=' + encodeURIComponent(getShareUrl());
         }
 
-        const isMetaQuestBrowser = /OculusBrowser/i.test(navigator.userAgent);
         if (isMetaQuestBrowser) {
             const shareActions = document.querySelector('.lobby-share-actions');
             if (shareActions) shareActions.style.display = 'none';
+            const vrRemark = document.querySelector('.vr-remark');
+            if (vrRemark) vrRemark.style.display = 'none';
         }
 
         const isMobileShare = (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
