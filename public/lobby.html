@@ -438,6 +438,7 @@
         }
 
         soloToggle.addEventListener('change', function () {
+            localStorage.setItem('skyvr_solo', this.checked);
             updateTabOrder(this.checked);
             if (this.checked) {
                 multiplayerSettings.style.maxHeight = '0';
