@@ -1,4 +1,4 @@
-const CACHE_NAME = 'skyvr-cache-v68';
+const CACHE_NAME = 'skyvr-cache-v69';
 
 self.addEventListener('install', (event) => {
     self.skipWaiting();
@@ -27,11 +27,21 @@ const pendingRequests = new Map();
 self.addEventListener('fetch', (event) => {
     // Only handle GET requests
     if (event.request.method !== 'GET') return;
+    if (event.request.cache === 'only-if-cached' && event.request.mode !== 'same-origin') return;
 
     const url = event.request.url;
 
-    // 1. Bypass Service Worker for socket.io, locales, and dynamic routes
-    if (url.includes('/socket.io/') || url.includes('/easyrtc/') || url.includes('/config') || url.includes('/locales/')) {
+    // 1. Bypass Service Worker for socket.io and dynamic routes
+    if (url.includes('/socket.io/') || url.includes('/easyrtc/') || url.includes('/config')) {
+        return;
+    }
+
+    // 1b. Force HTTP cache revalidation for app HTML/JS/CSS/JSON (outside /assets/ and /vendor/)
+    //     so older sessions with heuristically cached files update on a normal reload.
+    const pathname = new URL(url).pathname;
+    const isAssetOrVendor = pathname.startsWith('/assets/') || pathname.startsWith('/vendor/');
+    if (!isAssetOrVendor && (pathname === '/' || /\.(html|js|css|json)$/i.test(pathname))) {
+        event.respondWith(fetch(event.request, { cache: 'no-cache' }));
         return;
     }
 
